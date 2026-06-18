@@ -26,7 +26,7 @@ import DetailModal from './components/DetailModal';
 import LoginScreen from './components/LoginScreen';
 import SoftwareView from './components/SoftwareView';
 import { useTranslation } from './utils/i18n';
-import CopyrightFooter from './components/CopyrightFooter';
+import { COPYRIGHT_EMAIL, COPYRIGHT_TELEGRAM_URL } from './legal/copyright';
 
 import { 
   initialObjects, 
@@ -61,14 +61,18 @@ export default function App() {
     }, 2000);
   };
 
-  // Automatic license real-time cooldown countdown sync
+  // License countdown: 1s during trial/lockout, 5s when fully activated
   useEffect(() => {
-    const timer = setInterval(() => {
-      setLicenseStatus(getLicenseStatus());
-    }, 1000);
-    return () => {
-      clearInterval(timer);
+    let timeoutId: ReturnType<typeof setTimeout>;
+    const tick = () => {
+      const status = getLicenseStatus();
+      setLicenseStatus(status);
+      const delay =
+        status.lockoutTimeLeft > 0 || (!status.isActivated && !status.isExpired) ? 1000 : 5000;
+      timeoutId = setTimeout(tick, delay);
     };
+    tick();
+    return () => clearTimeout(timeoutId);
   }, []);
 
   const [isLoadedFromServer, setIsLoadedFromServer] = useState<boolean>(false);
@@ -100,6 +104,7 @@ export default function App() {
           if (Array.isArray(data.warehouseWriteOffs)) setWarehouseWriteOffs(data.warehouseWriteOffs);
           if (typeof data.workspaceName === 'string') setWorkspaceName(data.workspaceName);
           if (typeof data.adminEmail === 'string') setAdminEmail(data.adminEmail);
+          if (typeof data.publicUrl === 'string') setPublicUrl(data.publicUrl);
           
           if (Array.isArray(data.users)) setUsers(data.users);
           if (data.tabIcons) setTabIcons(data.tabIcons);
@@ -195,6 +200,10 @@ export default function App() {
 
   const [adminEmail, setAdminEmail] = useState<string>(() => {
     return localStorage.getItem('it_admin_email') || 'assetorbit@icloud.com';
+  });
+
+  const [publicUrl, setPublicUrl] = useState<string>(() => {
+    return localStorage.getItem('it_public_url') || '';
   });
 
   // --- USER ROLE MANAGEMENT STATES ---
@@ -479,6 +488,7 @@ export default function App() {
         warehouseWriteOffs,
         workspaceName,
         adminEmail,
+        publicUrl,
         users,
         tabIcons,
         panelLogo,
@@ -514,6 +524,7 @@ export default function App() {
       localStorage.setItem('it_warehouse_writeoffs', JSON.stringify(warehouseWriteOffs));
       localStorage.setItem('it_workspace_name', workspaceName);
       localStorage.setItem('it_admin_email', adminEmail);
+      localStorage.setItem('it_public_url', publicUrl);
       localStorage.setItem('it_users', JSON.stringify(users));
       localStorage.setItem('it_tab_icons', JSON.stringify(tabIcons));
       localStorage.setItem('it_panel_logo', panelLogo);
@@ -550,6 +561,7 @@ export default function App() {
     warehouseWriteOffs,
     workspaceName,
     adminEmail,
+    publicUrl,
     users,
     tabIcons,
     panelLogo,
@@ -1755,6 +1767,8 @@ export default function App() {
             setWorkspaceName={setWorkspaceName}
             adminEmail={adminEmail}
             setAdminEmail={setAdminEmail}
+            publicUrl={publicUrl}
+            setPublicUrl={setPublicUrl}
             users={users}
             currentUser={currentUser}
             onAddUser={handleAddUser}
@@ -2054,10 +2068,25 @@ export default function App() {
               </button>
             </form>
 
-            <div className="pt-6 border-t border-slate-800/80">
-              <CopyrightFooter variant="dark" />
-              <div className="text-xs text-slate-400 font-sans pt-3 text-center">
-                {t("Для получения или покупки годовой лицензии свяжитесь по почте:")}
+            <div className="pt-6 border-t border-slate-800/80 text-center space-y-2">
+              <p className="text-xs text-slate-400 font-sans">
+                {t('Для получения или покупки годовой лицензии свяжитесь по почте:')}
+              </p>
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-3 text-sm">
+                <a
+                  href={`mailto:${COPYRIGHT_EMAIL}`}
+                  className="text-blue-400 hover:text-blue-300 font-bold font-mono hover:underline"
+                >
+                  {COPYRIGHT_EMAIL}
+                </a>
+                <a
+                  href={COPYRIGHT_TELEGRAM_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sky-400 hover:text-sky-300 font-bold font-mono hover:underline"
+                >
+                  Telegram
+                </a>
               </div>
             </div>
           </div>

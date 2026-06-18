@@ -7,7 +7,7 @@
  * Все права защищены. Копирование, изменение, распространение и коммерческое использование без письменного согласия правообладателя запрещено.
  * Release
  */
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Settings, 
@@ -51,7 +51,8 @@ import {
   FileText,
   AlertTriangle,
   Languages,
-  Camera
+  Camera,
+  Globe
 } from 'lucide-react';
 import { SystemUser, UserRole } from '../types';
 import { getSystemRequestCode, getLicenseStatus } from '../utils/license';
@@ -66,6 +67,8 @@ interface SettingsViewProps {
   setWorkspaceName: (name: string) => void;
   adminEmail: string;
   setAdminEmail: (email: string) => void;
+  publicUrl: string;
+  setPublicUrl: (url: string) => void;
   users: SystemUser[];
   currentUser: SystemUser;
   onAddUser: (user: Omit<SystemUser, 'id'>) => void;
@@ -124,6 +127,8 @@ export default function SettingsView({
   setWorkspaceName,
   adminEmail,
   setAdminEmail,
+  publicUrl,
+  setPublicUrl,
   users,
   currentUser,
   onAddUser,
@@ -154,17 +159,26 @@ export default function SettingsView({
 
   const [tempName, setTempName] = useState(workspaceName);
   const [tempEmail, setTempEmail] = useState(adminEmail);
+  const [tempPublicUrl, setTempPublicUrl] = useState(publicUrl);
   const [saveSuccess, setSaveSuccess] = useState(false);
-  const [emailCopiedDev, setEmailCopiedDev] = useState(false);
+  const [runtimeInfo, setRuntimeInfo] = useState<{
+    tls?: boolean;
+    detectedUrl?: string | null;
+    publicUrl?: string | null;
+    domain?: string | null;
+    behindProxy?: boolean;
+  } | null>(null);
 
-  const copyEmailToClipboardDev = (e: React.MouseEvent) => {
-    e.preventDefault();
-    navigator.clipboard.writeText("assetorbit@icloud.com");
-    setEmailCopiedDev(true);
-    setTimeout(() => {
-      setEmailCopiedDev(false);
-    }, 2000);
-  };
+  useEffect(() => {
+    setTempPublicUrl(publicUrl);
+  }, [publicUrl]);
+
+  useEffect(() => {
+    fetch('/api/system/runtime')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => setRuntimeInfo(data))
+      .catch(() => setRuntimeInfo(null));
+  }, []);
 
   // Licensing specific states
   const [inputLicenseKey, setInputLicenseKey] = useState('');
@@ -226,6 +240,7 @@ export default function SettingsView({
         'it_audits',
         'it_workspace_name',
         'it_admin_email',
+        'it_public_url',
         'it_users',
         'it_tab_icons',
         'it_panel_logo',
@@ -245,7 +260,7 @@ export default function SettingsView({
       
       const payload = {
         app: 'Uvwstack',
-        backupVersion: '2.5',
+        backupVersion: '2.0',
         createdAt: new Date().toISOString(),
         author: 'Utkin V.V. Compliance Engine',
         legalNote: 'Лицензионные ключи и MAC-адреса оборудования исключены из резервной копии данных платформы.',
@@ -723,6 +738,7 @@ export default function SettingsView({
     e.preventDefault();
     setWorkspaceName(tempName);
     setAdminEmail(tempEmail);
+    setPublicUrl(tempPublicUrl.trim());
     setPanelLogo(tempLogo);
     setSiteFavicon(tempFavicon);
     setSiteLogo(tempSiteLogo);
@@ -1259,6 +1275,41 @@ export default function SettingsView({
               />
             </div>
 
+            <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-2.5">
+              <div className="flex items-center gap-2 text-slate-700">
+                <Globe size={15} className="text-blue-500 shrink-0" />
+                <span className="text-xs font-bold uppercase tracking-wider">{t('Публичный URL и домен (HTTPS)')}</span>
+              </div>
+              <p className="text-[10px] text-slate-500 leading-relaxed">
+                {t('Укажите адрес, по которому пользователи открывают Stack из интернета (например https://stack.company.com).')}
+              </p>
+              <input
+                type="url"
+                disabled={!isAdmin && currentUser.role !== 'Editor'}
+                placeholder="https://stack.example.com"
+                value={tempPublicUrl}
+                onChange={(e) => setTempPublicUrl(e.target.value)}
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-705 disabled:bg-slate-50 disabled:text-slate-400 font-mono"
+              />
+              {(runtimeInfo?.tls || runtimeInfo?.detectedUrl) && (
+                <div className="flex flex-wrap items-center gap-2 text-[10px]">
+                  {runtimeInfo.tls && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold">
+                      <Lock size={10} /> HTTPS
+                    </span>
+                  )}
+                  {runtimeInfo.detectedUrl && (
+                    <span className="text-slate-500 font-mono truncate">
+                      {t('Обнаружен доступ:')} {runtimeInfo.detectedUrl}
+                    </span>
+                  )}
+                </div>
+              )}
+              <p className="text-[10px] text-slate-400 leading-relaxed border-t border-slate-200/80 pt-2">
+                {t('Docker: задайте STACK_DOMAIN в .env и запустите docker compose -f docker-compose.yml -f docker-compose.caddy.yml up -d. Без Docker: см. deploy/nginx-https.example.conf')}
+              </p>
+            </div>
+
             {/* Custom Favicon input */}
             <div>
               <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">{t("Ссылка на значок сайта / Favicon (URL)")}</label>
@@ -1662,37 +1713,13 @@ export default function SettingsView({
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-4">
           <div className="space-y-1">
             <h3 className="font-bold text-slate-800 text-sm tracking-tight flex items-center gap-2">
-              <Key className="text-blue-500 animate-pulse" size={18} />{t("Лицензирование и активация продукта")}</h3>
-            <div className="text-xs text-slate-500 flex flex-wrap items-center gap-x-2 gap-y-1">
-              <span>{t("Управление лицензионным статусом локальной (on-premises) инсталляции. Разработчик: Куратор лицензий Уткин В.В.")}</span>
-              <div className="inline-flex items-center gap-2 flex-wrap">
-                <a 
-                  href="mailto:assetorbit@icloud.com" 
-                  className="text-blue-600 hover:text-blue-500 transition-colors font-bold font-mono text-[13px] hover:underline flex items-center gap-1"
-                  title={t("Отправить письмо (assetorbit@icloud.com)")}
-                >
-                  <Mail size={12} className="text-blue-500" />
-                  <span>assetorbit@icloud.com</span>
-                </a>
-
-                <span className="text-slate-300">|</span>
-
-                <a 
-                  href="https://t.me/Dexterll" 
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sky-600 hover:text-sky-500 transition-colors font-bold font-mono text-[13px] hover:underline flex items-center gap-1"
-                  title={t("Открыть Telegram (@Dexterll)")}
-                >
-                  <Send size={12} className="text-sky-500 transform rotate-[-25deg] translate-y-[-0.5px]" />
-                  <span>t.me/Dexterll</span>
-                </a>
-
-
-              </div>
-            </div>
+              <Key className="text-blue-500 animate-pulse" size={18} />
+              {t('Лицензирование и активация продукта')}
+            </h3>
+            <p className="text-xs text-slate-500">
+              {t('Управление лицензионным статусом локальной (on-premises) инсталляции Stack.')}
+            </p>
           </div>
-          <CopyrightFooter variant="sidebar" className="shrink-0 md:text-right" />
         </div>
 
         <div className="max-w-2xl space-y-4">
@@ -1848,6 +1875,14 @@ export default function SettingsView({
             </div>
           </div>
         </div>
+      </div>
+
+      <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+        <h3 className="font-bold text-slate-800 text-sm tracking-tight flex items-center gap-2 border-b border-slate-100 pb-4 mb-4">
+          <ShieldCheck className="text-slate-500" size={18} />
+          {t('Авторское право и правообладатель')}
+        </h3>
+        <CopyrightFooter variant="settings" />
       </div>
 
       {/* Role and User Management section */}

@@ -86,6 +86,36 @@ docker compose -f docker-compose.yml -f docker-compose.mysql.yml up -d --build
 
 Хост в настройках СУБД: **`mysql`**. Подробнее — [README.ru.md](./README.ru.md).
 
+#### 3. Внешний домен и HTTPS (Caddy + Let's Encrypt)
+
+1. Направьте **A-запись DNS** вашего домена на IP сервера (например `stack.company.com` → `203.0.113.10`).
+2. Откройте порты **80** и **443** в файерволе (`sudo ufw allow 80,443/tcp`).
+3. В `.env` на сервере:
+
+```bash
+STACK_DOMAIN=stack.company.com
+STACK_TLS_EMAIL=admin@company.com
+DB_ENCRYPTION_KEY=ваш-длинный-секрет
+```
+
+4. Запуск с автоматическим TLS:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.caddy.yml up -d --build
+```
+
+С MySQL:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.mysql.yml -f docker-compose.caddy.yml up -d --build
+```
+
+Приложение будет доступно по **`https://stack.company.com`**. Caddy получает и продлевает сертификаты Let's Encrypt. Внутренний порт `8080` наружу не публикуется — только через HTTPS-прокси.
+
+**Без Docker:** пример Nginx + Let's Encrypt — [`deploy/nginx-https.example.conf`](./deploy/nginx-https.example.conf). На сервере задайте `TRUST_PROXY=true`.
+
+В **Настройках → Общие параметры** укажите публичный URL (`https://…`) — он сохраняется в базе данных.
+
 ---
 
 ### Способ Б: Нативный запуск на Ubuntu Server (с помощью PM2)
@@ -117,7 +147,7 @@ PM2 будет следить за тем, чтобы узел Uvwstack рабо
 sudo npm install -g pm2
 
 # Запускаем скомпилированный CJS сервер
-PORT=8080 NODE_ENV=production pm2 start dist/server.cjs --name "orbit-app"
+PORT=8080 NODE_ENV=production pm2 start deploy/ecosystem.config.cjs --env production
 
 # Настройка автозапуска
 pm2 startup systemd

@@ -16,6 +16,15 @@ import crypto from "crypto";
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 
+/** npm run dev must use Vite even if NODE_ENV=production is set in the OS environment */
+function isDevelopmentMode(): boolean {
+  if (process.env.STACK_DEV === "true") return true;
+  if (process.env.npm_lifecycle_event === "dev") return true;
+  const entry = (process.argv[1] || "").replace(/\\/g, "/");
+  if (entry.endsWith("server.ts") || entry.endsWith("dev-server.mjs")) return true;
+  return process.env.NODE_ENV !== "production";
+}
+
 const PKG = JSON.parse(fs.readFileSync(path.join(process.cwd(), "package.json"), "utf-8")) as { version?: string; name?: string };
 const APP_VERSION = String(PKG.version || "2.6.4");
 
@@ -450,6 +459,22 @@ function stripLicenseArtifacts(data: any): any {
 }
 
 async function startServer() {
+  if (process.env.TRUST_PROXY === "true" || process.env.TRUST_PROXY === "1") {
+    app.set("trust proxy", 1);
+  }
+
+  if (process.env.STACK_FORCE_HTTPS === "true") {
+    app.use((req, res, next) => {
+      if (req.method !== "GET" && req.method !== "HEAD") return next();
+      const proto = String(req.headers["x-forwarded-proto"] || "").split(",")[0].trim();
+      if (proto && proto !== "https") {
+        const host = req.headers.host || process.env.STACK_DOMAIN || "localhost";
+        return res.redirect(301, `https://${host}${req.originalUrl || req.url}`);
+      }
+      return next();
+    });
+  }
+
   // Body parser limit increased to handle large state arrays, uploaded base64 data, logos etc.
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
@@ -833,8 +858,30 @@ async function startServer() {
     return res.json({ repoUrl: UVWSTACK_UPDATE_REPO, currentVersion: APP_VERSION });
   });
 
+  app.get("/api/system/runtime", (req, res) => {
+    const forwardedProto = String(req.headers["x-forwarded-proto"] || "").split(",")[0].trim();
+    const forwardedHost = String(req.headers["x-forwarded-host"] || req.headers.host || "").split(",")[0].trim();
+    const envPublicUrl = (process.env.STACK_PUBLIC_URL || "").trim() || null;
+    const envDomain = (process.env.STACK_DOMAIN || "").trim() || null;
+    const detectedUrl =
+      forwardedHost && forwardedProto
+        ? `${forwardedProto}://${forwardedHost}`
+        : forwardedHost
+          ? `https://${forwardedHost}`
+          : null;
+
+    return res.json({
+      version: APP_VERSION,
+      domain: envDomain,
+      publicUrl: envPublicUrl,
+      detectedUrl,
+      tls: forwardedProto === "https" || req.secure === true,
+      behindProxy: Boolean(req.headers["x-forwarded-for"] || req.headers["x-forwarded-proto"]),
+    });
+  });
+
   // Block access to source maps and TypeScript sources in production
-  if (process.env.NODE_ENV === "production") {
+  if (!isDevelopmentMode()) {
     app.use((req, res, next) => {
       const p = req.path.toLowerCase();
       if (
@@ -851,7 +898,7 @@ async function startServer() {
   }
 
   // Vite development middleware vs production static assets
-  if (process.env.NODE_ENV !== "production") {
+  if (isDevelopmentMode()) {
     const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },

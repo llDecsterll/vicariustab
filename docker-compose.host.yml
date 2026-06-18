@@ -1,7 +1,19 @@
-# Release — режим host-сети: localhost в контейнере = localhost Ubuntu (нативный MySQL на 127.0.0.1)
+# Release — режим host-сети: localhost в контейнере = localhost Ubuntu (нативный MySQL/PostgreSQL на 127.0.0.1)
 # Запуск: docker compose -f docker-compose.yml -f docker-compose.host.yml up -d --build
+#
+# В .env укажите параметры СУБД на хосте (MySQL или PostgreSQL):
+#   STACK_DEFAULT_DB_TYPE=mysql|postgres
+#   STACK_DEFAULT_DB_HOST=127.0.0.1
+#   STACK_DEFAULT_DB_PASSWORD=...
 services:
   uvwstack-app:
     network_mode: host
     ports: !reset []
     extra_hosts: !reset []
+    environment:
+      STACK_DEFAULT_DB_HOST: ${STACK_DEFAULT_DB_HOST:-127.0.0.1}
+      STACK_DEFAULT_DB_TYPE: ${STACK_DEFAULT_DB_TYPE:-mysql}
+      STACK_DEFAULT_DB_PORT: ${STACK_DEFAULT_DB_PORT:-3306}
+      STACK_DEFAULT_DB_NAME: ${STACK_DEFAULT_DB_NAME:-stack_db}
+      STACK_DEFAULT_DB_USER: ${STACK_DEFAULT_DB_USER:-stack_user}
+      STACK_DEFAULT_DB_PASSWORD: ${STACK_DEFAULT_DB_PASSWORD:-${MYSQL_PASSWORD:-${POSTGRES_PASSWORD:-StackUser2026!}}}

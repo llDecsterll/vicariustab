@@ -2273,6 +2273,31 @@ const dictionary: Record<string, Record<Language, string>> = {
     en: "Manage license status of local (on-premises) installation. Developer: Coordinator Utkin V.V.",
     zh: "企业本地化独立私有化服务器许可状态管理。负责人：Utkin V.V."
   },
+  "Управление лицензионным статусом локальной (on-premises) инсталляции Stack.": {
+    ru: "Управление лицензионным статусом локальной (on-premises) инсталляции Stack.",
+    en: "Manage the license status of your local (on-premises) Stack installation.",
+    zh: "管理本地（私有化部署）Stack 实例的许可证状态。"
+  },
+  "Публичный URL и домен (HTTPS)": {
+    ru: "Публичный URL и домен (HTTPS)",
+    en: "Public URL and domain (HTTPS)",
+    zh: "公共 URL 与域名 (HTTPS)"
+  },
+  "Укажите адрес, по которому пользователи открывают Stack из интернета (например https://stack.company.com).": {
+    ru: "Укажите адрес, по которому пользователи открывают Stack из интернета (например https://stack.company.com).",
+    en: "Enter the address users use to access Stack from the internet (e.g. https://stack.company.com).",
+    zh: "填写用户从互联网访问 Stack 的地址（例如 https://stack.company.com）。"
+  },
+  "Обнаружен доступ:": {
+    ru: "Обнаружен доступ:",
+    en: "Detected access:",
+    zh: "检测到访问："
+  },
+  "Docker: задайте STACK_DOMAIN в .env и запустите docker compose -f docker-compose.yml -f docker-compose.caddy.yml up -d. Без Docker: см. deploy/nginx-https.example.conf": {
+    ru: "Docker: задайте STACK_DOMAIN в .env и запустите docker compose -f docker-compose.yml -f docker-compose.caddy.yml up -d. Без Docker: см. deploy/nginx-https.example.conf",
+    en: "Docker: set STACK_DOMAIN in .env and run docker compose -f docker-compose.yml -f docker-compose.caddy.yml up -d. Without Docker: see deploy/nginx-https.example.conf",
+    zh: "Docker：在 .env 中设置 STACK_DOMAIN，然后运行 docker compose -f docker-compose.yml -f docker-compose.caddy.yml up -d。非 Docker：见 deploy/nginx-https.example.conf"
+  },
   "Текущий Лицензионный Статус": {
     ru: "Текущий Лицензионный Статус",
     en: "Current License Status",
@@ -4373,6 +4398,21 @@ const dictionary: Record<string, Record<Language, string>> = {
     ru: "Программный код Uvwstack защищён авторским правом. Запрещено копирование и модификация без согласия автора.",
     en: "Uvwstack source code is protected by copyright. Copying or modification without the author's consent is prohibited.",
     zh: "Uvwstack 源代码受版权保护。未经作者同意，禁止复制或修改。"
+  },
+  "Связаться с правообладателем для покупки лицензии": {
+    ru: "Связаться с правообладателем для покупки лицензии",
+    en: "Contact the rights holder to purchase a license",
+    zh: "联系版权所有者购买许可证"
+  },
+  "Для приобретения коммерческой лицензии Uvwstack отправьте запрос правообладателю по электронной почте или в Telegram. Укажите код запроса лицензии и данные организации.": {
+    ru: "Для приобретения коммерческой лицензии Uvwstack отправьте запрос правообладателю по электронной почте или в Telegram. Укажите код запроса лицензии и данные организации.",
+    en: "To purchase a commercial Uvwstack license, contact the rights holder by email or Telegram. Include your license request code and organization details.",
+    zh: "如需购买 Uvwstack 商业许可证，请通过电子邮件或 Telegram 联系版权所有者，并提供许可证请求码及组织信息。"
+  },
+  "Авторское право и правообладатель": {
+    ru: "Авторское право и правообладатель",
+    en: "Copyright and rights holder",
+    zh: "版权与权利人"
   },
   "© 2026 Уткин В.В. Все права защищены": {
     ru: "© 2026 Уткин Владислав Вячеславович. Все права защищены.",

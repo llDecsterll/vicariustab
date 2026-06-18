@@ -10,29 +10,57 @@ import { useTranslation } from '../utils/i18n';
 import { COPYRIGHT_EMAIL, COPYRIGHT_TELEGRAM_URL, COPYRIGHT_TELEGRAM_HANDLE } from '../legal/copyright';
 
 interface CopyrightFooterProps {
-  variant?: 'dark' | 'sidebar';
+  variant?: 'dark' | 'sidebar' | 'settings';
   className?: string;
 }
 
 export default function CopyrightFooter({ variant = 'dark', className = '' }: CopyrightFooterProps) {
   const { t } = useTranslation();
   const isSidebar = variant === 'sidebar';
+  const isSettings = variant === 'settings';
 
   return (
     <div
-      className={`select-none space-y-1.5 ${isSidebar ? 'font-sans text-[11px] text-slate-500' : 'text-center'} ${className}`}
+      className={`select-none space-y-1.5 ${
+        isSettings
+          ? 'font-sans text-sm text-slate-600'
+          : isSidebar
+            ? 'font-sans text-[11px] text-slate-500'
+            : 'text-center'
+      } ${className}`}
     >
-      <p className={isSidebar ? 'font-medium text-slate-400 text-[11px]' : 'text-xs font-bold text-slate-200'}>
+      <p
+        className={
+          isSettings
+            ? 'font-semibold text-slate-800 text-sm'
+            : isSidebar
+              ? 'font-medium text-slate-400 text-[11px]'
+              : 'text-xs font-bold text-slate-200'
+        }
+      >
         {t('© 2026 Utkin Vladislav Vyacheslavovich. All rights reserved.')}
       </p>
-      <p className={`text-[10px] leading-relaxed ${isSidebar ? 'text-slate-500' : 'text-slate-400'}`}>
+      <p
+        className={`leading-relaxed ${
+          isSettings ? 'text-slate-500 text-xs' : isSidebar ? 'text-[10px] text-slate-500' : 'text-[10px] text-slate-400'
+        }`}
+      >
         {t('Программный код Uvwstack защищён авторским правом. Запрещено копирование и модификация без согласия автора.')}
       </p>
-      <div className={`flex flex-col gap-1.5 ${isSidebar ? 'pt-0.5' : 'items-center pt-1'}`}>
+      {isSettings && (
+        <p className="text-xs text-slate-600 leading-relaxed pt-1 border-t border-slate-100">
+          {t('Для приобретения коммерческой лицензии Uvwstack отправьте запрос правообладателю по электронной почте или в Telegram. Укажите код запроса лицензии и данные организации.')}
+        </p>
+      )}
+      <div
+        className={`flex flex-col gap-1.5 ${
+          isSettings ? 'pt-2 sm:flex-row sm:flex-wrap sm:gap-4' : isSidebar ? 'pt-0.5' : 'items-center pt-1'
+        }`}
+      >
         <a
           href={`mailto:${COPYRIGHT_EMAIL}`}
-          className={`text-blue-400 hover:text-blue-300 transition-colors font-bold font-mono hover:underline flex items-center gap-1.5 ${
-            isSidebar ? 'text-xs' : 'text-sm'
+          className={`text-blue-600 hover:text-blue-500 transition-colors font-bold font-mono hover:underline flex items-center gap-1.5 ${
+            isSidebar ? 'text-xs text-blue-400 hover:text-blue-300' : isSettings ? 'text-sm' : 'text-sm text-blue-400 hover:text-blue-300'
           }`}
           title={t('Отправить письмо (assetorbit@icloud.com)')}
         >
@@ -43,8 +71,8 @@ export default function CopyrightFooter({ variant = 'dark', className = '' }: Co
           href={COPYRIGHT_TELEGRAM_URL}
           target="_blank"
           rel="noopener noreferrer"
-          className={`text-sky-400 hover:text-sky-300 transition-colors font-bold font-mono hover:underline flex items-center gap-1.5 ${
-            isSidebar ? 'text-xs' : 'text-sm'
+          className={`text-sky-600 hover:text-sky-500 transition-colors font-bold font-mono hover:underline flex items-center gap-1.5 ${
+            isSidebar ? 'text-xs text-sky-400 hover:text-sky-300' : isSettings ? 'text-sm' : 'text-sm text-sky-400 hover:text-sky-300'
           }`}
           title={t('Открыть Telegram (@Dexterll)')}
         >

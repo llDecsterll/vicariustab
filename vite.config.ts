@@ -18,7 +18,7 @@ export default defineConfig(({ mode }) => {
             obfuscator({
               global: false,
               include: ['src/**/*.ts', 'src/**/*.tsx'],
-              exclude: [/node_modules/],
+              exclude: [/node_modules/, /[\\/]i18n\.tsx$/],
               options: {
                 compact: true,
                 controlFlowFlattening: true,
@@ -28,9 +28,9 @@ export default defineConfig(({ mode }) => {
                 disableConsoleOutput: true,
                 identifierNamesGenerator: 'hexadecimal',
                 renameGlobals: false,
-                selfDefending: true,
+                selfDefending: false,
                 stringArray: true,
-                stringArrayEncoding: ['base64'],
+                stringArrayEncoding: [],
                 stringArrayThreshold: 0.6,
                 transformObjectKeys: true,
                 unicodeEscapeSequence: false,
@@ -49,6 +49,19 @@ export default defineConfig(({ mode }) => {
       minify: 'esbuild',
       cssMinify: true,
       reportCompressedSize: false,
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (id.includes('node_modules')) {
+              if (id.includes('recharts')) return 'vendor-charts';
+              if (id.includes('motion')) return 'vendor-motion';
+              if (id.includes('lucide-react')) return 'vendor-icons';
+              return undefined;
+            }
+            if (id.includes('i18n.tsx')) return 'i18n';
+          },
+        },
+      },
       esbuild: {
         legalComments: 'none',
         drop: isProduction ? ['console', 'debugger'] : [],

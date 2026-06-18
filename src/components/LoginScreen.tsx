@@ -12,7 +12,6 @@ import { motion } from 'motion/react';
 import { User, Lock, Eye, EyeOff, ShieldCheck, CheckCircle2, AlertCircle, Laptop, Copy, Check, Mail } from 'lucide-react';
 import { SystemUser } from '../types';
 import { useTranslation } from '../utils/i18n';
-import CopyrightFooter from './CopyrightFooter';
 
 interface LoginScreenProps {
   users: SystemUser[];
@@ -200,10 +199,6 @@ export default function LoginScreen({ users, onLogin, workspaceName, siteLogo }:
               <span>{t("Войти в систему")}</span>
             </button>
           </form>
-
-          <div className="mt-8 pt-6 border-t border-slate-700/50">
-            <CopyrightFooter variant="dark" />
-          </div>
 
         </div>
       </motion.div>

@@ -9,7 +9,6 @@
  */
 import React from 'react';
 import { useTranslation } from '../utils/i18n';
-import CopyrightFooter from './CopyrightFooter';
 import { 
   LayoutDashboard, 
   Building2, 
@@ -427,39 +426,39 @@ export default function Sidebar({
         </button>
       </nav>
 
-      {/* Licensing Indicator & Copyrights (Utkin V.V. assetorbit@icloud.com) */}
+      {/* Licensing indicator */}
       <div className="border-t border-[#1e293b]/85 bg-[#090d16]/30">
-        {isCollapsed ? (
-          <div className="py-2.5 flex flex-col items-center justify-center gap-1.5 text-slate-500" title={t("Лицензия и Авторские Права: Уткин В.В.")}>
-            <ShieldCheck size={14} className={licenseStatus?.isActivated ? "text-emerald-500" : "text-blue-500 animate-pulse"} />
-            <span className="text-[8px] font-mono text-slate-600">© UVV</span>
-          </div>
-        ) : (
-          <div className="p-3.5 space-y-2 text-[10px] leading-relaxed select-none">
-            {/* Status indicator */}
-            <div className={`p-1.5 px-2 rounded-lg border flex items-center gap-1.5 ${
-              licenseStatus?.isActivated 
-                ? 'bg-emerald-500/10 border-emerald-500/25 text-emerald-400' 
+        <div
+          className={`${isCollapsed ? 'py-2.5 flex justify-center' : 'p-3.5'} select-none`}
+          title={
+            licenseStatus?.isActivated
+              ? licenseStatus.licenseType === 'perpetual'
+                ? t('Вечная лицензия')
+                : `${t('Лицензия: до ')}${licenseStatus.expiresYear}`
+              : `${t('Пробный период:')} ${licenseStatus?.trialDaysLeft} ${t('дн.')}`
+          }
+        >
+          <div
+            className={`rounded-lg border flex items-center gap-1.5 ${
+              isCollapsed ? 'p-1.5' : 'p-1.5 px-2 w-full'
+            } ${
+              licenseStatus?.isActivated
+                ? 'bg-emerald-500/10 border-emerald-500/25 text-emerald-400'
                 : 'bg-blue-600/10 border-blue-500/25 text-blue-400 animate-pulse'
-              }`}
-            >
-              <ShieldCheck size={11} className="shrink-0" />
-              <span className="font-semibold tracking-wide">
-                {licenseStatus?.isActivated 
-                  ? licenseStatus.licenseType === 'perpetual' 
-                    ? t("Вечная лицензия") 
-                    : `${t("Лицензия: до ")}${licenseStatus.expiresYear}`
-                  : `${t("Пробный период:")} ${licenseStatus?.trialDaysLeft} ${t("дн.")}`
-                }
+            }`}
+          >
+            <ShieldCheck size={isCollapsed ? 14 : 11} className="shrink-0" />
+            {!isCollapsed && (
+              <span className="font-semibold tracking-wide text-[10px] leading-relaxed">
+                {licenseStatus?.isActivated
+                  ? licenseStatus.licenseType === 'perpetual'
+                    ? t('Вечная лицензия')
+                    : `${t('Лицензия: до ')}${licenseStatus.expiresYear}`
+                  : `${t('Пробный период:')} ${licenseStatus?.trialDaysLeft} ${t('дн.')}`}
               </span>
-            </div>
-            
-            {/* Extended authorship notice */}
-            <div className="pt-1 border-t border-[#1e293b]/40">
-              <CopyrightFooter variant="sidebar" />
-            </div>
+            )}
           </div>
-        )}
+        </div>
       </div>
 
       {/* Collapse button at bottom */}
