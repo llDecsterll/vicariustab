@@ -15,10 +15,6 @@
   <img src="https://img.shields.io/badge/许可证-Commercial-orange?style=for-the-badge" alt="License">
 </p>
 
-<p align="center">
-  <strong>现代化 IT 基础设施、设备、许可证与仓库管理系统</strong>
-</p>
-
 ---
 
 # 📸 界面截图
