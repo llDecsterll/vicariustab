@@ -40,10 +40,6 @@
 | :---: | :---: |
 | <img src="docs/screenshots/ru/07-reports.png" alt="Отчёты" width="420"> | <img src="docs/screenshots/ru/08-settings.png" alt="Настройки СУБД" width="420"> |
 
-<p align="center">
-  <img src="docs/screenshots/ru/03-computers.png" alt="Учёт компьютеров" width="720">
-  <br><em>Учёт компьютеров и оборудования</em>
-</p>
 
 ---
 
