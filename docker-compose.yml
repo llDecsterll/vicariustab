@@ -1,0 +1,17 @@
+services:
+  orbit-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: orbit_app
+    restart: always
+    ports:
+      - "8080:8080"
+    environment:
+      - NODE_ENV=production
+      - PORT=8080
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

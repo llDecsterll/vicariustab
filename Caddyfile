@@ -1,0 +1,26 @@
+# --- Caddyfile: Automated Zero-Touch HTTPS & Let's Encrypt config ---
+{
+    # Global settings
+    email assetorbit@icloud.com
+}
+
+# Automatically intercepts your custom domain on ports 80/443, issues, and renews SSL
+{$DOMAIN_NAME:localhost} {
+    # Compress outputs
+    encode gzip zstd
+
+    # Root source for React single-page architecture static files
+    root * /usr/share/caddy
+    file_server
+
+    # Fallback to index.html for React Router compatibility
+    try_files {path} {path}/ /index.html
+
+    # Security Headers
+    header {
+        X-Frame-Options "SAMEORIGIN"
+        X-XSS-Protection "1; mode=block"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "no-referrer-when-downgrade"
+    }
+}

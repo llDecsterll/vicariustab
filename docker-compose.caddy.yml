@@ -1,0 +1,33 @@
+# --- Docker Compose for Caddy Web Server with Automated Let's Encrypt TLS ---
+services:
+  # First build the production frontend
+  it-inventory-build:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # This is a temporary container to extract the files
+    container_name: it_inventory_builder
+    entrypoint: ["echo", "Build Complete"]
+
+  web:
+    image: caddy:2-alpine
+    container_name: it_inventory_caddy
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      # Pass your actual custom server domain name here
+      - DOMAIN_NAME=YOUR-DOMAIN.COM
+    volumes:
+      # Inject the production React package from the builder container
+      - ./dist:/usr/share/caddy
+      # Inject Caddyfile config
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      # Store Let's Encrypt keys safely so they persist on host machine restart
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:

@@ -1,0 +1,26 @@
+# --- Docker Compose with Let's Encrypt automated TLS validation ---
+services:
+  it-inventory:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: it_inventory_app
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      # Use the secure configuration we designed
+      - ./nginx.ssl.conf:/etc/nginx/conf.d/default.conf:ro
+      # Connect volumes with Certbot to exchange verified tokens/keys
+      - ./certbot/conf:/etc/letsencrypt:ro
+      - ./certbot/www:/var/www/certbot:ro
+
+  certbot:
+    image: certbot/certbot:latest
+    container_name: it_inventory_certbot
+    volumes:
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
+    # Automatically attempts to renew certificate leases every 12 hours
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
