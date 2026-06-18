@@ -40,13 +40,6 @@
 | :---: | :---: |
 | <img src="docs/screenshots/en/07-reports.png" alt="Reports" width="420"> | <img src="docs/screenshots/en/08-settings.png" alt="Database settings" width="420"> |
 
-<p align="center">
-  <img src="docs/screenshots/en/03-computers.png" alt="Computers module" width="720">
-  <br><em>Computers and equipment tracking</em>
-</p>
-
-> Regenerate locally: `npm run build && npm run screenshots` → [`docs/screenshots/en/`](docs/screenshots/en/)
-
 ---
 
 ## 📋 Table of contents
