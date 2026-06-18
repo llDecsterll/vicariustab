@@ -8,10 +8,13 @@ services:
     restart: unless-stopped
     ports:
       - "8080:8080"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       NODE_ENV: production
       PORT: "8080"
-      # Set a strong secret in production: echo "DB_ENCRYPTION_KEY=..." >> .env
+      STACK_DATA_DIR: /app/data
+      DB_HOST_GATEWAY: host.docker.internal
       DB_ENCRYPTION_KEY: ${DB_ENCRYPTION_KEY:-change-me-in-production}
       GITHUB_UPDATE_REPO: https://github.com/llDecsterll/uvwstack.git
     volumes:

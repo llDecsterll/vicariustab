@@ -25,13 +25,15 @@ RUN apk add --no-cache wget
 
 ENV NODE_ENV=production
 ENV PORT=8080
+ENV STACK_DATA_DIR=/app/data
 
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 
 COPY --from=build /app/dist ./dist
 
-RUN addgroup -S uvwstack && adduser -S uvwstack -G uvwstack \
+RUN mkdir -p /app/data \
+  && addgroup -S uvwstack && adduser -S uvwstack -G uvwstack \
   && chown -R uvwstack:uvwstack /app
 USER uvwstack
 

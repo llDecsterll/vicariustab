@@ -10,12 +10,12 @@
 import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
+import { APP_NAME } from './config/appConfig';
 import './index.css';
 import { LanguageProvider } from './utils/i18n.tsx';
 
-// Dynamic fallback override to bulletproof browser tab title display
 if (typeof document !== 'undefined') {
-  document.title = 'Orbit';
+  document.title = APP_NAME;
 }
 
 createRoot(document.getElementById('root')!).render(

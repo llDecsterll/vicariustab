@@ -481,7 +481,7 @@ export default function SettingsView({
   const [dbType, setDbType] = useState<'json' | 'mysql' | 'postgres'>('json');
   const [dbHost, setDbHost] = useState('localhost');
   const [dbPort, setDbPort] = useState('3306');
-  const [dbName, setDbName] = useState('orbit_db');
+  const [dbName, setDbName] = useState('stack_db');
   const [dbUser, setDbUser] = useState('root');
   const [dbPassword, setDbPassword] = useState('');
   const [dbTestLoading, setDbTestLoading] = useState(false);
@@ -490,19 +490,28 @@ export default function SettingsView({
   const [dbSaveLoading, setDbSaveLoading] = useState(false);
   const [dbSaveMessage, setDbSaveMessage] = useState('');
   const [dbSaveError, setDbSaveError] = useState('');
+  const [dbDockerHint, setDbDockerHint] = useState('');
 
   // Load backend database settings on mount
   React.useEffect(() => {
-    fetch('/api/db-config')
-      .then(res => res.json())
-      .then(config => {
+    Promise.all([
+      fetch('/api/db-config').then((res) => res.json()),
+      fetch('/api/db-config/defaults').then((res) => res.json()),
+    ])
+      .then(([config, defaults]) => {
+        if (defaults?.hint) setDbDockerHint(defaults.hint);
         if (config) {
           setDbType(config.type || 'json');
-          setDbHost(config.host || 'localhost');
+          const host =
+            config.host ||
+            (defaults?.inDocker ? defaults.suggestedHost : 'localhost');
+          setDbHost(host);
           setDbPort(config.port ? config.port.toString() : (config.type === 'postgres' ? '5432' : '3306'));
-          setDbName(config.database || 'orbit_db');
+          setDbName(config.database || 'stack_db');
           setDbUser(config.user || (config.type === 'postgres' ? 'postgres' : 'root'));
           setDbPassword(config.password || '');
+        } else if (defaults?.inDocker && defaults.suggestedHost) {
+          setDbHost(defaults.suggestedHost);
         }
       })
       .catch(err => console.error("Could not fetch DB config:", err));
@@ -1529,9 +1538,12 @@ export default function SettingsView({
                       type="text"
                       value={dbHost}
                       onChange={(e) => setDbHost(e.target.value)}
-                      placeholder="127.0.0.1"
+                      placeholder="host.docker.internal"
                       className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-250 rounded-lg text-slate-800 font-mono text-[11px] focus:outline-none"
                     />
+                    {dbDockerHint ? (
+                      <p className="text-[9px] text-amber-700 leading-snug">{dbDockerHint}</p>
+                    ) : null}
                   </div>
                   <div className="space-y-1">
                     <label className="block text-[10px] font-bold text-slate-500 uppercase">{t("Порт")}</label>
@@ -1552,7 +1564,7 @@ export default function SettingsView({
                       type="text"
                       value={dbName}
                       onChange={(e) => setDbName(e.target.value)}
-                      placeholder="orbit_db"
+                      placeholder="stack_db"
                       className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-250 rounded-lg text-slate-800 font-mono text-[11px] focus:outline-none"
                     />
                   </div>

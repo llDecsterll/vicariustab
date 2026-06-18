@@ -310,7 +310,7 @@ export default function SecurityView({
     } else if (vulnId === 'no-recent-backup') {
       // Simulate download backup file JSON
       const fullPayload = {
-        meta: { timestamp: new Date().toISOString(), exportedBy: currentUser.name, app: "AssetOrbit - IT Security Audit Portal" },
+        meta: { timestamp: new Date().toISOString(), exportedBy: currentUser.name, app: "Stack - IT Security Audit Portal" },
         objects,
         networkDevices,
         computers,

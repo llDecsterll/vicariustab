@@ -17,7 +17,7 @@ const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 
 const PKG = JSON.parse(fs.readFileSync(path.join(process.cwd(), "package.json"), "utf-8")) as { version?: string; name?: string };
-const APP_VERSION = String(PKG.version || "2.6.2");
+const APP_VERSION = String(PKG.version || "2.6.3");
 
 const ENCRYPTION_SECRET = process.env.DB_ENCRYPTION_KEY || "it-orbit-system-fallback-secret-2026-secure-v1";
 const UVWSTACK_UPDATE_REPO =
@@ -58,8 +58,49 @@ export function decrypt(text: string): string {
   return decrypted.toString("utf8");
 }
 
-const DB_PATH = path.join(process.cwd(), "db.json");
-const CONFIG_PATH = path.join(process.cwd(), "db_config.json");
+const DATA_DIR = process.env.STACK_DATA_DIR || process.cwd();
+if (!fs.existsSync(DATA_DIR)) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+}
+
+const DB_PATH = path.join(DATA_DIR, "db.json");
+const CONFIG_PATH = path.join(DATA_DIR, "db_config.json");
+
+function isRunningInDocker(): boolean {
+  return Boolean(process.env.STACK_DATA_DIR) || fs.existsSync("/.dockerenv");
+}
+
+/** localhost inside a container points to the container itself — map to the Docker host gateway */
+function resolveDbHost(host?: string): string {
+  const raw = (host || "localhost").trim().toLowerCase();
+  if ((raw === "localhost" || raw === "127.0.0.1") && isRunningInDocker()) {
+    return process.env.DB_HOST_GATEWAY || "host.docker.internal";
+  }
+  return host || "localhost";
+}
+
+function mysqlConnOptions(config: any) {
+  return {
+    host: resolveDbHost(config.host),
+    port: Number(config.port) || 3306,
+    database: config.database || "stack_db",
+    user: config.user || "root",
+    password: config.password || "",
+    connectTimeout: 10000,
+  };
+}
+
+function pgConnOptions(config: any) {
+  return {
+    host: resolveDbHost(config.host),
+    port: Number(config.port) || 5432,
+    database: config.database || "stack_db",
+    user: config.user || "postgres",
+    password: config.password || "",
+    connectionTimeoutMillis: 10000,
+    ssl: false,
+  };
+}
 
 function ensureDbFile(): void {
   if (!fs.existsSync(DB_PATH)) return;
@@ -102,26 +143,13 @@ function writeDbConfig(config: any) {
 async function testSqlConn(config: any): Promise<void> {
   if (config.type === "mysql") {
     const mysql = await import("mysql2/promise");
-    const connection = await mysql.createConnection({
-      host: config.host || "localhost",
-      port: Number(config.port) || 3306,
-      database: config.database || "orbit_db",
-      user: config.user || "root",
-      password: config.password || "",
-      connectTimeout: 5000
-    });
+    const connection = await mysql.createConnection(mysqlConnOptions(config));
     await connection.ping();
     await connection.end();
   } else if (config.type === "postgres") {
     const pg = await import("pg");
-    const client = new pg.Pool({
-      host: config.host || "localhost",
-      port: Number(config.port) || 5432,
-      database: config.database || "orbit_db",
-      user: config.user || "postgres",
-      password: config.password || "",
-      connectionTimeoutMillis: 5000
-    });
+    const client = new pg.Client(pgConnOptions(config));
+    await client.connect();
     await client.query("SELECT 1");
     await client.end();
   }
@@ -165,13 +193,7 @@ async function checkDatabaseConnection() {
 async function loadFromSql(config: any): Promise<any> {
   if (config.type === "mysql") {
     const mysql = await import("mysql2/promise");
-    const connection = await mysql.createConnection({
-      host: config.host || "localhost",
-      port: Number(config.port) || 3306,
-      database: config.database || "orbit_db",
-      user: config.user || "root",
-      password: config.password || "",
-    });
+    const connection = await mysql.createConnection(mysqlConnOptions(config));
     
     await connection.query(`
       CREATE TABLE IF NOT EXISTS orbit_secure_store (
@@ -196,13 +218,7 @@ async function loadFromSql(config: any): Promise<any> {
     return result;
   } else if (config.type === "postgres") {
     const pg = await import("pg");
-    const client = new pg.Pool({
-      host: config.host || "localhost",
-      port: Number(config.port) || 5432,
-      database: config.database || "orbit_db",
-      user: config.user || "postgres",
-      password: config.password || "",
-    });
+    const client = new pg.Pool(pgConnOptions(config));
     
     await client.query(`
       CREATE TABLE IF NOT EXISTS orbit_secure_store (
@@ -232,13 +248,7 @@ async function loadFromSql(config: any): Promise<any> {
 async function saveToSql(config: any, payload: any): Promise<void> {
   if (config.type === "mysql") {
     const mysql = await import("mysql2/promise");
-    const connection = await mysql.createConnection({
-      host: config.host || "localhost",
-      port: Number(config.port) || 3306,
-      database: config.database || "orbit_db",
-      user: config.user || "root",
-      password: config.password || "",
-    });
+    const connection = await mysql.createConnection(mysqlConnOptions(config));
 
     await connection.query(`
       CREATE TABLE IF NOT EXISTS orbit_secure_store (
@@ -259,13 +269,7 @@ async function saveToSql(config: any, payload: any): Promise<void> {
     await connection.end();
   } else if (config.type === "postgres") {
     const pg = await import("pg");
-    const client = new pg.Pool({
-      host: config.host || "localhost",
-      port: Number(config.port) || 5432,
-      database: config.database || "orbit_db",
-      user: config.user || "postgres",
-      password: config.password || "",
-    });
+    const client = new pg.Pool(pgConnOptions(config));
 
     await client.query(`
       CREATE TABLE IF NOT EXISTS orbit_secure_store (
@@ -451,6 +455,21 @@ async function startServer() {
       console.error("Error importing backup:", error);
       return res.status(500).json({ error: "Failed to import backup" });
     }
+  });
+
+  // GET Docker-aware DB connection hints (host gateway for MySQL/PostgreSQL on host machine)
+  app.get("/api/db-config/defaults", (_req, res) => {
+    const inDocker = isRunningInDocker();
+    const suggestedHost = inDocker
+      ? process.env.DB_HOST_GATEWAY || "host.docker.internal"
+      : "localhost";
+    return res.json({
+      inDocker,
+      suggestedHost,
+      hint: inDocker
+        ? "Docker: для MySQL/PostgreSQL на хосте используйте host.docker.internal (не localhost)"
+        : "",
+    });
   });
 
   // GET current DB config settings (removes sensitive credentials)
