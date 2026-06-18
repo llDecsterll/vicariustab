@@ -5,85 +5,185 @@
   <a href="README.zh-CN.md">中文</a>
 </p>
 
-# Stack (Uvwstack)
+# 🚀 Uvwstack (Stack)
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.6.5-blue?style=for-the-badge" alt="Version">
-  <img src="https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&style=for-the-badge" alt="Docker">
-  <img src="https://img.shields.io/badge/Node.js-20+-339933?logo=node.js&style=for-the-badge" alt="Node.js">
+  <img src="https://img.shields.io/badge/version-2.6.6-blue?style=for-the-badge" alt="Version">
+  <img src="https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&style=for-the-badge" alt="Docker Ready">
+  <img src="https://img.shields.io/badge/Node.js-20+-339933?logo=node.js&style=for-the-badge" alt="Node.js 20">
+  <img src="https://img.shields.io/badge/PM2-Supported-blue?style=for-the-badge" alt="PM2">
   <img src="https://img.shields.io/badge/License-Commercial-orange?style=for-the-badge" alt="License">
 </p>
 
 <p align="center">
-  <strong>Enterprise IT asset inventory: hardware, network, licenses, warehouse, and audit</strong>
+  <strong>Modern IT infrastructure, asset, license, and warehouse management system</strong>
 </p>
 
 ---
 
-## Table of contents
+## 📋 Table of contents
 
-- [About](#about)
-- [Features](#features)
-- [Tech stack](#tech-stack)
-- [System requirements](#system-requirements)
-- [Quick start (Docker)](#quick-start-docker)
-- [Deployment options](#deployment-options)
-- [Database setup](#database-setup)
-- [Connect Stack to MySQL / PostgreSQL](#connect-stack-to-mysql--postgresql)
-- [Environment variables](#environment-variables)
-- [Project structure](#project-structure)
-- [Licensing](#licensing)
-- [Updates](#updates)
-- [Troubleshooting](#troubleshooting)
-- [Copyright & contact](#copyright--contact)
+- [About](#-about)
+- [Features](#-features)
+- [Licensing](#-licensing)
+- [Tech stack](#-tech-stack)
+- [System requirements](#-system-requirements)
+- [Installation](#-installation)
+  - [Server preparation](#server-preparation)
+  - [Docker Compose](#-option-1-docker-compose-recommended)
+  - [Docker + MySQL](#-option-2-docker--mysql-same-network)
+  - [Docker + PostgreSQL](#-option-3-docker--postgresql)
+  - [Host network + native DB](#-option-4-host-network--native-db-on-ubuntu)
+  - [PM2](#-option-5-native-install-pm2)
+- [Database setup](#-database-setup)
+  - [MySQL](#mysql)
+  - [PostgreSQL](#postgresql)
+- [Connect Stack to DB](#-connect-database-in-uvwstack)
+- [Project structure](#-project-structure)
+- [Environment variables](#-environment-variables)
+- [Updates](#-system-updates)
+- [Troubleshooting](#-troubleshooting)
+- [Copyright](#-copyright)
+- [Contact](#-contact)
 
 ---
 
-## About
+# 📖 About
 
-**Stack** (repository name: **Uvwstack**) is a web-based IT inventory platform for organizations that need centralized control over hardware, network assets, software licenses, warehouse stock, and audit trails.
+**Uvwstack** (UI name: **Stack**) is a professional web platform for centralized IT asset inventory and management.
 
 Designed for:
 
-- System administrators
-- IT departments
-- Asset managers
-- Government and commercial organizations
+- system administrators;
+- IT departments;
+- asset managers;
+- enterprise technical services;
+- government and commercial organizations.
 
-All data is stored centrally and accessed through a modern browser UI (Russian, English, and Chinese interface).
+Full tracking of:
+
+- computers;
+- servers;
+- network equipment;
+- office devices;
+- components;
+- software licenses;
+- warehouse stock;
+- consumables;
+- audit and activity logs.
+
+All data is stored centrally and accessed via a modern browser. The UI supports **English**, **Russian**, and **Chinese**.
 
 Repository: [github.com/llDecsterll/uvwstack](https://github.com/llDecsterll/uvwstack)
 
 ---
 
-## Features
+# ✨ Features
 
-| Module | Capabilities |
-|--------|--------------|
-| **Computers & servers** | PCs, laptops, servers, components, assignment history |
-| **Network** | IP addresses, patch panels, routers, topology |
-| **Warehouse** | Stock in/out, consumables, cartridges, licenses |
-| **Employees** | Asset assignment, departments, responsibility tracking |
-| **Audits & reports** | Activity log, inventory reports, warranties |
-| **Security** | AES-256-CBC encryption, encrypted DB credentials, license binding |
-| **Database** | Local JSON (default), MySQL 8, PostgreSQL 16 |
-| **Docker** | Production image, compose profiles, host-network mode |
+## 🖥 Asset management
+
+- PCs and laptops
+- Servers
+- Printers and MFPs
+- Switches and routers
+- Components
+- Usage and transfer history
+
+## 🌐 Network infrastructure
+
+- IP address management
+- Patch panels
+- Routers
+- Network topology
+- Connection maps
+
+## 📦 Warehouse
+
+- Stock in / stock out
+- Inventory counts
+- On-hand balances
+- Cartridges
+- Consumables
+- Software licenses
+
+## 👥 Responsible persons
+
+- Assign equipment to employees
+- Link assets to departments
+- Transfer history
+- Material responsibility control
+
+## 📊 Reports & audit
+
+- Analytics dashboard
+- Activity log
+- Inventory audits
+- Warranty tracking
+
+## 🔐 Security
+
+- AES-256-CBC data encryption
+- Encrypted DB connection credentials
+- Automatic DB reconnect and health monitoring
+- Backup with license fields excluded
+- Distributed deployment (Docker, PM2, MySQL, PostgreSQL)
 
 ---
 
-## Tech stack
+# 🔑 Licensing
 
-| Layer | Technology |
-|-------|------------|
+Hardware-bound activation.
+
+### Trial period
+
+- 30 days free use
+- Countdown starts on first launch
+
+### Activation
+
+On install, a request code is generated:
+
+```text
+REQ-XXXX-XXXX-XXXX-CHKS
+```
+
+A license key is issued in the form:
+
+```text
+UTKIN-XXXX-XXXX-XXXX
+```
+
+### License properties
+
+✅ Hardware binding (MAC address)
+
+✅ Digital signature verification
+
+✅ Protection against key copying and brute force
+
+✅ Separate license server (keyserver)
+
+❌ Client cannot generate valid keys locally
+
+---
+
+# 🛠 Tech stack
+
+| Component | Technology |
+|-----------|------------|
 | Frontend | React 19, TypeScript, Tailwind CSS 4, Motion |
 | Backend | Node.js 20, Express |
+| API | REST (Express) |
+| Database | JSON (file) / MySQL 8 / PostgreSQL 16 |
 | Build | Vite 6, esbuild |
-| Databases | MySQL (`mysql2`), PostgreSQL (`pg`) |
-| Deployment | Docker, PM2, optional Nginx/Caddy |
+| Containers | Docker, Docker Compose |
+| Process manager | PM2 |
+| Encryption | AES-256-CBC |
+| Reverse proxy | Nginx, Caddy (optional) |
 
 ---
 
-## System requirements
+# 💻 System requirements
 
 | Resource | Minimum | Recommended |
 |----------|---------|-------------|
@@ -91,279 +191,520 @@ Repository: [github.com/llDecsterll/uvwstack](https://github.com/llDecsterll/uvw
 | CPU | 1 core | 2 cores |
 | RAM | 1 GB | 2 GB (+ DB on same host) |
 | Disk | 10 GB free | 20 GB |
-| Ports | 8080 (HTTP) | 443 with reverse proxy |
+| Network | Port 8080 (HTTP) | 443 (HTTPS via proxy) |
+| Browser | Chrome, Firefox, Edge (current) | — |
 
 ---
 
-## Quick start (Docker)
+# 🚀 Installation
+
+## Server preparation
+
+```bash
+cd ~
+
+sudo apt update && sudo apt upgrade -y
+sudo apt install -y git curl ca-certificates
+```
+
+To remove an old copy:
+
+```bash
+rm -rf uvwstack
+```
+
+---
+
+## Clone repository
 
 ```bash
 git clone https://github.com/llDecsterll/uvwstack.git
+
 cd uvwstack
+
 cp .env.example .env
-# Edit DB_ENCRYPTION_KEY in .env — use a long random secret
-docker compose up -d --build
 ```
 
-Open: **http://SERVER_IP:8080**
-
-Default login: `admin` / `admin` — change immediately after first login.
+> **Important:** set a strong `DB_ENCRYPTION_KEY` in `.env` — a long random string for data encryption.
 
 ---
 
-## Deployment options
+# 🐳 Option 1: Docker Compose (Recommended)
 
-### Option 1 — App only (JSON storage)
+Quick start with JSON storage in a Docker volume.
+
+## Install Docker
 
 ```bash
-docker compose up -d --build
+sudo apt update
+
+sudo apt install -y docker.io docker-compose-v2
+
+sudo usermod -aG docker $USER
 ```
 
-Data is stored in Docker volume `uvwstack_data` (`/app/data/db.json`).
+Re-login to your SSH session.
 
-### Option 2 — App + MySQL in Docker (recommended)
+---
+
+## Start the project
+
+```bash
+docker compose build --no-cache
+
+docker compose up -d
+```
+
+Check status:
+
+```bash
+docker compose ps
+docker compose logs -f uvwstack-app
+```
+
+Open in browser:
+
+```text
+http://SERVER_IP:8080
+```
+
+Data is stored in Docker volume `uvwstack_data` → `/app/data/`.
+
+---
+
+# 🐳 Option 2: Docker + MySQL (same network)
+
+**Recommended for production** — app and MySQL in one Compose stack.
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.mysql.yml up -d --build
 ```
 
-| Setting | Value |
-|---------|-------|
+| Parameter | Value |
+|-----------|-------|
 | Host | `mysql` |
 | Database | `stack_db` |
 | User | `stack_user` |
 | Port | `3306` |
 
-Passwords: see `.env.example` (`MYSQL_PASSWORD`, `MYSQL_ROOT_PASSWORD`).
+Passwords in `.env` (`MYSQL_PASSWORD`, `MYSQL_ROOT_PASSWORD`) — see `.env.example`.
 
-Stack auto-connects on first start when `STACK_DEFAULT_DB_*` variables are set (included in `docker-compose.mysql.yml`).
+Stack auto-connects on first start via `STACK_DEFAULT_DB_*` variables.
 
-### Option 3 — App + PostgreSQL in Docker
+---
+
+# 🐳 Option 3: Docker + PostgreSQL
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d --build
 ```
 
-| Setting | Value |
-|---------|-------|
+| Parameter | Value |
+|-----------|-------|
 | Host | `postgres` |
 | Database | `stack_db` |
 | User | `stack_user` |
 | Port | `5432` |
 
-### Option 4 — Native MySQL/PostgreSQL on Ubuntu + Stack in Docker
+---
 
-If the database listens only on `127.0.0.1`, use **host network mode**:
+# 🐳 Option 4: Host network + native DB on Ubuntu
+
+If MySQL or PostgreSQL runs **on the host** and listens on `127.0.0.1`, use host network mode:
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.host.yml up -d --build
 ```
 
-In Stack settings use host **`localhost`**.
-
-If the database accepts external connections (`bind-address = 0.0.0.0`), use bridge mode and set host to:
-
-- `172.17.0.1` (Docker bridge gateway on Linux), or
-- `host.docker.internal` (enabled via `extra_hosts` in `docker-compose.yml`)
-
-### Option 5 — Native install with PM2
-
-```bash
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-sudo apt install -y nodejs build-essential
-cp .env.example .env
-npm install
-npm run build
-sudo npm install -g pm2
-PORT=8080 NODE_ENV=production pm2 start dist/server.cjs --name uvwstack
-pm2 startup systemd && pm2 save
-```
-
-See [DOCKER.md](./DOCKER.md) for extended Ubuntu Server guide.
+In Stack DB settings use host **`localhost`**.
 
 ---
 
-## Database setup
+# ⚙ Option 5: Native install (PM2)
 
-### MySQL (native on Ubuntu)
+## Install Node.js 20
 
 ```bash
-sudo apt install -y mysql-server
-sudo systemctl enable --now mysql
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+
+sudo apt install -y nodejs build-essential
 ```
 
-Edit `/etc/mysql/mysql.conf.d/mysqld.cnf`:
+---
+
+## Install dependencies
+
+```bash
+cp .env.example .env
+
+npm install
+
+npm run build
+```
+
+---
+
+## Install PM2
+
+```bash
+sudo npm install -g pm2
+```
+
+---
+
+## Start application
+
+```bash
+PORT=8080 NODE_ENV=production pm2 start dist/server.cjs --name "uvwstack-system"
+```
+
+---
+
+## Autostart after reboot
+
+```bash
+pm2 startup systemd
+```
+
+Run the command PM2 prints, then:
+
+```bash
+pm2 save
+```
+
+---
+
+# 🗄 Database setup
+
+Use when the DB is installed **natively on Ubuntu** (not via Docker Compose).
+
+## MySQL
+
+### Install
+
+```bash
+sudo apt update
+
+sudo apt install -y mysql-server
+
+sudo systemctl enable mysql
+sudo systemctl start mysql
+```
+
+### Docker access (bind-address)
+
+If Stack runs in Docker (bridge mode), MySQL must accept connections beyond `127.0.0.1`:
+
+```bash
+sudo nano /etc/mysql/mysql.conf.d/mysqld.cnf
+```
+
+Set:
 
 ```ini
 bind-address = 0.0.0.0
-```
-
-```sql
-CREATE DATABASE stack_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER 'stack_user'@'%' IDENTIFIED BY 'YourStrongPassword';
-GRANT ALL PRIVILEGES ON stack_db.* TO 'stack_user'@'%';
-FLUSH PRIVILEGES;
 ```
 
 ```bash
 sudo systemctl restart mysql
 ```
 
-### PostgreSQL (native on Ubuntu)
+### Create database
+
+```sql
+CREATE DATABASE stack_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+CREATE USER 'stack_user'@'%' IDENTIFIED BY 'StrongSecPassword@2026';
+
+GRANT ALL PRIVILEGES ON stack_db.* TO 'stack_user'@'%';
+
+FLUSH PRIVILEGES;
+```
+
+### Firewall (if needed)
 
 ```bash
+sudo ufw allow 3306/tcp
+sudo ufw reload
+```
+
+---
+
+## PostgreSQL
+
+### Install
+
+```bash
+sudo apt update
+
 sudo apt install -y postgresql postgresql-contrib
 ```
 
-In `postgresql.conf`: `listen_addresses = '*'`
+### Network access
 
-In `pg_hba.conf` add:
+```bash
+sudo nano /etc/postgresql/*/main/postgresql.conf
+```
+
+```ini
+listen_addresses = '*'
+```
+
+```bash
+sudo nano /etc/postgresql/*/main/pg_hba.conf
+```
+
+Add at the end:
 
 ```text
 host    all    all    0.0.0.0/0    scram-sha-256
 ```
 
+```bash
+sudo systemctl restart postgresql
+```
+
+### Create user and database
+
 ```sql
-CREATE USER stack_user WITH PASSWORD 'YourStrongPassword';
+CREATE USER stack_user WITH PASSWORD 'StrongSecPassword@2026';
+
 CREATE DATABASE stack_db OWNER stack_user;
 ```
 
 ---
 
-## Connect Stack to MySQL / PostgreSQL
+# 🔗 Connect database in Uvwstack
 
-1. Open **Settings** → **Database (MySQL / PostgreSQL)**
-2. Select DB type
-3. Enter connection parameters (see deployment option above)
-4. Click **Test connection** — on success the working host is shown
-5. Click **Apply DB and migrate** — tables are created and JSON data is migrated
+After startup, open:
 
-> **Docker note:** `localhost` inside a container is not the Ubuntu host. Use `mysql` (compose service name), `172.17.0.1`, `host.docker.internal`, or host-network mode.
+```text
+http://SERVER_IP:8080
+```
 
-Encrypted credentials are stored in `/app/data/db_config.json` (Docker) or project root (PM2).
+### Default login
+
+```text
+Login: admin
+Password: admin
+```
+
+> Change the admin password immediately after first login.
+
+### Settings path
+
+**Settings** → **Database (MySQL / PostgreSQL)**
+
+### Connection parameters
+
+| Parameter | Docker + MySQL | Docker bridge + native DB | Host network / PM2 |
+|-----------|----------------|---------------------------|-------------------|
+| DB type | MySQL / PostgreSQL | MySQL / PostgreSQL | MySQL / PostgreSQL |
+| Host | `mysql` or `postgres` | `172.17.0.1` or `host.docker.internal` | `localhost` |
+| Database | `stack_db` | `stack_db` | `stack_db` |
+| User | `stack_user` | `stack_user` | `stack_user` |
+| MySQL port | `3306` | `3306` | `3306` |
+| PostgreSQL port | `5432` | `5432` | `5432` |
+
+> **Note:** `localhost` inside a Docker container is **not** the Ubuntu host. For native DB use `172.17.0.1`, host network, or MySQL in Compose.
+
+### Test and migrate
+
+1. Click **Test connection** — on success the working host is shown.
+2. Click **Apply DB and migrate**.
+
+The system will:
+
+- create tables;
+- run migrations;
+- encrypt connection settings;
+- migrate existing JSON data;
+- enable automatic connection and monitoring.
 
 ---
 
-## Environment variables
+# 📂 Project structure
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `PORT` | HTTP port | `3000` / `8080` in Docker |
-| `NODE_ENV` | `production` / `development` | — |
-| `DB_ENCRYPTION_KEY` | AES-256 key for data & credentials | **Change in production** |
-| `STACK_DATA_DIR` | Persistent data directory | `/app/data` in Docker |
-| `DB_HOST_GATEWAY` | Docker host alias for DB | `host.docker.internal` |
-| `GITHUB_UPDATE_REPO` | Update check repository | `llDecsterll/uvwstack` |
-| `STACK_DEFAULT_DB_*` | Auto-connect on first start | See `.env.example` |
+```text
+uvwstack/
+│
+├── src/                          # React UI
+│   ├── components/               # Modules: computers, network, warehouse, settings…
+│   ├── utils/                    # License, i18n, updates
+│   └── config/                   # Version, update repo
+├── server.ts                     # Express API, DB, encryption
+├── Dockerfile
+├── docker-compose.yml            # App only
+├── docker-compose.mysql.yml      # + MySQL
+├── docker-compose.postgres.yml   # + PostgreSQL
+├── docker-compose.host.yml       # Host network
+├── docker-compose.ssl.yml        # SSL (optional)
+├── docker-compose.caddy.yml      # Caddy (optional)
+├── nginx.conf
+├── scripts/verify-flow.mjs       # Smoke tests
+├── package.json
+├── .env.example
+├── README.md                     # English
+├── README.ru.md                  # Русский
+├── README.zh-CN.md               # 中文
+├── DOCKER.md                     # Extended guide (RU)
+└── COPYRIGHT.md
+```
+
+---
+
+# 🔧 Environment variables
+
+| Variable | Description |
+|----------|-------------|
+| `PORT` | HTTP port (default 3000, Docker uses 8080) |
+| `NODE_ENV` | `production` / `development` |
+| `DB_ENCRYPTION_KEY` | AES-256 key for data and DB credential encryption |
+| `STACK_DATA_DIR` | Data directory (`db.json`, `db_config.json`); Docker: `/app/data` |
+| `DB_HOST_GATEWAY` | Host alias for DB access from Docker |
+| `GITHUB_UPDATE_REPO` | Repository URL for update checks |
+| `STACK_DEFAULT_DB_TYPE` | Auto-connect: DB type (`mysql` / `postgres`) |
+| `STACK_DEFAULT_DB_HOST` | Auto-connect: host |
+| `STACK_DEFAULT_DB_PORT` | Auto-connect: port |
+| `STACK_DEFAULT_DB_NAME` | Auto-connect: database name |
+| `STACK_DEFAULT_DB_USER` | Auto-connect: user |
+| `STACK_DEFAULT_DB_PASSWORD` | Auto-connect: password |
+| `MYSQL_PASSWORD` | MySQL user password in Compose |
+| `MYSQL_ROOT_PASSWORD` | MySQL root password in Compose |
+| `POSTGRES_PASSWORD` | PostgreSQL password in Compose |
 
 Example `.env`:
 
 ```env
 PORT=8080
+
 NODE_ENV=production
-DB_ENCRYPTION_KEY=your-long-random-secret-here
+
+DB_ENCRYPTION_KEY=your-long-random-secret-key-here
+
 STACK_DATA_DIR=/app/data
+
+DB_HOST_GATEWAY=host.docker.internal
+
 GITHUB_UPDATE_REPO=https://github.com/llDecsterll/uvwstack.git
 ```
 
 ---
 
-## Project structure
-
-```text
-uvwstack/
-├── src/                    # React frontend
-├── server.ts               # Express API, DB, encryption, license checks
-├── Dockerfile
-├── docker-compose
-│   ├── docker-compose.yml          # App only
-│   ├── docker-compose.mysql.yml    # + MySQL
-│   ├── docker-compose.postgres.yml # + PostgreSQL
-│   └── docker-compose.host.yml     # Host network mode
-├── scripts/verify-flow.mjs # Smoke tests
-├── README.md               # English (this file)
-├── README.ru.md            # Russian
-├── README.zh-CN.md         # Chinese
-├── DOCKER.md               # Extended deployment guide (RU)
-├── COPYRIGHT.md
-└── .env.example
-```
-
----
-
-## Licensing
-
-- **30-day trial** from first launch
-- Hardware-bound activation via Request Code: `REQ-XXXX-XXXX-XXXX-CHKS`
-- License key format: `UTKIN-{payload}-{hash}`
-- Keys are issued by the separate **keyserver** (not included in this repository)
-- Client cannot generate valid keys locally
-
-Contact for commercial license: assetorbit@icloud.com
-
----
-
-## Updates
+# 🔄 System updates
 
 ### Docker
 
 ```bash
-cd uvwstack
-git pull
+cd ~/uvwstack
+
+git pull origin main
+
 docker compose down
+
 docker compose up -d --build
 ```
 
-Or use **Settings → Update center** in the UI (checks GitHub releases).
+With MySQL:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.mysql.yml up -d --build
+```
 
 ### PM2
 
 ```bash
-git pull && npm install && npm run build
-pm2 restart uvwstack
+cd ~/uvwstack
+
+git pull origin main
+
+npm install
+
+npm run build
+
+pm2 restart uvwstack-system
 ```
+
+### Via UI
+
+**Settings** → **Stack update center** — checks GitHub releases.
 
 ---
 
-## Troubleshooting
+# 🔧 Troubleshooting
 
-| Problem | Solution |
-|---------|----------|
-| **Connection refused to DB from Docker** | Use `172.17.0.1` or host-network compose; set MySQL `bind-address=0.0.0.0` |
-| **Test fails with masked password** | Fixed in v2.6.4+ — leave password empty if already saved, or re-enter it |
-| **No Dockerfile found** | Run compose from repo root (`~/uvwstack`), not nested folder |
-| **Port 8080 in use** | Change `PORT` in `.env` and `docker-compose.yml` ports mapping |
-| **Build OOM on small VPS** | `SKIP_OBFUSCATION=true` is set in Dockerfile by default |
+| Issue | Solution |
+|-------|----------|
+| **Connection refused to DB from Docker** | Host `172.17.0.1`; MySQL: `bind-address=0.0.0.0`; or `docker-compose.host.yml` |
+| **Connection test fails** | Re-enter password; if saved, leave field empty or type again |
+| **Dockerfile not found** | Run from repo root `~/uvwstack`, not a nested folder |
+| **Port 8080 in use** | Change `PORT` and port mapping in `docker-compose.yml` |
+| **Build OOM on small VPS** | Dockerfile sets `SKIP_OBFUSCATION=true` by default |
 
-Check logs:
+Docker gateway check:
+
+```bash
+ip addr show docker0 | grep inet
+# Usually: 172.17.0.1
+```
+
+Logs:
 
 ```bash
 docker compose logs -f uvwstack-app
 ```
 
-Run local smoke tests (with server on port 8098):
+More details: [DOCKER.md](./DOCKER.md) (Russian)
 
-```bash
-npm run build && PORT=8098 node dist/server.cjs &
-node scripts/verify-flow.mjs http://127.0.0.1:8098
+---
+
+# 📜 Copyright
+
+© Utkin Vladislav Vyacheslavovich (Уткин Владислав Вячеславович)
+
+All rights reserved.
+
+See:
+
+```text
+COPYRIGHT.md
 ```
 
 ---
 
-## Copyright & contact
+# 📞 Contact
 
-© 2026 **Utkin Vladislav Vyacheslavovich** (Уткин Владислав Вячеславович). All rights reserved.
+📧 E-mail:
 
-See [COPYRIGHT.md](./COPYRIGHT.md) for full terms.
+```text
+assetorbit@icloud.com
+```
 
-| | |
-|---|---|
-| Email | assetorbit@icloud.com |
-| Telegram | [@Dexterll](https://t.me/Dexterll) |
-| GitHub | [llDecsterll/uvwstack](https://github.com/llDecsterll/uvwstack) |
+📨 Telegram:
 
-If Stack is useful for your organization — star the repository and report issues via GitHub Issues.
+```text
+@Dexterll
+```
+
+🌐 GitHub:
+
+```text
+https://github.com/llDecsterll/uvwstack
+```
 
 ---
 
-<p align="center">Built for efficient IT infrastructure management</p>
+# ⭐ Support the project
+
+If Uvwstack is useful to you:
+
+- Star ⭐ the repository
+- Report bugs via [Issues](https://github.com/llDecsterll/uvwstack/issues)
+- Suggest new features
+- Contact us for an enterprise license
+
+---
+
+<p align="center">
+  Built for efficient IT infrastructure management 🚀
+</p>

@@ -5,85 +5,185 @@
   <a href="README.zh-CN.md"><b>中文</b></a>
 </p>
 
-# Stack (Uvwstack)
+# 🚀 Uvwstack (Stack)
 
 <p align="center">
-  <img src="https://img.shields.io/badge/版本-2.6.5-blue?style=for-the-badge" alt="Version">
-  <img src="https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&style=for-the-badge" alt="Docker">
-  <img src="https://img.shields.io/badge/Node.js-20+-339933?logo=node.js&style=for-the-badge" alt="Node.js">
+  <img src="https://img.shields.io/badge/版本-2.6.6-blue?style=for-the-badge" alt="Version">
+  <img src="https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&style=for-the-badge" alt="Docker Ready">
+  <img src="https://img.shields.io/badge/Node.js-20+-339933?logo=node.js&style=for-the-badge" alt="Node.js 20">
+  <img src="https://img.shields.io/badge/PM2-Supported-blue?style=for-the-badge" alt="PM2">
   <img src="https://img.shields.io/badge/许可证-Commercial-orange?style=for-the-badge" alt="License">
 </p>
 
 <p align="center">
-  <strong>企业 IT 资产管理系统：硬件、网络、许可证、仓库与审计</strong>
+  <strong>现代化 IT 基础设施、设备、许可证与仓库管理系统</strong>
 </p>
 
 ---
 
-## 目录
+## 📋 目录
 
-- [项目简介](#项目简介)
-- [主要功能](#主要功能)
-- [技术栈](#技术栈)
-- [系统要求](#系统要求)
-- [快速开始（Docker）](#快速开始docker)
-- [部署方式](#部署方式)
-- [数据库配置](#数据库配置)
-- [连接 MySQL / PostgreSQL](#连接-mysql--postgresql)
-- [环境变量](#环境变量)
-- [项目结构](#项目结构)
-- [许可证](#许可证)
-- [更新系统](#更新系统)
-- [故障排除](#故障排除)
-- [版权与联系](#版权与联系)
+- [项目简介](#-项目简介)
+- [主要功能](#-主要功能)
+- [许可证](#-许可证)
+- [技术栈](#-技术栈)
+- [系统要求](#-系统要求)
+- [安装部署](#-安装部署)
+  - [服务器准备](#服务器准备)
+  - [Docker Compose](#-方式-1docker-compose推荐)
+  - [Docker + MySQL](#-方式-2docker--mysql-同一网络)
+  - [Docker + PostgreSQL](#-方式-3docker--postgresql)
+  - [Host 网络 + 本地数据库](#-方式-4host-网络--ubuntu-本地数据库)
+  - [PM2](#-方式-5原生安装-pm2)
+- [数据库配置](#-数据库配置)
+  - [MySQL](#mysql)
+  - [PostgreSQL](#postgresql)
+- [连接数据库](#-在-uvwstack-中连接数据库)
+- [项目结构](#-项目结构)
+- [环境变量](#-环境变量)
+- [系统更新](#-系统更新)
+- [故障排除](#-故障排除)
+- [版权](#-版权)
+- [联系方式](#-联系方式)
 
 ---
 
-## 项目简介
+# 📖 项目简介
 
-**Stack**（仓库名：**Uvwstack**）是基于 Web 的企业 IT 资产集中管理与盘点平台。
+**Uvwstack**（界面名称：**Stack**）是企业级 IT 资产集中管理与盘点 Web 平台。
 
 适用于：
 
-- 系统管理员
-- IT 部门
-- 资产管理员
-- 政府及商业机构
+- 系统管理员；
+- IT 部门；
+- 资产管理员；
+- 企业技术服务部门；
+- 政府及商业机构。
 
-可管理计算机、服务器、网络设备、办公设备、配件、软件许可证、仓库库存及审计日志。界面支持中文、俄语和英语。
+全面管理：
+
+- 计算机；
+- 服务器；
+- 网络设备；
+- 办公设备；
+- 配件；
+- 软件许可证；
+- 仓库库存；
+- 耗材；
+- 审计与操作日志。
+
+数据集中存储，通过现代浏览器访问。界面支持**中文**、**俄语**和**英语**。
 
 代码仓库：[github.com/llDecsterll/uvwstack](https://github.com/llDecsterll/uvwstack)
 
 ---
 
-## 主要功能
+# ✨ 主要功能
 
-| 模块 | 说明 |
-|------|------|
-| **计算机与服务器** | PC、笔记本、服务器、配件、使用历史 |
-| **网络** | IP 地址、配线架、路由器、拓扑 |
-| **仓库** | 入库/出库、耗材、硒鼓、许可证 |
-| **员工** | 设备分配、部门、责任追踪 |
-| **审计与报表** | 操作日志、盘点报表、保修 |
-| **安全** | AES-256-CBC 加密、数据库凭据加密、许可证绑定 |
-| **数据库** | 本地 JSON（默认）、MySQL 8、PostgreSQL 16 |
-| **Docker** | 生产镜像、Compose 配置、Host 网络模式 |
+## 🖥 设备管理
+
+- 台式机与笔记本
+- 服务器
+- 打印机与多功能一体机
+- 交换机与路由器
+- 配件
+- 使用与转移历史
+
+## 🌐 网络基础设施
+
+- IP 地址管理
+- 配线架
+- 路由器
+- 网络拓扑
+- 连接图
+
+## 📦 仓库管理
+
+- 入库与出库
+- 盘点
+- 库存余额
+- 硒鼓
+- 耗材
+- 软件许可证
+
+## 👥 责任人管理
+
+- 设备分配给员工
+- 按部门关联资产
+- 转移历史
+- 物资责任追踪
+
+## 📊 报表与审计
+
+- 分析仪表盘
+- 操作日志
+- 盘点审计
+- 保修管理
+
+## 🔐 安全
+
+- AES-256-CBC 数据加密
+- 数据库连接凭据加密存储
+- 自动重连与健康监控
+- 备份排除许可证字段
+- 分布式部署（Docker、PM2、MySQL、PostgreSQL）
 
 ---
 
-## 技术栈
+# 🔑 许可证
 
-| 层级 | 技术 |
+硬件绑定激活机制。
+
+### 试用期
+
+- 30 天免费使用
+- 自首次启动开始计时
+
+### 激活
+
+安装后自动生成请求码：
+
+```text
+REQ-XXXX-XXXX-XXXX-CHKS
+```
+
+据此签发许可证密钥：
+
+```text
+UTKIN-XXXX-XXXX-XXXX
+```
+
+### 许可证特性
+
+✅ 硬件绑定（MAC 地址）
+
+✅ 数字签名验证
+
+✅ 防复制与防暴力破解
+
+✅ 独立许可证服务器（keyserver）
+
+❌ 客户端无法本地生成有效密钥
+
+---
+
+# 🛠 技术栈
+
+| 组件 | 技术 |
 |------|------|
 | 前端 | React 19、TypeScript、Tailwind CSS 4、Motion |
 | 后端 | Node.js 20、Express |
+| API | REST（Express） |
+| 数据库 | JSON（文件）/ MySQL 8 / PostgreSQL 16 |
 | 构建 | Vite 6、esbuild |
-| 数据库 | MySQL（mysql2）、PostgreSQL（pg） |
-| 部署 | Docker、PM2、可选 Nginx/Caddy |
+| 容器 | Docker、Docker Compose |
+| 进程管理 | PM2 |
+| 加密 | AES-256-CBC |
+| 反向代理 | Nginx、Caddy（可选） |
 
 ---
 
-## 系统要求
+# 💻 系统要求
 
 | 资源 | 最低 | 推荐 |
 |------|------|------|
@@ -91,37 +191,90 @@
 | CPU | 1 核 | 2 核 |
 | 内存 | 1 GB | 2 GB（同机部署数据库时） |
 | 磁盘 | 10 GB 可用 | 20 GB |
-| 端口 | 8080（HTTP） | 443（反向代理） |
+| 网络 | 8080 端口（HTTP） | 443（HTTPS 代理） |
+| 浏览器 | Chrome、Firefox、Edge（最新版） | — |
 
 ---
 
-## 快速开始（Docker）
+# 🚀 安装部署
+
+## 服务器准备
+
+```bash
+cd ~
+
+sudo apt update && sudo apt upgrade -y
+sudo apt install -y git curl ca-certificates
+```
+
+如需清理旧副本：
+
+```bash
+rm -rf uvwstack
+```
+
+---
+
+## 克隆仓库
 
 ```bash
 git clone https://github.com/llDecsterll/uvwstack.git
+
 cd uvwstack
+
 cp .env.example .env
-# 在 .env 中设置安全的 DB_ENCRYPTION_KEY
-docker compose up -d --build
 ```
 
-浏览器访问：**http://服务器IP:8080**
-
-默认账号：`admin` / `admin` — 首次登录后请立即修改密码。
+> **重要：** 在 `.env` 中设置安全的 `DB_ENCRYPTION_KEY` — 用于数据加密的长随机字符串。
 
 ---
 
-## 部署方式
+# 🐳 方式 1：Docker Compose（推荐）
 
-### 方式 1 — 仅应用（JSON 存储）
+快速启动，数据以 JSON 形式保存在 Docker 卷中。
+
+## 安装 Docker
 
 ```bash
-docker compose up -d --build
+sudo apt update
+
+sudo apt install -y docker.io docker-compose-v2
+
+sudo usermod -aG docker $USER
 ```
 
-数据保存在 Docker 卷 `uvwstack_data`（`/app/data/db.json`）。
+重新登录 SSH 会话。
 
-### 方式 2 — 应用 + Docker 内 MySQL（推荐）
+---
+
+## 启动项目
+
+```bash
+docker compose build --no-cache
+
+docker compose up -d
+```
+
+检查状态：
+
+```bash
+docker compose ps
+docker compose logs -f uvwstack-app
+```
+
+浏览器访问：
+
+```text
+http://服务器IP:8080
+```
+
+数据保存在 Docker 卷 `uvwstack_data` → `/app/data/`。
+
+---
+
+# 🐳 方式 2：Docker + MySQL（同一网络）
+
+**生产环境推荐** — 应用与 MySQL 在同一 Compose 栈中。
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.mysql.yml up -d --build
@@ -134,11 +287,13 @@ docker compose -f docker-compose.yml -f docker-compose.mysql.yml up -d --build
 | 用户 | `stack_user` |
 | 端口 | `3306` |
 
-密码见 `.env.example`（`MYSQL_PASSWORD`、`MYSQL_ROOT_PASSWORD`）。
+密码在 `.env` 中配置（`MYSQL_PASSWORD`、`MYSQL_ROOT_PASSWORD`）— 见 `.env.example`。
 
-首次启动时，Stack 会通过 `STACK_DEFAULT_DB_*` 环境变量自动连接（已在 `docker-compose.mysql.yml` 中配置）。
+首次启动时 Stack 通过 `STACK_DEFAULT_DB_*` 环境变量自动连接。
 
-### 方式 3 — 应用 + Docker 内 PostgreSQL
+---
+
+# 🐳 方式 3：Docker + PostgreSQL
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d --build
@@ -151,192 +306,340 @@ docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d --buil
 | 用户 | `stack_user` |
 | 端口 | `5432` |
 
-### 方式 4 — Ubuntu 本地数据库 + Docker 应用
+---
 
-若数据库仅监听 `127.0.0.1`，请使用 **Host 网络模式**：
+# 🐳 方式 4：Host 网络 + Ubuntu 本地数据库
+
+若 MySQL 或 PostgreSQL **安装在宿主机**且监听 `127.0.0.1`，使用 Host 网络模式：
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.host.yml up -d --build
 ```
 
-在 Stack 设置中填写主机 **`localhost`**。
-
-若数据库允许外部连接（`bind-address = 0.0.0.0`），在 bridge 模式下使用：
-
-- `172.17.0.1`（Linux Docker 网桥网关），或
-- `host.docker.internal`（已在 `docker-compose.yml` 中配置）
-
-### 方式 5 — PM2 原生安装
-
-```bash
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-sudo apt install -y nodejs build-essential
-cp .env.example .env
-npm install
-npm run build
-sudo npm install -g pm2
-PORT=8080 NODE_ENV=production pm2 start dist/server.cjs --name uvwstack
-pm2 startup systemd && pm2 save
-```
-
-详细 Ubuntu 部署指南：[DOCKER.md](./DOCKER.md)（俄语）
+在 Stack 数据库设置中填写主机 **`localhost`**。
 
 ---
 
-## 数据库配置
+# ⚙ 方式 5：原生安装（PM2）
 
-### MySQL（Ubuntu 本地安装）
+## 安装 Node.js 20
 
 ```bash
-sudo apt install -y mysql-server
-sudo systemctl enable --now mysql
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+
+sudo apt install -y nodejs build-essential
 ```
 
-编辑 `/etc/mysql/mysql.conf.d/mysqld.cnf`：
+---
+
+## 安装依赖
+
+```bash
+cp .env.example .env
+
+npm install
+
+npm run build
+```
+
+---
+
+## 安装 PM2
+
+```bash
+sudo npm install -g pm2
+```
+
+---
+
+## 启动应用
+
+```bash
+PORT=8080 NODE_ENV=production pm2 start dist/server.cjs --name "uvwstack-system"
+```
+
+---
+
+## 开机自启
+
+```bash
+pm2 startup systemd
+```
+
+执行 PM2 输出的命令，然后：
+
+```bash
+pm2 save
+```
+
+---
+
+# 🗄 数据库配置
+
+适用于在 **Ubuntu 本地安装**数据库（非 Docker Compose）的情况。
+
+## MySQL
+
+### 安装
+
+```bash
+sudo apt update
+
+sudo apt install -y mysql-server
+
+sudo systemctl enable mysql
+sudo systemctl start mysql
+```
+
+### Docker 访问（bind-address）
+
+若 Stack 在 Docker bridge 模式运行，MySQL 需接受 `127.0.0.1` 以外的连接：
+
+```bash
+sudo nano /etc/mysql/mysql.conf.d/mysqld.cnf
+```
+
+设置为：
 
 ```ini
 bind-address = 0.0.0.0
-```
-
-```sql
-CREATE DATABASE stack_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER 'stack_user'@'%' IDENTIFIED BY 'YourStrongPassword';
-GRANT ALL PRIVILEGES ON stack_db.* TO 'stack_user'@'%';
-FLUSH PRIVILEGES;
 ```
 
 ```bash
 sudo systemctl restart mysql
 ```
 
-### PostgreSQL（Ubuntu 本地安装）
+### 创建数据库
+
+```sql
+CREATE DATABASE stack_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+CREATE USER 'stack_user'@'%' IDENTIFIED BY 'StrongSecPassword@2026';
+
+GRANT ALL PRIVILEGES ON stack_db.* TO 'stack_user'@'%';
+
+FLUSH PRIVILEGES;
+```
+
+### 防火墙（如需要）
 
 ```bash
+sudo ufw allow 3306/tcp
+sudo ufw reload
+```
+
+---
+
+## PostgreSQL
+
+### 安装
+
+```bash
+sudo apt update
+
 sudo apt install -y postgresql postgresql-contrib
 ```
 
-`postgresql.conf`：`listen_addresses = '*'`
+### 网络访问
 
-`pg_hba.conf` 添加：
+```bash
+sudo nano /etc/postgresql/*/main/postgresql.conf
+```
+
+```ini
+listen_addresses = '*'
+```
+
+```bash
+sudo nano /etc/postgresql/*/main/pg_hba.conf
+```
+
+在末尾添加：
 
 ```text
 host    all    all    0.0.0.0/0    scram-sha-256
 ```
 
+```bash
+sudo systemctl restart postgresql
+```
+
+### 创建用户与数据库
+
 ```sql
-CREATE USER stack_user WITH PASSWORD 'YourStrongPassword';
+CREATE USER stack_user WITH PASSWORD 'StrongSecPassword@2026';
+
 CREATE DATABASE stack_db OWNER stack_user;
 ```
 
 ---
 
-## 连接 MySQL / PostgreSQL
+# 🔗 在 Uvwstack 中连接数据库
 
-1. 打开 **设置** → **数据库（MySQL / PostgreSQL）**
-2. 选择数据库类型
-3. 填写连接参数（见上方部署方式）
-4. 点击 **测试连接** — 成功后会显示可用主机地址
-5. 点击 **应用数据库并迁移** — 自动建表并将 JSON 数据迁移至数据库
+启动后访问：
 
-> **Docker 提示：** 容器内的 `localhost` 不是 Ubuntu 宿主机。请使用 `mysql`（服务名）、`172.17.0.1`、`host.docker.internal` 或 Host 网络模式。
+```text
+http://服务器IP:8080
+```
 
-加密凭据保存在 `/app/data/db_config.json`（Docker）或项目根目录（PM2）。
+### 默认登录
+
+```text
+用户名: admin
+密码: admin
+```
+
+> 首次登录后请立即修改管理员密码。
+
+### 设置路径
+
+**设置** → **数据库（MySQL / PostgreSQL）**
+
+### 连接参数
+
+| 参数 | Docker + MySQL | Docker bridge + 本地库 | Host 网络 / PM2 |
+|------|----------------|-------------------------|-----------------|
+| 数据库类型 | MySQL / PostgreSQL | MySQL / PostgreSQL | MySQL / PostgreSQL |
+| 主机 | `mysql` 或 `postgres` | `172.17.0.1` 或 `host.docker.internal` | `localhost` |
+| 数据库名 | `stack_db` | `stack_db` | `stack_db` |
+| 用户 | `stack_user` | `stack_user` | `stack_user` |
+| MySQL 端口 | `3306` | `3306` | `3306` |
+| PostgreSQL 端口 | `5432` | `5432` | `5432` |
+
+> **注意：** Docker 容器内的 `localhost` **不是** Ubuntu 宿主机。本地数据库请用 `172.17.0.1`、Host 网络或 Compose 中的 MySQL。
+
+### 测试与迁移
+
+1. 点击 **测试连接** — 成功后会显示可用主机地址。
+2. 点击 **应用数据库并迁移**。
+
+系统将自动：
+
+- 创建数据表；
+- 执行迁移；
+- 加密连接配置；
+- 从 JSON 迁移现有数据；
+- 启用自动连接与监控。
 
 ---
 
-## 环境变量
+# 📂 项目结构
 
-| 变量 | 说明 | 默认值 |
-|------|------|--------|
-| `PORT` | HTTP 端口 | Docker 中为 `8080` |
-| `NODE_ENV` | `production` / `development` | — |
-| `DB_ENCRYPTION_KEY` | AES-256 密钥 | **生产环境必须修改** |
-| `STACK_DATA_DIR` | 数据目录 | Docker 中为 `/app/data` |
-| `DB_HOST_GATEWAY` | Docker 宿主机别名 | `host.docker.internal` |
-| `GITHUB_UPDATE_REPO` | 更新检查仓库 | `llDecsterll/uvwstack` |
-| `STACK_DEFAULT_DB_*` | 首次启动自动连接 | 见 `.env.example` |
+```text
+uvwstack/
+│
+├── src/                          # React 前端
+│   ├── components/               # 模块：计算机、网络、仓库、设置…
+│   ├── utils/                    # 许可证、i18n、更新
+│   └── config/                   # 版本、更新仓库
+├── server.ts                     # Express API、数据库、加密
+├── Dockerfile
+├── docker-compose.yml            # 仅应用
+├── docker-compose.mysql.yml      # + MySQL
+├── docker-compose.postgres.yml   # + PostgreSQL
+├── docker-compose.host.yml       # Host 网络
+├── docker-compose.ssl.yml        # SSL（可选）
+├── docker-compose.caddy.yml      # Caddy（可选）
+├── nginx.conf
+├── scripts/verify-flow.mjs       # 冒烟测试
+├── package.json
+├── .env.example
+├── README.md                     # English
+├── README.ru.md                  # Русский
+├── README.zh-CN.md               # 中文
+├── DOCKER.md                     # 扩展指南（俄语）
+└── COPYRIGHT.md
+```
+
+---
+
+# 🔧 环境变量
+
+| 变量 | 说明 |
+|------|------|
+| `PORT` | HTTP 端口（默认 3000，Docker 为 8080） |
+| `NODE_ENV` | `production` / `development` |
+| `DB_ENCRYPTION_KEY` | AES-256 密钥，用于数据与数据库凭据加密 |
+| `STACK_DATA_DIR` | 数据目录（`db.json`、`db_config.json`）；Docker：`/app/data` |
+| `DB_HOST_GATEWAY` | 从 Docker 访问数据库的主机别名 |
+| `GITHUB_UPDATE_REPO` | 更新检查的仓库 URL |
+| `STACK_DEFAULT_DB_TYPE` | 自动连接：数据库类型（`mysql` / `postgres`） |
+| `STACK_DEFAULT_DB_HOST` | 自动连接：主机 |
+| `STACK_DEFAULT_DB_PORT` | 自动连接：端口 |
+| `STACK_DEFAULT_DB_NAME` | 自动连接：数据库名 |
+| `STACK_DEFAULT_DB_USER` | 自动连接：用户名 |
+| `STACK_DEFAULT_DB_PASSWORD` | 自动连接：密码 |
+| `MYSQL_PASSWORD` | Compose 中 MySQL 用户密码 |
+| `MYSQL_ROOT_PASSWORD` | Compose 中 MySQL root 密码 |
+| `POSTGRES_PASSWORD` | Compose 中 PostgreSQL 密码 |
 
 `.env` 示例：
 
 ```env
 PORT=8080
+
 NODE_ENV=production
-DB_ENCRYPTION_KEY=your-long-random-secret
+
+DB_ENCRYPTION_KEY=your-long-random-secret-key-here
+
 STACK_DATA_DIR=/app/data
+
+DB_HOST_GATEWAY=host.docker.internal
+
 GITHUB_UPDATE_REPO=https://github.com/llDecsterll/uvwstack.git
 ```
 
 ---
 
-## 项目结构
-
-```text
-uvwstack/
-├── src/                         # React 前端
-├── server.ts                    # Express API、数据库、加密
-├── Dockerfile
-├── docker-compose.yml           # 仅应用
-├── docker-compose.mysql.yml     # + MySQL
-├── docker-compose.postgres.yml  # + PostgreSQL
-├── docker-compose.host.yml      # Host 网络
-├── scripts/verify-flow.mjs      # 冒烟测试
-├── README.md / README.ru.md / README.zh-CN.md
-├── DOCKER.md
-├── COPYRIGHT.md
-└── .env.example
-```
-
----
-
-## 许可证
-
-- 首次启动后 **30 天** 试用期
-- 硬件绑定激活，请求码格式：`REQ-XXXX-XXXX-XXXX-CHKS`
-- 许可证密钥格式：`UTKIN-{payload}-{hash}`
-- 密钥由独立 **keyserver** 签发（不包含在本仓库）
-- 客户端无法本地生成有效密钥
-
-商业许可联系：assetorbit@icloud.com
-
----
-
-## 更新系统
+# 🔄 系统更新
 
 ### Docker
 
 ```bash
-cd uvwstack
-git pull
+cd ~/uvwstack
+
+git pull origin main
+
 docker compose down
+
 docker compose up -d --build
 ```
 
-或在界面 **设置 → 更新中心** 检查 GitHub 版本。
+含 MySQL：
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.mysql.yml up -d --build
+```
 
 ### PM2
 
 ```bash
-git pull && npm install && npm run build
-pm2 restart uvwstack
+cd ~/uvwstack
+
+git pull origin main
+
+npm install
+
+npm run build
+
+pm2 restart uvwstack-system
 ```
+
+### 通过界面
+
+**设置** → **Stack 更新中心** — 检查 GitHub 发布版本。
 
 ---
 
-## 故障排除
+# 🔧 故障排除
 
 | 问题 | 解决方案 |
 |------|----------|
-| **Docker 内连接数据库被拒绝** | 使用 `172.17.0.1` 或 `docker-compose.host.yml`；MySQL 设置 `bind-address=0.0.0.0` |
-| **测试连接时密码错误** | v2.6.4+ 已修复 — 已保存密码时可留空，或重新输入 |
-| **找不到 Dockerfile** | 在仓库根目录 `~/uvwstack` 运行 compose |
+| **Docker 内连接数据库被拒绝** | 主机 `172.17.0.1`；MySQL：`bind-address=0.0.0.0`；或 `docker-compose.host.yml` |
+| **连接测试失败** | 重新输入密码；若已保存可留空或再次输入 |
+| **找不到 Dockerfile** | 在仓库根目录 `~/uvwstack` 运行，勿使用嵌套目录 |
 | **8080 端口被占用** | 修改 `.env` 中的 `PORT` 及 compose 端口映射 |
-| **小内存 VPS 构建失败** | Dockerfile 已默认 `SKIP_OBFUSCATION=true` |
-
-查看日志：
-
-```bash
-docker compose logs -f uvwstack-app
-```
+| **小内存 VPS 构建失败** | Dockerfile 默认 `SKIP_OBFUSCATION=true` |
 
 查看 Docker 网关：
 
@@ -345,29 +648,63 @@ ip addr show docker0 | grep inet
 # 通常为：172.17.0.1
 ```
 
-冒烟测试：
+日志：
 
 ```bash
-npm run build && PORT=8098 node dist/server.cjs &
-node scripts/verify-flow.mjs http://127.0.0.1:8098
+docker compose logs -f uvwstack-app
+```
+
+详见：[DOCKER.md](./DOCKER.md)（俄语）
+
+---
+
+# 📜 版权
+
+© Utkin Vladislav Vyacheslavovich（Уткин Владислав Вячеславович）
+
+保留所有权利。
+
+详见：
+
+```text
+COPYRIGHT.md
 ```
 
 ---
 
-## 版权与联系
+# 📞 联系方式
 
-© 2026 **Utkin Vladislav Vyacheslavovich**（Уткин Владислав Вячеславович）。保留所有权利。
+📧 邮箱：
 
-详见 [COPYRIGHT.md](./COPYRIGHT.md)
+```text
+assetorbit@icloud.com
+```
 
-| | |
-|---|---|
-| 邮箱 | assetorbit@icloud.com |
-| Telegram | [@Dexterll](https://t.me/Dexterll) |
-| GitHub | [llDecsterll/uvwstack](https://github.com/llDecsterll/uvwstack) |
+📨 Telegram：
 
-若 Stack 对您有帮助，欢迎为仓库点 Star，并通过 GitHub Issues 反馈问题。
+```text
+@Dexterll
+```
+
+🌐 GitHub：
+
+```text
+https://github.com/llDecsterll/uvwstack
+```
 
 ---
 
-<p align="center">为高效 IT 基础设施管理而构建</p>
+# ⭐ 支持项目
+
+若 Uvwstack 对您有帮助：
+
+- 为仓库点 ⭐ Star
+- 通过 [Issues](https://github.com/llDecsterll/uvwstack/issues) 报告问题
+- 提出新功能建议
+- 联系获取企业许可证
+
+---
+
+<p align="center">
+  为高效 IT 基础设施管理而构建 🚀
+</p>
