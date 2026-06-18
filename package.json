@@ -1,7 +1,7 @@
 {
   "name": "uvwstack",
   "private": true,
-  "version": "2.6.6",
+  "version": "2.6.7",
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
@@ -9,7 +9,8 @@
     "start": "node dist/server.cjs",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "screenshots": "node scripts/capture-screenshots.mjs"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
@@ -33,6 +34,7 @@
     "autoprefixer": "^10.4.21",
     "esbuild": "^0.25.0",
     "javascript-obfuscator": "^5.4.3",
+    "puppeteer-core": "^24.43.1",
     "rollup-plugin-obfuscator": "^1.1.0",
     "tailwindcss": "^4.1.14",
     "tsx": "^4.21.0",

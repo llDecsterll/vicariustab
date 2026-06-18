@@ -8,7 +8,7 @@
 # 🚀 Uvwstack (Stack)
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.6.6-blue?style=for-the-badge" alt="Version">
+  <img src="https://img.shields.io/badge/version-2.6.7-blue?style=for-the-badge" alt="Version">
   <img src="https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&style=for-the-badge" alt="Docker Ready">
   <img src="https://img.shields.io/badge/Node.js-20+-339933?logo=node.js&style=for-the-badge" alt="Node.js 20">
   <img src="https://img.shields.io/badge/PM2-Supported-blue?style=for-the-badge" alt="PM2">
@@ -21,8 +21,37 @@
 
 ---
 
+# 📸 Interface screenshots
+
+<p align="center">
+  <img src="docs/screenshots/01-login.png" alt="Stack login screen" width="720">
+  <br><em>Login screen</em>
+</p>
+
+| Dashboard | Network equipment |
+| :---: | :---: |
+| <img src="docs/screenshots/02-dashboard.png" alt="Stack dashboard" width="420"> | <img src="docs/screenshots/04-network.png" alt="Network equipment" width="420"> |
+
+| IT warehouse | Employees |
+| :---: | :---: |
+| <img src="docs/screenshots/05-warehouse.png" alt="IT warehouse" width="420"> | <img src="docs/screenshots/06-employees.png" alt="Employees" width="420"> |
+
+| Reports | Settings |
+| :---: | :---: |
+| <img src="docs/screenshots/07-reports.png" alt="Reports" width="420"> | <img src="docs/screenshots/08-settings.png" alt="Database settings" width="420"> |
+
+<p align="center">
+  <img src="docs/screenshots/03-computers.png" alt="Computers module" width="720">
+  <br><em>Computers and equipment tracking</em>
+</p>
+
+> Regenerate locally: `npm run build && npm run screenshots` → [`docs/screenshots/`](docs/screenshots/)
+
+---
+
 ## 📋 Table of contents
 
+- [Interface screenshots](#-interface-screenshots)
 - [About](#-about)
 - [Features](#-features)
 - [Licensing](#-licensing)
@@ -541,7 +570,10 @@ uvwstack/
 ├── docker-compose.ssl.yml        # SSL (optional)
 ├── docker-compose.caddy.yml      # Caddy (optional)
 ├── nginx.conf
-├── scripts/verify-flow.mjs       # Smoke tests
+├── scripts/
+│   ├── verify-flow.mjs           # Smoke tests
+│   └── capture-screenshots.mjs   # README screenshots
+├── docs/screenshots/             # UI screenshots (README)
 ├── package.json
 ├── .env.example
 ├── README.md                     # English
