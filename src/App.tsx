@@ -40,6 +40,8 @@ import {
 
 import { ObjectItem, NetworkDevice, ComputerItem, EmployeeItem, EmployeeStatus, WarehouseItem, WarehouseItemType, Activity, InventoryAudit, SystemUser, UserRole, SoftwareItem, ComputerCategory, CustomWarehouse, WarehouseWriteOff } from './types';
 import { getLicenseStatus, activateSystem, deactivateSystem, getSystemRequestCode, applyLicenseStateFromServer, getLicenseSecuritySnapshot } from './utils/license';
+import { checkForPlatformUpdate, markInstalledCommit, buildUpdateNotificationText } from './utils/updateCheck';
+import { APP_VERSION } from './config/appConfig';
 import { Copy, Check, Mail } from 'lucide-react';
 
 export default function App() {
@@ -325,8 +327,40 @@ export default function App() {
     }
   }, [isLoggedIn, currentUser]);
 
+  // Check GitHub for platform updates and notify via header bell
   useEffect(() => {
-    localStorage.setItem('it_tab_icons', JSON.stringify(tabIcons));
+    if (!isLoggedIn) return;
+    let cancelled = false;
+
+    const runUpdateCheck = () => {
+      checkForPlatformUpdate().then((result) => {
+        if (cancelled || !result) return;
+        if (result.updateAvailable) {
+          window.dispatchEvent(
+            new CustomEvent('uvwstack-update-available', {
+              detail: {
+                text: buildUpdateNotificationText(result),
+                remoteVersion: result.remoteVersion,
+                currentVersion: result.currentVersion,
+              },
+            })
+          );
+        } else if (result.latestCommitSha) {
+          markInstalledCommit(result.latestCommitSha);
+        }
+        localStorage.setItem('it_system_version', `v${APP_VERSION}`);
+      });
+    };
+
+    runUpdateCheck();
+    const interval = setInterval(runUpdateCheck, 6 * 60 * 60 * 1000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [isLoggedIn]);
+
+  useEffect(() => {
   }, [tabIcons]);
 
   useEffect(() => {
@@ -409,10 +443,11 @@ export default function App() {
     logActivity('Изменение параметров доступа', `Обновлены данные учетной записи "${target.name}"`, 'system');
 
     if (updatedFields.password && updatedFields.password !== target.password) {
-      const event = new CustomEvent('orbit-password-changed', {
+      const event = new CustomEvent('uvwstack-password-changed', {
         detail: { userName: target.name }
       });
       window.dispatchEvent(event);
+      window.dispatchEvent(new CustomEvent('orbit-password-changed', { detail: event.detail }));
     }
   };
 

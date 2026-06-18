@@ -1,4 +1,7 @@
-/** Official Orbit update source on GitHub */
-export const ORBIT_UPDATE_REPO = 'https://github.com/llDecsterll/uvwstack.git';
-
-export const ORBIT_UPDATE_REPO_DISPLAY = 'https://github.com/llDecsterll/uvwstack';
+/** @deprecated Import from appConfig.ts */
+export {
+  UVWSTACK_UPDATE_REPO as ORBIT_UPDATE_REPO,
+  UVWSTACK_UPDATE_REPO_DISPLAY as ORBIT_UPDATE_REPO_DISPLAY,
+  UVWSTACK_UPDATE_REPO,
+  UVWSTACK_UPDATE_REPO_DISPLAY,
+} from './appConfig';

@@ -16,10 +16,23 @@ import { createServer as createViteServer } from "vite";
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 
+const PKG = JSON.parse(fs.readFileSync(path.join(process.cwd(), "package.json"), "utf-8")) as { version?: string; name?: string };
+const APP_VERSION = String(PKG.version || "2.6.0");
+
 const ENCRYPTION_SECRET = process.env.DB_ENCRYPTION_KEY || "it-orbit-system-fallback-secret-2026-secure-v1";
-const ORBIT_UPDATE_REPO =
+const UVWSTACK_UPDATE_REPO =
   process.env.GITHUB_UPDATE_REPO || "https://github.com/llDecsterll/uvwstack.git";
 const ALGORITHM = "aes-256-cbc";
+
+function compareSemver(a: string, b: string): number {
+  const pa = a.replace(/^v/i, "").split(".").map((n) => parseInt(n, 10) || 0);
+  const pb = b.replace(/^v/i, "").split(".").map((n) => parseInt(n, 10) || 0);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const diff = (pa[i] || 0) - (pb[i] || 0);
+    if (diff !== 0) return diff > 0 ? 1 : -1;
+  }
+  return 0;
+}
 
 // Derive a 32-byte key using SHA-256
 const KEY = crypto.createHash("sha256").update(ENCRYPTION_SECRET).digest();
@@ -525,7 +538,9 @@ async function startServer() {
 
   app.get("/api/update/check", async (req, res) => {
     try {
-      const repoUrl = String(req.query.repo || ORBIT_UPDATE_REPO);
+      const repoUrl = String(req.query.repo || UVWSTACK_UPDATE_REPO);
+      const installedCommit = String(req.query.installedCommit || "").trim().toLowerCase();
+      const clientVersion = String(req.query.currentVersion || APP_VERSION).trim();
       const parsed = parseGithubRepo(repoUrl);
       if (!parsed) {
         return res.status(400).json({ error: "Invalid GitHub repository URL" });
@@ -533,7 +548,7 @@ async function startServer() {
 
       const headers = {
         Accept: "application/vnd.github+json",
-        "User-Agent": "Orbit-Update-Checker/1.0",
+        "User-Agent": "Uvwstack-Update-Checker/1.0",
       };
 
       let latestTag = "";
@@ -544,6 +559,7 @@ async function startServer() {
       let latestCommitDate = "";
       let defaultBranch = "main";
       let updateSource: "release" | "tag" | "commit" = "commit";
+      let remoteVersion = "";
 
       const releaseRes = await fetch(
         `https://api.github.com/repos/${parsed.owner}/${parsed.repo}/releases/latest`,
@@ -609,14 +625,41 @@ async function startServer() {
         }
       }
 
+      try {
+        const rawPkgRes = await fetch(
+          `https://raw.githubusercontent.com/${parsed.owner}/${parsed.repo}/${defaultBranch}/package.json`,
+          { headers: { "User-Agent": "Uvwstack-Update-Checker/1.0" } }
+        );
+        if (rawPkgRes.ok) {
+          const remotePkg = (await rawPkgRes.json()) as { version?: string };
+          remoteVersion = String(remotePkg.version || "").trim();
+        }
+      } catch {
+        /* non-blocking */
+      }
+
+      if (!remoteVersion && latestTag) {
+        remoteVersion = latestTag.replace(/^v/i, "");
+      }
+
+      const fullCommitSha = latestCommitSha;
+      const versionNewer = Boolean(remoteVersion && compareSemver(remoteVersion, clientVersion) > 0);
+      const commitShaShort = fullCommitSha.toLowerCase().slice(0, 7);
+      const installedShort = installedCommit.toLowerCase().slice(0, 7);
+      const commitChanged = Boolean(commitShaShort && installedShort && commitShaShort !== installedShort);
+      const updateAvailable = versionNewer || commitChanged;
+
       return res.json({
         repository: `${parsed.owner}/${parsed.repo}`,
-        repoUrl: ORBIT_UPDATE_REPO,
+        repoUrl: UVWSTACK_UPDATE_REPO,
+        currentVersion: clientVersion,
+        remoteVersion: remoteVersion || latestTag || fullCommitSha,
+        updateAvailable,
         latestTag,
         releaseUrl,
         releaseNotes,
         publishedAt,
-        latestCommitSha,
+        latestCommitSha: fullCommitSha,
         defaultBranch,
         updateSource,
         checkedAt: new Date().toISOString(),
@@ -628,7 +671,7 @@ async function startServer() {
   });
 
   app.get("/api/update/repo", (_req, res) => {
-    return res.json({ repoUrl: ORBIT_UPDATE_REPO });
+    return res.json({ repoUrl: UVWSTACK_UPDATE_REPO, currentVersion: APP_VERSION });
   });
 
   // Block access to source maps and TypeScript sources in production
@@ -670,7 +713,7 @@ async function startServer() {
   }, 12000);
 
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`[Orbit Server] Active Multi-DBMS secured container server running on port ${PORT}`);
+    console.log(`[Uvwstack Server] Active Multi-DBMS secured container server running on port ${PORT}`);
   });
 }
 

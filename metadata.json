@@ -1,5 +1,5 @@
 {
-  "name": "Orbit",
+  "name": "Uvwstack",
   "description": "Профессиональная система инвентаризации ИТ-оборудования, сетевых устройств, сотрудников и складов на React.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]

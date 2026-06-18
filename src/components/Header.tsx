@@ -51,7 +51,7 @@ export default function Header({
   const { t } = useTranslation();
   const [showResults, setShowResults] = useState(false);
   const [notifications, setNotifications] = useState<{ id: number; text: string; read: boolean; targetTab?: string; isSecurity?: boolean }[]>(() => {
-    const saved = localStorage.getItem('orbit_notifications');
+    const saved = localStorage.getItem('uvwstack_notifications') || localStorage.getItem('orbit_notifications');
     if (saved) {
       try {
         return JSON.parse(saved);
@@ -67,7 +67,7 @@ export default function Header({
   });
 
   useEffect(() => {
-    localStorage.setItem('orbit_notifications', JSON.stringify(notifications));
+    localStorage.setItem('uvwstack_notifications', JSON.stringify(notifications));
   }, [notifications]);
 
   // Safe calculators inside Header.tsx for dynamic matching
@@ -225,7 +225,29 @@ export default function Header({
     });
   }, [computers, networkDevices, softwareItems, audits, currentUser]);
 
-  // Listen to custom security event "orbit-password-changed" globally
+  // Platform update notifications from GitHub version check
+  useEffect(() => {
+    const handleUpdateAvailable = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { text?: string };
+      const text = detail?.text || 'Доступно обновление Uvwstack. Откройте Настройки → Центр обновлений.';
+      setNotifications((prev) => {
+        if (prev.some((n) => n.text === text && !n.read)) return prev;
+        return [
+          {
+            id: Date.now() + Math.floor(Math.random() * 1000),
+            text,
+            read: false,
+            targetTab: 'settings',
+          },
+          ...prev,
+        ];
+      });
+    };
+    window.addEventListener('uvwstack-update-available', handleUpdateAvailable);
+    return () => window.removeEventListener('uvwstack-update-available', handleUpdateAvailable);
+  }, []);
+
+  // Listen to password change events
   useEffect(() => {
     const handlePasswordChangedEvent = (e: Event) => {
       const customEvent = e as CustomEvent;
@@ -245,8 +267,10 @@ export default function Header({
       });
     };
     
+    window.addEventListener('uvwstack-password-changed', handlePasswordChangedEvent);
     window.addEventListener('orbit-password-changed', handlePasswordChangedEvent);
     return () => {
+      window.removeEventListener('uvwstack-password-changed', handlePasswordChangedEvent);
       window.removeEventListener('orbit-password-changed', handlePasswordChangedEvent);
     };
   }, []);
@@ -310,7 +334,8 @@ export default function Header({
       const isLicense = text.includes('лицензия') || text.includes('лицензион');
       const isInventory = text.includes('инвентаризац') || text.includes('аудит');
       const isPassword = text.includes('парол');
-      return !(isWarranty || isLicense || isInventory || isPassword);
+      const isUpdate = text.includes('обновлен') || text.includes('update') || text.includes('uvwstack');
+      return !(isWarranty || isLicense || isInventory || isPassword) || isUpdate;
     });
   };
 

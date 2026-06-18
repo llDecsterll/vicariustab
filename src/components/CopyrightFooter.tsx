@@ -25,7 +25,7 @@ export default function CopyrightFooter({ variant = 'dark', className = '' }: Co
         {t('© 2026 Utkin Vladislav Vyacheslavovich. All rights reserved.')}
       </p>
       <p className={`text-[10px] leading-relaxed ${isSidebar ? 'text-slate-500' : 'text-slate-400'}`}>
-        {t('Программный код Orbit защищён авторским правом. Запрещено копирование и модификация без согласия автора.')}
+        {t('Программный код Uvwstack защищён авторским правом. Запрещено копирование и модификация без согласия автора.')}
       </p>
       <div className={`flex flex-col gap-1.5 ${isSidebar ? 'pt-0.5' : 'items-center pt-1'}`}>
         <a

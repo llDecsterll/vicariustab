@@ -11,7 +11,7 @@ import React, { createContext, useContext, useState, useEffect } from "react";
 
 export type Language = 'en' | 'ru' | 'zh';
 
-// Comprehensive translation catalog for Orbit IT Asset Management platform
+// Comprehensive translation catalog for Uvwstack IT Asset Management platform
 const dictionary: Record<string, Record<Language, string>> = {
   // Navigation & Tabs
   "Дашборд": {
@@ -1135,10 +1135,10 @@ const dictionary: Record<string, Record<Language, string>> = {
     en: "Platform Backup Engine & Database Portability",
     zh: "平台级备份恢复与数据转移引擎"
   },
-  "Центр управления обновлениями Orbit": {
-    ru: "Центр управления обновлениями Orbit",
-    en: "Orbit Platform Core Updater",
-    zh: "Orbit系统内核更新管理器"
+  "Центр управления обновлениями Uvwstack": {
+    ru: "Центр управления обновлениями Uvwstack",
+    en: "Uvwstack Platform Core Updater",
+    zh: "Uvwstack系统内核更新管理器"
   },
   "Экспортировать данные платформы (без ключа активации)": {
     ru: "Экспортировать данные платформы (без ключа активации)",
@@ -1242,7 +1242,7 @@ const dictionary: Record<string, Record<Language, string>> = {
   },
   "Активировать": {
     ru: "Активировать",
-    en: "Activate Orbit Code",
+    en: "Activate Uvwstack Code",
     zh: "确认激活"
   },
   "ОБНАРУЖЕНО ВМЕШАТЕЛЬСТВО В СИСТЕМУ": {
@@ -1949,8 +1949,8 @@ const dictionary: Record<string, Record<Language, string>> = {
   },
   "База данных: ИТ-Орбита СУБД": {
     ru: "База данных: ИТ-Орбита СУБД",
-    en: "Database: IT-Orbita DBMS",
-    zh: "数据库：IT-Orbita 数据库安全层"
+    en: "Database: IT-Uvwstacka DBMS",
+    zh: "数据库：IT-Uvwstacka 数据库安全层"
   },
   "Система PDF-просмотра • Лист 1 из 1": {
     ru: "Система PDF-просмотра • Лист 1 из 1",
@@ -2052,10 +2052,10 @@ const dictionary: Record<string, Record<Language, string>> = {
     en: "Database Backup (Download JSON)",
     zh: "备份数据存储 (下载 JSON)"
   },
-  "Создайте полную резервную копию всех сущностей Вашей платформы Orbit (компьютеры, сотрудники, серверы, оргтехника, журналы изменений, аудит). При этом сам лицензионный ключ активации исключается из файла. Это позволяет переносить базу данных на любые другие независимые серверы Orbit без дублирования или компрометации Вашей лицензии.": {
-    ru: "Создайте полную резервную копию всех сущностей Вашей платформы Orbit (компьютеры, сотрудники, серверы, оргтехника, журналы изменений, аудит). При этом сам лицензионный ключ активации исключается из файла. Это позволяет переносить базу данных на любые другие независимые серверы Orbit без дублирования или компрометации Вашей лицензии.",
-    en: "Create a full backup of all entities of your Orbit platform (computers, employees, servers, peripherals, logs, audits). The license key is automatically excluded, allowing database migration to other Orbit instances without duplicate key conflicts.",
-    zh: "创建 Orbit 平台所有实体（计算机、雇员、服务器、办公设备、日志、审计）的完整备份。备份自动排除许可证密钥，可在新实例部署。"
+  "Создайте полную резервную копию всех сущностей Вашей платформы Uvwstack (компьютеры, сотрудники, серверы, оргтехника, журналы изменений, аудит). При этом сам лицензионный ключ активации исключается из файла. Это позволяет переносить базу данных на любые другие независимые серверы Uvwstack без дублирования или компрометации Вашей лицензии.": {
+    ru: "Создайте полную резервную копию всех сущностей Вашей платформы Uvwstack (компьютеры, сотрудники, серверы, оргтехника, журналы изменений, аудит). При этом сам лицензионный ключ активации исключается из файла. Это позволяет переносить базу данных на любые другие независимые серверы Uvwstack без дублирования или компрометации Вашей лицензии.",
+    en: "Create a full backup of all entities of your Uvwstack platform (computers, employees, servers, peripherals, logs, audits). The license key is automatically excluded, allowing database migration to other Uvwstack instances without duplicate key conflicts.",
+    zh: "创建 Uvwstack 平台所有实体（计算机、雇员、服务器、办公设备、日志、审计）的完整备份。备份自动排除许可证密钥，可在新实例部署。"
   },
   "Резервная копия полностью автономна и сохраняется на Вашем устройстве в формате JSON.": {
     ru: "Резервная копия полностью автономна и сохраняется на Вашем устройстве в формате JSON.",
@@ -2142,15 +2142,15 @@ const dictionary: Record<string, Record<Language, string>> = {
     en: "ZIP files supported (*.zip)",
     zh: "支持 *.zip 统一规范文件"
   },
-  "Внимание: Обновление ядра Orbit перезаписывает только программную часть приложения. Ваши локально сохраненные данные, сотрудники, схемы сети и журналы аудита останутся целыми и невредимыми!": {
-    ru: "Внимание: Обновление ядра Orbit перезаписывает только программную часть приложения. Ваши локально сохраненные данные, сотрудники, схемы сети и журналы аудита останутся целыми и невредимыми!",
+  "Внимание: Обновление ядра Uvwstack перезаписывает только программную часть приложения. Ваши локально сохраненные данные, сотрудники, схемы сети и журналы аудита останутся целыми и невредимыми!": {
+    ru: "Внимание: Обновление ядра Uvwstack перезаписывает только программную часть приложения. Ваши локально сохраненные данные, сотрудники, схемы сети и журналы аудита останутся целыми и невредимыми!",
     en: "Attention: Core update only overwrites application files. Your locally saved entries, employees, schemas, and audit logs will remain intact!",
     zh: "注意事项：平台升级仅重新构建和覆盖软件的系统程序代码。您的本地数据、关联雇员、网络架构图等一切静态资源都将完整保留！"
   },
-  "Выполняется компиляция кода ядра Orbit...": {
-    ru: "Выполняется компиляция кода ядра Orbit...",
-    en: "Compiling Orbit core code...",
-    zh: "正在重新编译 Orbit 核心系统代码..."
+  "Выполняется компиляция кода ядра Uvwstack...": {
+    ru: "Выполняется компиляция кода ядра Uvwstack...",
+    en: "Compiling Uvwstack core code...",
+    zh: "正在重新编译 Uvwstack 核心系统代码..."
   },
   "Запустить обновление ядра системы": {
     ru: "Запустить обновление ядра системы",
@@ -2472,10 +2472,10 @@ const dictionary: Record<string, Record<Language, string>> = {
     en: "Register Account Entry",
     zh: "生成全新准入授权登录条目"
   },
-  "Перезапуск ядра Orbit": {
-    ru: "Перезапуск ядра Orbit",
-    en: "Hot Rebooting Orbit Core",
-    zh: "Orbit 安全组件热重启"
+  "Перезапуск ядра Uvwstack": {
+    ru: "Перезапуск ядра Uvwstack",
+    en: "Hot Rebooting Uvwstack Core",
+    zh: "Uvwstack 安全组件热重启"
   },
   "Пожалуйста, не закрывайте вкладку. Обновленные файлы, базы данных и параметры сессии применяются автоматически прямо сейчас.": {
     ru: "Пожалуйста, не закрывайте вкладку. Обновленные файлы, базы данных и параметры сессии применяются автоматически прямо сейчас.",
@@ -4358,10 +4358,10 @@ const dictionary: Record<string, Record<Language, string>> = {
     en: "© 2026 Utkin Vladislav Vyacheslavovich. All rights reserved.",
     zh: "© 2026 乌金·弗拉迪斯拉夫·维亚切斯拉维奇。保留所有权利。"
   },
-  "Программный код Orbit защищён авторским правом. Запрещено копирование и модификация без согласия автора.": {
-    ru: "Программный код Orbit защищён авторским правом. Запрещено копирование и модификация без согласия автора.",
-    en: "Orbit source code is protected by copyright. Copying or modification without the author's consent is prohibited.",
-    zh: "Orbit 源代码受版权保护。未经作者同意，禁止复制或修改。"
+  "Программный код Uvwstack защищён авторским правом. Запрещено копирование и модификация без согласия автора.": {
+    ru: "Программный код Uvwstack защищён авторским правом. Запрещено копирование и модификация без согласия автора.",
+    en: "Uvwstack source code is protected by copyright. Copying or modification without the author's consent is prohibited.",
+    zh: "Uvwstack 源代码受版权保护。未经作者同意，禁止复制或修改。"
   },
   "© 2026 Уткин В.В. Все права защищены": {
     ru: "© 2026 Уткин Владислав Вячеславович. Все права защищены.",
@@ -5393,10 +5393,10 @@ const dictionary: Record<string, Record<Language, string>> = {
     en: "Linked Object: Main Office",
     zh: "关联对象：主办公室"
   },
-  "Инициализация проверки обновлений Orbit...": {
-    ru: "Инициализация проверки обновлений Orbit...",
-    en: "Initializing Orbit update check...",
-    zh: "正在初始化 Orbit 更新检查..."
+  "Инициализация проверки обновлений Uvwstack...": {
+    ru: "Инициализация проверки обновлений Uvwstack...",
+    en: "Initializing Uvwstack update check...",
+    zh: "正在初始化 Uvwstack 更新检查..."
   },
   "Проверка GitHub": {
     ru: "Проверка GitHub",
@@ -5413,10 +5413,10 @@ const dictionary: Record<string, Record<Language, string>> = {
     en: "Selected file:",
     zh: "已选文件："
   },
-  "Распакуйте архив на сервере и выполните: npm install && npm run build && pm2 restart orbit-system": {
-    ru: "Распакуйте архив на сервере и выполните: npm install && npm run build && pm2 restart orbit-system",
-    en: "Extract the archive on the server and run: npm install && npm run build && pm2 restart orbit-system",
-    zh: "在服务器解压归档并执行：npm install && npm run build && pm2 restart orbit-system"
+  "Распакуйте архив на сервере и выполните: npm install && npm run build && pm2 restart uvwstack-system": {
+    ru: "Распакуйте архив на сервере и выполните: npm install && npm run build && pm2 restart uvwstack-system",
+    en: "Extract the archive on the server and run: npm install && npm run build && pm2 restart uvwstack-system",
+    zh: "在服务器解压归档并执行：npm install && npm run build && pm2 restart uvwstack-system"
   },
   "Не удалось проверить обновления на GitHub": {
     ru: "Не удалось проверить обновления на GitHub",
@@ -5448,20 +5448,20 @@ const dictionary: Record<string, Record<Language, string>> = {
     en: "A new version is available. In-app auto-install is disabled for security reasons.",
     zh: "有新版本可用。出于安全考虑，界面内自动安装已禁用。"
   },
-  "На сервере выполните: git pull && npm install && npm run build && pm2 restart orbit-system": {
-    ru: "На сервере выполните: git pull && npm install && npm run build && pm2 restart orbit-system",
-    en: "On the server run: git pull && npm install && npm run build && pm2 restart orbit-system",
-    zh: "在服务器执行：git pull && npm install && npm run build && pm2 restart orbit-system"
+  "На сервере выполните: git pull && npm install && npm run build && pm2 restart uvwstack-system": {
+    ru: "На сервере выполните: git pull && npm install && npm run build && pm2 restart uvwstack-system",
+    en: "On the server run: git pull && npm install && npm run build && pm2 restart uvwstack-system",
+    zh: "在服务器执行：git pull && npm install && npm run build && pm2 restart uvwstack-system"
   },
   "Установлена актуальная или более новая версия ядра.": {
     ru: "Установлена актуальная или более новая версия ядра.",
     en: "Core version is up to date or newer.",
     zh: "核心版本已是最新或更高。"
   },
-  "Проверка обновлений Orbit": {
-    ru: "Проверка обновлений Orbit",
-    en: "Orbit update check",
-    zh: "Orbit 更新检查"
+  "Проверка обновлений Uvwstack": {
+    ru: "Проверка обновлений Uvwstack",
+    en: "Uvwstack update check",
+    zh: "Uvwstack 更新检查"
   },
   "Проверка GitHub завершена. Релиз:": {
     ru: "Проверка GitHub завершена. Релиз:",

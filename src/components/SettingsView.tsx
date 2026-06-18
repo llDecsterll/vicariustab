@@ -55,7 +55,8 @@ import {
 import { SystemUser, UserRole } from '../types';
 import { getSystemRequestCode, getLicenseStatus } from '../utils/license';
 import { useTranslation, Language } from '../utils/i18n';
-import { ORBIT_UPDATE_REPO, ORBIT_UPDATE_REPO_DISPLAY } from '../config/updateRepo';
+import { UVWSTACK_UPDATE_REPO, UVWSTACK_UPDATE_REPO_DISPLAY, APP_VERSION } from '../config/appConfig';
+import { buildUpdateNotificationText } from '../utils/updateCheck';
 import CopyrightFooter from './CopyrightFooter';
 
 interface SettingsViewProps {
@@ -242,7 +243,7 @@ export default function SettingsView({
       });
       
       const payload = {
-        app: 'Assetorbit / Orbit',
+        app: 'Uvwstack',
         backupVersion: '2.5',
         createdAt: new Date().toISOString(),
         author: 'Utkin V.V. Compliance Engine',
@@ -255,7 +256,7 @@ export default function SettingsView({
       const file = new Blob([jsonStr], { type: 'application/json;charset=utf-8' });
       element.href = URL.createObjectURL(file);
       const dateStr = new Date().toISOString().slice(0,10);
-      element.download = `orbit_platform_backup_no_license_${dateStr}.json`;
+      element.download = `uvwstack_platform_backup_no_license_${dateStr}.json`;
       document.body.appendChild(element);
       element.click();
       document.body.removeChild(element);
@@ -339,7 +340,7 @@ export default function SettingsView({
 
   // States of platform automated updater
   const [updateSourceType, setUpdateSourceType] = useState<'github' | 'github_archive'>('github');
-  const githubRepoUrl = ORBIT_UPDATE_REPO;
+  const githubRepoUrl = UVWSTACK_UPDATE_REPO;
   const [archiveFile, setArchiveFile] = useState<File | null>(null);
   const [archiveName, setArchiveName] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
@@ -348,7 +349,7 @@ export default function SettingsView({
   const [currentUpdateStep, setCurrentUpdateStep] = useState('');
   const [updateCompleted, setUpdateCompleted] = useState(false);
   const [updateErrorMsg, setUpdateErrorMsg] = useState('');
-  const [systemVersion, setSystemVersion] = useState(() => localStorage.getItem('it_system_version') || 'v2.5.2-stable');
+  const [systemVersion, setSystemVersion] = useState(() => localStorage.getItem('it_system_version') || `v${APP_VERSION}-stable`);
   const [isRebooting, setIsRebooting] = useState(false);
   const [rebootStep, setRebootStep] = useState('');
   const [rebootTimeLeft, setRebootTimeLeft] = useState(5);
@@ -375,8 +376,8 @@ export default function SettingsView({
     try {
       if (updateSourceType === 'github_archive') {
         addLog(t('Режим ручного архива: автоматическая установка из браузера недоступна.'));
-        addLog(`${t('Выбран файл:')} ${archiveName || 'orbit-release.zip'}`);
-        addLog(t('Распакуйте архив на сервере и выполните: npm install && npm run build && pm2 restart orbit-system'));
+        addLog(`${t('Выбран файл:')} ${archiveName || 'uvwstack-release.zip'}`);
+        addLog(t('Распакуйте архив на сервере и выполните: npm install && npm run build && pm2 restart uvwstack-system'));
         setUpdateProgress(100);
         setUpdateCompleted(true);
         setCurrentUpdateStep('');
@@ -384,7 +385,11 @@ export default function SettingsView({
         return;
       }
 
-      const query = new URLSearchParams({ repo: githubRepoUrl });
+      const query = new URLSearchParams({
+        repo: githubRepoUrl,
+        installedCommit: localStorage.getItem('it_installed_commit') || '',
+        currentVersion: APP_VERSION,
+      });
       const response = await fetch(`/api/update/check?${query.toString()}`);
       const payload = await response.json();
       if (!response.ok) {
@@ -406,21 +411,26 @@ export default function SettingsView({
         addLog(`${t('Страница на GitHub:')} ${payload.releaseUrl}`);
       }
 
-      const remoteId = String(payload.latestCommitSha || payload.latestTag || '').toLowerCase();
-      const storedRemoteId = (localStorage.getItem('it_last_remote_version') || '').toLowerCase();
-      const current = systemVersion.toLowerCase();
-      const updateAvailable = Boolean(
-        remoteId && (remoteId !== storedRemoteId || (payload.latestTag && !current.includes(remoteId.replace(/^v/, ''))))
-      );
-
-      if (updateAvailable) {
+      if (payload.updateAvailable) {
         addLog(t('На GitHub доступна более новая версия. Автоустановка из браузера отключена.'));
-        addLog(`${t('На сервере выполните:')} git clone ${ORBIT_UPDATE_REPO} (или git pull) && npm install && npm run build && pm2 restart orbit-system`);
+        addLog(`${t('На сервере выполните:')} git clone ${UVWSTACK_UPDATE_REPO} (или git pull) && npm install && npm run build && pm2 restart uvwstack-system`);
+        window.dispatchEvent(
+          new CustomEvent('uvwstack-update-available', {
+            detail: {
+              text: buildUpdateNotificationText(payload),
+              remoteVersion: payload.remoteVersion,
+              currentVersion: payload.currentVersion,
+            },
+          })
+        );
         if (payload.latestCommitSha) {
           localStorage.setItem('it_last_remote_version', payload.latestCommitSha);
         }
       } else {
         addLog(t('Локальная версия соответствует актуальному состоянию репозитория на GitHub.'));
+        if (payload.latestCommitSha) {
+          localStorage.setItem('it_installed_commit', payload.latestCommitSha);
+        }
       }
 
       setUpdateProgress(100);
@@ -431,7 +441,7 @@ export default function SettingsView({
       if (onLogActivity) {
         onLogActivity(
           t('Проверка обновлений Orbit'),
-          `${t('Проверка GitHub завершена. Релиз:')} ${payload.latestTag || 'n/a'}`,
+          `${t('Проверка GitHub завершена. Релиз:')} ${payload.latestTag || payload.remoteVersion || 'n/a'}`,
           'system'
         );
       }
@@ -1033,7 +1043,7 @@ export default function SettingsView({
                         title={t("Официальный репозиторий обновлений Orbit")}
                       />
                       <a
-                        href={ORBIT_UPDATE_REPO_DISPLAY}
+                        href={UVWSTACK_UPDATE_REPO_DISPLAY}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="px-2.5 py-1.5 bg-slate-200 text-slate-600 hover:bg-slate-300 rounded-lg flex items-center justify-center transition-colors"

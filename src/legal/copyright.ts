@@ -3,7 +3,7 @@
  * © 2026 Utkin Vladislav Vyacheslavovich (Уткин Владислав Вячеславович)
  * Email: assetorbit@icloud.com | Telegram: https://t.me/Dexterll
  */
-/** Legal identity and contact constants — Utkin Vladislav Vyacheslavovich / Orbit */
+/** Legal identity and contact constants — Utkin Vladislav Vyacheslavovich / Uvwstack */
 
 export const COPYRIGHT_OWNER_RU = 'Уткин Владислав Вячеславович';
 export const COPYRIGHT_OWNER_EN = 'Utkin Vladislav Vyacheslavovich';
