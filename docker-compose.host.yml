@@ -1,0 +1,7 @@
+# Release — режим host-сети: localhost в контейнере = localhost Ubuntu (нативный MySQL на 127.0.0.1)
+# Запуск: docker compose -f docker-compose.yml -f docker-compose.host.yml up -d --build
+services:
+  uvwstack-app:
+    network_mode: host
+    ports: !reset []
+    extra_hosts: !reset []

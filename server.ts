@@ -70,36 +70,153 @@ function isRunningInDocker(): boolean {
   return Boolean(process.env.STACK_DATA_DIR) || fs.existsSync("/.dockerenv");
 }
 
-/** localhost inside a container points to the container itself — map to the Docker host gateway */
-function resolveDbHost(host?: string): string {
-  const raw = (host || "localhost").trim().toLowerCase();
-  if ((raw === "localhost" || raw === "127.0.0.1") && isRunningInDocker()) {
-    return process.env.DB_HOST_GATEWAY || "host.docker.internal";
+const MASKED_PASSWORD = "●●●●●●●●";
+
+/** Read Docker bridge gateway IP (usually 172.17.0.1 on Linux) */
+function getDockerGatewayIp(): string | null {
+  try {
+    const lines = fs.readFileSync("/proc/net/route", "utf8").split("\n");
+    for (const line of lines.slice(1)) {
+      const cols = line.trim().split(/\s+/);
+      if (cols[1] === "00000000" && cols[2]?.length === 8) {
+        const hex = cols[2];
+        const a = parseInt(hex.slice(6, 8), 16);
+        const b = parseInt(hex.slice(4, 6), 16);
+        const c = parseInt(hex.slice(2, 4), 16);
+        const d = parseInt(hex.slice(0, 2), 16);
+        return `${a}.${b}.${c}.${d}`;
+      }
+    }
+  } catch {
+    // not Linux / not in container
   }
-  return host || "localhost";
+  return null;
 }
 
-function mysqlConnOptions(config: any) {
+/** localhost inside a container is NOT the Ubuntu host — remap for native MySQL/PostgreSQL */
+function resolveDbHost(host?: string): string {
+  const raw = (host || "localhost").trim();
+  const lower = raw.toLowerCase();
+  if (!isRunningInDocker()) return raw || "localhost";
+  // Docker Compose service names (mysql, postgres) — keep as-is
+  if (lower !== "localhost" && lower !== "127.0.0.1" && !/^\d{1,3}(\.\d{1,3}){3}$/.test(lower)) {
+    return raw;
+  }
+  if (lower === "localhost" || lower === "127.0.0.1") {
+    return (
+      process.env.DB_HOST_GATEWAY ||
+      getDockerGatewayIp() ||
+      "host.docker.internal"
+    );
+  }
+  return raw;
+}
+
+function getConnectionHostCandidates(host?: string): string[] {
+  const raw = (host || "localhost").trim();
+  const lower = raw.toLowerCase();
+  const candidates: string[] = [];
+  const add = (h: string) => {
+    if (h && !candidates.includes(h)) candidates.push(h);
+  };
+
+  add(resolveDbHost(raw));
+
+  if (isRunningInDocker()) {
+    if (lower !== "localhost" && lower !== "127.0.0.1" && !/^\d{1,3}(\.\d{1,3}){3}$/.test(lower)) {
+      add(raw);
+    }
+    const gw = getDockerGatewayIp();
+    if (gw) add(gw);
+    add(process.env.DB_HOST_GATEWAY || "host.docker.internal");
+    add("172.17.0.1");
+  } else {
+    add(raw || "localhost");
+  }
+
+  return candidates;
+}
+
+function mergeDbCredentials(incoming: any, stored: any = readDbConfig()): any {
+  const merged = { ...stored, ...incoming };
+  const pwd = incoming?.password;
+  if (!pwd || pwd === MASKED_PASSWORD) {
+    merged.password = stored?.password || "";
+  }
+  return merged;
+}
+
+function mysqlConnOptions(config: any, explicitHost?: string) {
   return {
-    host: resolveDbHost(config.host),
+    host: explicitHost ?? resolveDbHost(config.host),
     port: Number(config.port) || 3306,
     database: config.database || "stack_db",
     user: config.user || "root",
     password: config.password || "",
-    connectTimeout: 10000,
+    connectTimeout: 15000,
   };
 }
 
-function pgConnOptions(config: any) {
+function pgConnOptions(config: any, explicitHost?: string) {
   return {
-    host: resolveDbHost(config.host),
+    host: explicitHost ?? resolveDbHost(config.host),
     port: Number(config.port) || 5432,
     database: config.database || "stack_db",
     user: config.user || "postgres",
     password: config.password || "",
-    connectionTimeoutMillis: 10000,
+    connectionTimeoutMillis: 15000,
     ssl: false,
   };
+}
+
+function enrichDbError(err: any, config: any, triedHosts: string[]): Error {
+  const msg = err?.message || String(err);
+  const code = err?.code || "";
+  if (isRunningInDocker() && (code === "ECONNREFUSED" || code === "ETIMEDOUT" || msg.includes("ECONNREFUSED"))) {
+    const gw = getDockerGatewayIp() || "172.17.0.1";
+    return new Error(
+      `Не удалось подключиться (${triedHosts.join(" → ")}). ` +
+        `Docker на Ubuntu: укажите хост ${gw} или host.docker.internal; ` +
+        `в MySQL/PostgreSQL на сервере включите bind-address=0.0.0.0 и пользователя с доступом '%'. ` +
+        `Либо запустите: docker compose -f docker-compose.yml -f docker-compose.mysql.yml up -d`
+    );
+  }
+  return new Error(msg);
+}
+
+async function testSqlConnOnce(config: any, host: string): Promise<void> {
+  if (config.type === "mysql") {
+    const mysql = await import("mysql2/promise");
+    const connection = await mysql.createConnection(mysqlConnOptions(config, host));
+    await connection.ping();
+    await connection.end();
+  } else if (config.type === "postgres") {
+    const pg = await import("pg");
+    const client = new pg.Client(pgConnOptions(config, host));
+    await client.connect();
+    await client.query("SELECT 1");
+    await client.end();
+  }
+}
+
+async function testSqlConnWithFallback(config: any): Promise<string> {
+  const merged = mergeDbCredentials(config);
+  const candidates = getConnectionHostCandidates(merged.host);
+  let lastErr: any = null;
+  for (const host of candidates) {
+    try {
+      await testSqlConnOnce(merged, host);
+      return host;
+    } catch (err) {
+      lastErr = err;
+      console.warn(`[DB] Connection attempt failed for host ${host}:`, (err as Error).message);
+    }
+  }
+  throw enrichDbError(lastErr, merged, candidates);
+}
+
+async function testSqlConn(config: any): Promise<void> {
+  await testSqlConnWithFallback(config);
 }
 
 function ensureDbFile(): void {
@@ -139,19 +256,31 @@ function writeDbConfig(config: any) {
   fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2), "utf-8");
 }
 
-// SQL connectivity helpers
-async function testSqlConn(config: any): Promise<void> {
-  if (config.type === "mysql") {
-    const mysql = await import("mysql2/promise");
-    const connection = await mysql.createConnection(mysqlConnOptions(config));
-    await connection.ping();
-    await connection.end();
-  } else if (config.type === "postgres") {
-    const pg = await import("pg");
-    const client = new pg.Client(pgConnOptions(config));
-    await client.connect();
-    await client.query("SELECT 1");
-    await client.end();
+function getEnvDbConfig(): any | null {
+  const host = process.env.STACK_DEFAULT_DB_HOST?.trim();
+  if (!host) return null;
+  const type = process.env.STACK_DEFAULT_DB_TYPE || "mysql";
+  return {
+    type,
+    host,
+    port: Number(process.env.STACK_DEFAULT_DB_PORT) || (type === "postgres" ? 5432 : 3306),
+    database: process.env.STACK_DEFAULT_DB_NAME || "stack_db",
+    user: process.env.STACK_DEFAULT_DB_USER || (type === "postgres" ? "postgres" : "root"),
+    password: process.env.STACK_DEFAULT_DB_PASSWORD || "",
+  };
+}
+
+async function bootstrapDbConfigFromEnv() {
+  if (fs.existsSync(CONFIG_PATH)) return;
+  const envCfg = getEnvDbConfig();
+  if (!envCfg?.password) return;
+  try {
+    const resolvedHost = await testSqlConnWithFallback(envCfg);
+    envCfg.host = resolvedHost;
+    writeDbConfig(envCfg);
+    console.log(`[DB] Auto-configured from STACK_DEFAULT_DB_* (host: ${resolvedHost}, type: ${envCfg.type})`);
+  } catch (err) {
+    console.warn("[DB] STACK_DEFAULT_DB_* set but connection failed:", (err as Error).message);
   }
 }
 
@@ -460,14 +589,22 @@ async function startServer() {
   // GET Docker-aware DB connection hints (host gateway for MySQL/PostgreSQL on host machine)
   app.get("/api/db-config/defaults", (_req, res) => {
     const inDocker = isRunningInDocker();
+    const gatewayIp = getDockerGatewayIp();
     const suggestedHost = inDocker
-      ? process.env.DB_HOST_GATEWAY || "host.docker.internal"
+      ? gatewayIp || process.env.DB_HOST_GATEWAY || "host.docker.internal"
       : "localhost";
+    const suggestedHosts = inDocker
+      ? [gatewayIp, process.env.DB_HOST_GATEWAY || "host.docker.internal", "172.17.0.1"].filter(
+          (h): h is string => Boolean(h)
+        )
+      : ["localhost"];
     return res.json({
       inDocker,
       suggestedHost,
+      gatewayIp,
+      suggestedHosts: [...new Set(suggestedHosts)],
       hint: inDocker
-        ? "Docker: для MySQL/PostgreSQL на хосте используйте host.docker.internal (не localhost)"
+        ? "Docker на Ubuntu: для MySQL/PostgreSQL на сервере укажите IP шлюза (обычно 172.17.0.1) или host.docker.internal; в СУБД: bind-address=0.0.0.0 и user@'%'"
         : "",
     });
   });
@@ -476,10 +613,11 @@ async function startServer() {
   app.get("/api/db-config", (req, res) => {
     const config = readDbConfig();
     const cleanConfig = { ...config };
-    if (cleanConfig.password) {
-      cleanConfig.password = "●●●●●●●●"; // Mask password
+    const hasPassword = Boolean(cleanConfig.password);
+    if (hasPassword) {
+      cleanConfig.password = MASKED_PASSWORD;
     }
-    return res.json(cleanConfig);
+    return res.json({ ...cleanConfig, passwordSet: hasPassword });
   });
 
   // GET active monitored database connection status
@@ -497,8 +635,12 @@ async function startServer() {
       if (config.type === "json") {
         return res.json({ success: true, message: "Local JSON storage does not require connection testing" });
       }
-      await testSqlConn(config);
-      return res.json({ success: true, message: "Connection established successfully!" });
+      const resolvedHost = await testSqlConnWithFallback(config);
+      return res.json({
+        success: true,
+        message: "Connection established successfully!",
+        resolvedHost,
+      });
     } catch (err: any) {
       return res.status(400).json({ error: err.message || "Database connection test failed" });
     }
@@ -507,14 +649,12 @@ async function startServer() {
   // SAVE database configuration and migrate data
   app.post("/api/db-config", async (req, res) => {
     try {
-      const newConfig = req.body;
+      const newConfig = mergeDbCredentials(req.body);
       const oldConfig = readDbConfig();
 
       if (newConfig.type !== "json") {
-        if (newConfig.password === "●●●●●●●●") {
-          newConfig.password = oldConfig.password || "";
-        }
-        await testSqlConn(newConfig);
+        const resolvedHost = await testSqlConnWithFallback(newConfig);
+        newConfig.host = resolvedHost;
       }
 
       // Save configuration immediately so server holds the correct state
@@ -727,7 +867,9 @@ async function startServer() {
   }
 
   // Active self-monitoring СУБД system checks: initial check and query every 12 seconds
-  checkDatabaseConnection().catch((err) => console.error("Initial startup database link failure:", err));
+  bootstrapDbConfigFromEnv()
+    .then(() => checkDatabaseConnection())
+    .catch((err) => console.error("Initial startup database link failure:", err));
   setInterval(() => {
     checkDatabaseConnection().catch((err) => console.error("Periodic database link failure:", err));
   }, 12000);

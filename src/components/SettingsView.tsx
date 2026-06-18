@@ -484,6 +484,7 @@ export default function SettingsView({
   const [dbName, setDbName] = useState('stack_db');
   const [dbUser, setDbUser] = useState('root');
   const [dbPassword, setDbPassword] = useState('');
+  const [dbPasswordSet, setDbPasswordSet] = useState(false);
   const [dbTestLoading, setDbTestLoading] = useState(false);
   const [dbTestMessage, setDbTestMessage] = useState('');
   const [dbTestError, setDbTestError] = useState('');
@@ -509,9 +510,13 @@ export default function SettingsView({
           setDbPort(config.port ? config.port.toString() : (config.type === 'postgres' ? '5432' : '3306'));
           setDbName(config.database || 'stack_db');
           setDbUser(config.user || (config.type === 'postgres' ? 'postgres' : 'root'));
-          setDbPassword(config.password || '');
+          setDbPassword('');
+          setDbPasswordSet(Boolean(config.passwordSet));
         } else if (defaults?.inDocker && defaults.suggestedHost) {
           setDbHost(defaults.suggestedHost);
+        }
+        if (defaults?.suggestedHosts?.length && defaults.inDocker && !config?.host) {
+          setDbHost(defaults.suggestedHost || defaults.suggestedHosts[0]);
         }
       })
       .catch(err => console.error("Could not fetch DB config:", err));
@@ -579,7 +584,14 @@ export default function SettingsView({
       if (!res.ok) {
         throw new Error(data.error || 'Ошибка подключения к СУБД');
       }
-      setDbTestMessage(t("Подключение успешно установлено!"));
+      if (data.resolvedHost) {
+        setDbHost(data.resolvedHost);
+      }
+      setDbTestMessage(
+        data.resolvedHost
+          ? `${t("Подключение успешно установлено!")} (${data.resolvedHost})`
+          : t("Подключение успешно установлено!")
+      );
     } catch (err: any) {
       setDbTestError(err.message || 'Ошибка подключения');
     } finally {
@@ -1586,7 +1598,7 @@ export default function SettingsView({
                     type="password"
                     value={dbPassword}
                     onChange={(e) => setDbPassword(e.target.value)}
-                    placeholder="••••••••"
+                    placeholder={dbPasswordSet ? t("Пароль сохранён — оставьте пустым") : "••••••••"}
                     className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-250 rounded-lg text-slate-800 font-mono text-[11px] focus:outline-none"
                   />
                 </div>

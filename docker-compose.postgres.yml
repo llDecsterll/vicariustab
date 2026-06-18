@@ -1,0 +1,41 @@
+# Release — Stack + PostgreSQL в одной Docker-сети
+# Запуск: docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d --build
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: stack_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: stack_db
+      POSTGRES_USER: stack_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-StackUser2026!}
+    volumes:
+      - stack_postgres_data:/var/lib/postgresql/data
+    networks:
+      - stack_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stack_user -d stack_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 8
+      start_period: 20s
+
+  uvwstack-app:
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      STACK_DEFAULT_DB_TYPE: postgres
+      STACK_DEFAULT_DB_HOST: postgres
+      STACK_DEFAULT_DB_PORT: "5432"
+      STACK_DEFAULT_DB_NAME: stack_db
+      STACK_DEFAULT_DB_USER: stack_user
+      STACK_DEFAULT_DB_PASSWORD: ${POSTGRES_PASSWORD:-StackUser2026!}
+    networks:
+      - stack_net
+
+networks:
+  stack_net:
+
+volumes:
+  stack_postgres_data:
