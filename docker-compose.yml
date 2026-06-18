@@ -1,15 +1,16 @@
 services:
-  orbit-app:
+  uvwstack-app:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: orbit_app
+    container_name: uvwstack_app
     restart: always
     ports:
       - "8080:8080"
     environment:
       - NODE_ENV=production
       - PORT=8080
+      - DB_ENCRYPTION_KEY=${DB_ENCRYPTION_KEY:-change-me-in-production}
     logging:
       driver: json-file
       options:
