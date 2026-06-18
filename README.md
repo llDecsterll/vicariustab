@@ -1,4 +1,4 @@
-# 🚀 uvwstack
+# 🚀 Uvwstack
 
 <p align="center">
   <img src="https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&style=flat-square" alt="Docker Ready" />
@@ -16,7 +16,7 @@
 
 # 📖 О проекте
 
-**Orbit** — веб-система промышленного уровня для централизованного учёта IT-активов организации.
+**Uvwstack** — веб-система промышленного уровня для централизованного учёта IT-активов организации.
 
 Система позволяет вести:
 
@@ -114,7 +114,7 @@
 
 ---
 
-# 🛠 Установка Orbit
+# 🛠 Установка Uvwstack
 
 ## Шаг 1. Подготовка сервера
 
@@ -178,17 +178,17 @@ npm -v
 ### Через HTTPS
 
 ```bash
-git clone https://github.com/llDecsterll/Orbit.git
+git clone https://github.com/llDecsterll/Uvwstack.git
 
-cd Orbit
+cd Uvwstack
 ```
 
 ### Через SSH
 
 ```bash
-git clone git@github.com:llDecsterll/Orbit.git
+git clone git@github.com:llDecsterll/Uvwstack.git
 
-cd Orbit
+cd Uvwstack
 ```
 
 ---
@@ -219,7 +219,7 @@ DB_ENCRYPTION_KEY=CHANGE_THIS_TO_RANDOM_SECRET_KEY
 
 ---
 
-## Шаг 6. Установка зависимостей Orbit
+## Шаг 6. Установка зависимостей Uvwstack
 
 ```bash
 npm install
@@ -253,7 +253,7 @@ dist/
 
 ---
 
-# 🚀 Запуск Orbit
+# 🚀 Запуск Uvwstack
 
 ## Вариант А. PM2 (рекомендуется)
 
@@ -266,7 +266,7 @@ sudo npm install -g pm2
 ### Запуск
 
 ```bash
-PORT=8080 NODE_ENV=production pm2 start dist/server.cjs --name orbit-system
+PORT=8080 NODE_ENV=production pm2 start dist/server.cjs --name Uvwstack-system
 ```
 
 ### Проверка
@@ -278,13 +278,13 @@ pm2 status
 Статус должен быть:
 
 ```text
-orbit-system online
+Uvwstack-system online
 ```
 
 ### Просмотр логов
 
 ```bash
-pm2 logs orbit-system
+pm2 logs Uvwstack-system
 ```
 
 ### Автозапуск после перезагрузки
@@ -374,11 +374,11 @@ sudo mysql
 Создайте базу данных:
 
 ```sql
-CREATE DATABASE orbit_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE DATABASE Uvwstack_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
-CREATE USER 'orbit_user'@'%' IDENTIFIED BY 'StrongPassword';
+CREATE USER 'Uvwstack_user'@'%' IDENTIFIED BY 'StrongPassword';
 
-GRANT ALL PRIVILEGES ON orbit_db.* TO 'orbit_user'@'%';
+GRANT ALL PRIVILEGES ON Uvwstack_db.* TO 'Uvwstack_user'@'%';
 
 FLUSH PRIVILEGES;
 ```
@@ -386,7 +386,7 @@ FLUSH PRIVILEGES;
 Проверка подключения:
 
 ```bash
-mysql -h 127.0.0.1 -u orbit_user -p orbit_db
+mysql -h 127.0.0.1 -u Uvwstack_user -p Uvwstack_db
 ```
 
 ---
@@ -406,20 +406,20 @@ sudo -u postgres psql
 ```
 
 ```sql
-CREATE USER orbit_user WITH PASSWORD 'StrongPassword';
+CREATE USER Uvwstack_user WITH PASSWORD 'StrongPassword';
 
-CREATE DATABASE orbit_db OWNER orbit_user;
+CREATE DATABASE Uvwstack_db OWNER Uvwstack_user;
 ```
 
 Проверка подключения:
 
 ```bash
-psql -U orbit_user -d orbit_db -h localhost
+psql -U Uvwstack_user -d Uvwstack_db -h localhost
 ```
 
 ---
 
-# 🔗 Подключение базы данных к Orbit
+# 🔗 Подключение базы данных к Uvwstack
 
 Откройте браузер:
 
@@ -448,8 +448,8 @@ http://IP_СЕРВЕРА:8080
 Тип: MySQL
 Хост: 127.0.0.1
 Порт: 3306
-База данных: orbit_db
-Пользователь: orbit_user
+База данных: Uvwstack_db
+Пользователь: Uvwstack_user
 Пароль: StrongPassword
 ```
 
@@ -459,8 +459,8 @@ http://IP_СЕРВЕРА:8080
 Тип: PostgreSQL
 Хост: 127.0.0.1
 Порт: 5432
-База данных: orbit_db
-Пользователь: orbit_user
+База данных: Uvwstack_db
+Пользователь: Uvwstack_user
 Пароль: StrongPassword
 ```
 
@@ -478,10 +478,10 @@ http://IP_СЕРВЕРА:8080
 
 ---
 
-# 🔄 Обновление Orbit
+# 🔄 Обновление Uvwstack
 
 ```bash
-cd ~/Orbit
+cd ~/Uvwstack
 
 git fetch origin
 
@@ -491,7 +491,7 @@ npm install
 
 npm run build
 
-pm2 restart orbit-system
+pm2 restart Uvwstack-system
 ```
 
 Проверка:
@@ -509,13 +509,13 @@ pm2 status
 Создание резервной копии:
 
 ```bash
-mysqldump -u orbit_user -p orbit_db > orbit_backup.sql
+mysqldump -u Uvwstack_user -p Uvwstack_db > Uvwstack_backup.sql
 ```
 
 Восстановление:
 
 ```bash
-mysql -u orbit_user -p orbit_db < orbit_backup.sql
+mysql -u Uvwstack_user -p Uvwstack_db < Uvwstack_backup.sql
 ```
 
 ## PostgreSQL
@@ -523,20 +523,20 @@ mysql -u orbit_user -p orbit_db < orbit_backup.sql
 Создание резервной копии:
 
 ```bash
-pg_dump orbit_db > orbit_backup.sql
+pg_dump Uvwstack_db > Uvwstack_backup.sql
 ```
 
 Восстановление:
 
 ```bash
-psql orbit_db < orbit_backup.sql
+psql Uvwstack_db < Uvwstack_backup.sql
 ```
 
 ---
 
 # 🛠 Диагностика
 
-Проверка Orbit:
+Проверка Uvwstack:
 
 ```bash
 pm2 status
@@ -545,7 +545,7 @@ pm2 status
 Проверка логов:
 
 ```bash
-pm2 logs orbit-system
+pm2 logs Uvwstack-system
 ```
 
 Проверка порта приложения:
@@ -577,7 +577,7 @@ docker ps
 # 📂 Структура проекта
 
 ```text
-Orbit/
+Uvwstack/
 │
 ├── src/
 ├── public/
@@ -606,6 +606,6 @@ Orbit/
 
 # 📜 Лицензия
 
-Copyright © Orbit Team
+Copyright © Uvwstack Team
 
 Все права защищены.
