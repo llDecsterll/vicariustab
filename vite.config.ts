@@ -6,12 +6,13 @@ import obfuscator from 'rollup-plugin-obfuscator';
 
 export default defineConfig(({ mode }) => {
   const isProduction = mode === 'production';
+  const skipObfuscation = process.env.SKIP_OBFUSCATION === 'true';
 
   return {
     plugins: [
       react(),
       tailwindcss(),
-      ...(isProduction
+      ...(isProduction && !skipObfuscation
         ? [
             obfuscator({
               global: false,

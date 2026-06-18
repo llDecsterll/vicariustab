@@ -11,13 +11,12 @@ import express from "express";
 import path from "path";
 import fs from "fs";
 import crypto from "crypto";
-import { createServer as createViteServer } from "vite";
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 
 const PKG = JSON.parse(fs.readFileSync(path.join(process.cwd(), "package.json"), "utf-8")) as { version?: string; name?: string };
-const APP_VERSION = String(PKG.version || "2.6.0");
+const APP_VERSION = String(PKG.version || "2.6.1");
 
 const ENCRYPTION_SECRET = process.env.DB_ENCRYPTION_KEY || "it-orbit-system-fallback-secret-2026-secure-v1";
 const UVWSTACK_UPDATE_REPO =
@@ -693,6 +692,7 @@ async function startServer() {
 
   // Vite development middleware vs production static assets
   if (process.env.NODE_ENV !== "production") {
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",

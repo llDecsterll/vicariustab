@@ -4,15 +4,22 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: uvwstack_app
-    restart: always
+    restart: unless-stopped
     ports:
       - "8080:8080"
     environment:
-      - NODE_ENV=production
-      - PORT=8080
-      - DB_ENCRYPTION_KEY=${DB_ENCRYPTION_KEY:-change-me-in-production}
+      NODE_ENV: production
+      PORT: "8080"
+      # Set a strong secret in production: echo "DB_ENCRYPTION_KEY=..." >> .env
+      DB_ENCRYPTION_KEY: ${DB_ENCRYPTION_KEY:-change-me-in-production}
+      GITHUB_UPDATE_REPO: https://github.com/llDecsterll/uvwstack.git
+    volumes:
+      - uvwstack_data:/app/data
     logging:
       driver: json-file
       options:
         max-size: "10m"
         max-file: "3"
+
+volumes:
+  uvwstack_data:

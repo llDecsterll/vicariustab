@@ -20,7 +20,9 @@ i18n_keys.txt
 terms.txt
 super_safe_terms.json
 new_terms.json
-metadata.json
 Thumbs.db
 desktop.ini
 .DS_Store
+src/**/*.cjs
+src/**/*.mjs
+scripts/apply-copyright-header.cjs

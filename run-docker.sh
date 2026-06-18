@@ -7,7 +7,7 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m'
 
-echo -e "${BLUE}=== Управление Docker-контейнером IT-Инвентаризации ===${NC}"
+echo -e "${BLUE}=== Uvwstack Docker ===${NC}"
 
 show_help() {
     echo "Использование: ./run-docker.sh [команда]"
