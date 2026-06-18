@@ -1895,23 +1895,23 @@ export default function App() {
   const getHeaderTitle = () => {
     switch (activeTab) {
       case 'dashboard': return workspaceName;
-      case 'objects': return 'Каталог объектов и филиалов';
-      case 'network': return 'Сетевые маршрутизаторы и коммутаторы';
-      case 'computers': return 'Учет компьютеров на руках';
-      case 'employees': return 'Каталог корпоративных сотрудников';
-      case 'warehouse': return 'Склад ИТ-оборудования и ТМЦ';
-      case 'software': return 'Учет лицензий и программного обеспечения';
-      case 'inventory': return 'Инвентаризационные проверки';
-      case 'warranties': return 'Сроки гарантийного обслуживания';
-      case 'reports': return 'Аналитическая отчетность';
-      case 'activity_log': return 'Журнал операций (Аудит)';
-      case 'settings': return 'Конфигурация параметров';
-      case 'peripherals': return 'Учет периферии и мониторов';
-      case 'orgtech': return 'Учет оргтехники';
-      case 'surveillance': return 'Системы видеонаблюдения';
-      case 'consumables': return 'Учет расходных материалов';
-      case 'other_equip': return 'Другое неучтенное оборудование';
-      default: return 'Инвентаризация оборудования';
+      case 'objects': return t('Каталог объектов и филиалов');
+      case 'network': return t('Сетевые маршрутизаторы и коммутаторы');
+      case 'computers': return t('Учет компьютеров на руках');
+      case 'employees': return t('Каталог корпоративных сотрудников');
+      case 'warehouse': return t('Склад ИТ-оборудования и ТМЦ');
+      case 'software': return t('Учет лицензий и программного обеспечения');
+      case 'inventory': return t('Инвентаризационные проверки');
+      case 'warranties': return t('Сроки гарантийного обслуживания');
+      case 'reports': return t('Аналитическая отчетность');
+      case 'activity_log': return t('Журнал операций (Аудит)');
+      case 'settings': return t('Конфигурация параметров');
+      case 'peripherals': return t('Учет периферии и мониторов');
+      case 'orgtech': return t('Учет оргтехники');
+      case 'surveillance': return t('Системы видеонаблюдения');
+      case 'consumables': return t('Учет расходных материалов');
+      case 'other_equip': return t('Другое неучтенное оборудование');
+      default: return t('Инвентаризация оборудования');
     }
   };
 

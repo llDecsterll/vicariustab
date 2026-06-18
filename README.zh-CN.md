@@ -8,7 +8,7 @@
 # 🚀 Uvwstack (Stack)
 
 <p align="center">
-  <img src="https://img.shields.io/badge/版本-2.6.7-blue?style=for-the-badge" alt="Version">
+  <img src="https://img.shields.io/badge/版本-2.6.8-blue?style=for-the-badge" alt="Version">
   <img src="https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&style=for-the-badge" alt="Docker Ready">
   <img src="https://img.shields.io/badge/Node.js-20+-339933?logo=node.js&style=for-the-badge" alt="Node.js 20">
   <img src="https://img.shields.io/badge/PM2-Supported-blue?style=for-the-badge" alt="PM2">
@@ -24,28 +24,28 @@
 # 📸 界面截图
 
 <p align="center">
-  <img src="docs/screenshots/01-login.png" alt="Stack 登录界面" width="720">
+  <img src="docs/screenshots/zh/01-login.png" alt="Stack 登录界面" width="720">
   <br><em>登录界面</em>
 </p>
 
 | 仪表盘 | 网络设备 |
 | :---: | :---: |
-| <img src="docs/screenshots/02-dashboard.png" alt="Stack 仪表盘" width="420"> | <img src="docs/screenshots/04-network.png" alt="网络设备" width="420"> |
+| <img src="docs/screenshots/zh/02-dashboard.png" alt="Stack 仪表盘" width="420"> | <img src="docs/screenshots/zh/04-network.png" alt="网络设备" width="420"> |
 
 | IT 仓库 | 员工 |
 | :---: | :---: |
-| <img src="docs/screenshots/05-warehouse.png" alt="IT 仓库" width="420"> | <img src="docs/screenshots/06-employees.png" alt="员工管理" width="420"> |
+| <img src="docs/screenshots/zh/05-warehouse.png" alt="IT 仓库" width="420"> | <img src="docs/screenshots/zh/06-employees.png" alt="员工管理" width="420"> |
 
 | 报表 | 设置 |
 | :---: | :---: |
-| <img src="docs/screenshots/07-reports.png" alt="报表" width="420"> | <img src="docs/screenshots/08-settings.png" alt="数据库设置" width="420"> |
+| <img src="docs/screenshots/zh/07-reports.png" alt="报表" width="420"> | <img src="docs/screenshots/zh/08-settings.png" alt="数据库设置" width="420"> |
 
 <p align="center">
-  <img src="docs/screenshots/03-computers.png" alt="计算机管理" width="720">
+  <img src="docs/screenshots/zh/03-computers.png" alt="计算机管理" width="720">
   <br><em>计算机与设备管理</em>
 </p>
 
-> 本地重新生成：`npm run build && npm run screenshots` → [`docs/screenshots/`](docs/screenshots/)
+> 本地重新生成：`npm run build && npm run screenshots` → [`docs/screenshots/zh/`](docs/screenshots/zh/)
 
 ---
 
@@ -573,7 +573,10 @@ uvwstack/
 ├── scripts/
 │   ├── verify-flow.mjs           # 冒烟测试
 │   └── capture-screenshots.mjs   # README 截图
-├── docs/screenshots/             # 界面截图（README）
+├── docs/screenshots/
+│   ├── ru/                       # README.ru.md
+│   ├── en/                       # README.md
+│   └── zh/                       # README.zh-CN.md
 ├── package.json
 ├── .env.example
 ├── README.md                     # English

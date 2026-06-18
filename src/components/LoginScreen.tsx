@@ -110,7 +110,7 @@ export default function LoginScreen({ users, onLogin, workspaceName, siteLogo }:
         </div>
         <h2 className="mt-4 text-center text-2xl font-extrabold tracking-tight text-white">{t("Вход в ИТ-Инвентарь")}</h2>
         <p className="mt-1.5 text-center text-xs text-slate-400 max-w-xs mx-auto">
-          Единая корпоративная система учета оборудования и инвентаризации филиалов — {workspaceName || 'Глобал-Консалт ИТ'}
+          {t("Единая корпоративная система учета оборудования и инвентаризации филиалов")} — {workspaceName || 'Stack'}
         </p>
       </div>
 

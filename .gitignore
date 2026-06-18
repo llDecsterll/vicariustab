@@ -15,4 +15,4 @@ data/
 *.backup.json
 *.zip
 Orbit-staging-temp/
-Orbit-github-ready-*/
+.screenshot-data/

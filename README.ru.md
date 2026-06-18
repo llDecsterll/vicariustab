@@ -8,7 +8,7 @@
 # 🚀 Uvwstack (Stack)
 
 <p align="center">
-  <img src="https://img.shields.io/badge/версия-2.6.7-blue?style=for-the-badge" alt="Version">
+  <img src="https://img.shields.io/badge/версия-2.6.8-blue?style=for-the-badge" alt="Version">
   <img src="https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&style=for-the-badge" alt="Docker Ready">
   <img src="https://img.shields.io/badge/Node.js-20+-339933?logo=node.js&style=for-the-badge" alt="Node.js 20">
   <img src="https://img.shields.io/badge/PM2-Supported-blue?style=for-the-badge" alt="PM2">
@@ -24,28 +24,28 @@
 # 📸 Скриншоты интерфейса
 
 <p align="center">
-  <img src="docs/screenshots/01-login.png" alt="Вход в систему Stack" width="720">
+  <img src="docs/screenshots/ru/01-login.png" alt="Вход в систему Stack" width="720">
   <br><em>Экран авторизации</em>
 </p>
 
 | Дашборд | Сетевое оборудование |
 | :---: | :---: |
-| <img src="docs/screenshots/02-dashboard.png" alt="Дашборд Stack" width="420"> | <img src="docs/screenshots/04-network.png" alt="Сетевое оборудование" width="420"> |
+| <img src="docs/screenshots/ru/02-dashboard.png" alt="Дашборд Stack" width="420"> | <img src="docs/screenshots/ru/04-network.png" alt="Сетевое оборудование" width="420"> |
 
 | Склад ИТ | Сотрудники |
 | :---: | :---: |
-| <img src="docs/screenshots/05-warehouse.png" alt="Склад ИТ" width="420"> | <img src="docs/screenshots/06-employees.png" alt="Сотрудники" width="420"> |
+| <img src="docs/screenshots/ru/05-warehouse.png" alt="Склад ИТ" width="420"> | <img src="docs/screenshots/ru/06-employees.png" alt="Сотрудники" width="420"> |
 
 | Отчёты | Настройки |
 | :---: | :---: |
-| <img src="docs/screenshots/07-reports.png" alt="Отчёты" width="420"> | <img src="docs/screenshots/08-settings.png" alt="Настройки СУБД" width="420"> |
+| <img src="docs/screenshots/ru/07-reports.png" alt="Отчёты" width="420"> | <img src="docs/screenshots/ru/08-settings.png" alt="Настройки СУБД" width="420"> |
 
 <p align="center">
-  <img src="docs/screenshots/03-computers.png" alt="Учёт компьютеров" width="720">
+  <img src="docs/screenshots/ru/03-computers.png" alt="Учёт компьютеров" width="720">
   <br><em>Учёт компьютеров и оборудования</em>
 </p>
 
-> Обновить скриншоты локально: `npm run build && npm run screenshots` → папка [`docs/screenshots/`](docs/screenshots/)
+> Обновить скриншоты локально: `npm run build && npm run screenshots` → [`docs/screenshots/ru/`](docs/screenshots/ru/)
 
 ---
 
@@ -575,7 +575,10 @@ uvwstack/
 ├── scripts/
 │   ├── verify-flow.mjs           # Smoke-тесты
 │   └── capture-screenshots.mjs   # Скриншоты для README
-├── docs/screenshots/             # Скриншоты интерфейса (README)
+├── docs/screenshots/
+│   ├── ru/                       # Скриншоты (README.ru.md)
+│   ├── en/                       # Screenshots (README.md)
+│   └── zh/                       # 截图 (README.zh-CN.md)
 ├── package.json
 ├── .env.example
 ├── README.md                     # English
