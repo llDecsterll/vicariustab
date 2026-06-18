@@ -1,6 +1,12 @@
 # Release
 
-# 🐳 Документация по развертыванию Uvwstack на Ubuntu Server (Docker, PM2 & СУБД)
+<p align="center">
+  <a href="README.md">English</a> ·
+  <a href="README.ru.md">Русский</a> ·
+  <a href="README.zh-CN.md">中文</a>
+</p>
+
+# 🐳 Развёртывание Stack (Uvwstack) на Ubuntu Server
 
 Данное руководство содержит исчерпывающие инструкции по установке полнофункциональной инфраструктуры системы **Uvwstack** с поддержкой реляционных СУБД (MySQL / PostgreSQL) и шифрованием данных.
 
@@ -61,7 +67,7 @@ sudo usermod -aG docker $USER
 ```bash
 cd ~
 git clone https://github.com/llDecsterll/uvwstack.git
-cd Uvwstack
+cd uvwstack
 
 # Проверьте наличие файлов Dockerfile и docker-compose.yml
 ls -la
@@ -71,6 +77,14 @@ docker compose build --no-cache
 docker compose up -d
 ```
 Приложение запустится на порту `8080` вашего сервера.
+
+#### Альтернатива: Stack + MySQL в одном Docker Compose
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.mysql.yml up -d --build
+```
+
+Хост в настройках СУБД: **`mysql`**. Подробнее — [README.ru.md](./README.ru.md).
 
 ---
 
@@ -88,7 +102,7 @@ sudo apt install -y nodejs
 ```bash
 cd ~
 git clone https://github.com/llDecsterll/uvwstack.git
-cd Uvwstack
+cd uvwstack
 
 # Устанавливаем зависимости
 npm install
@@ -156,13 +170,13 @@ sudo mysql
 Выполните команды:
 ```sql
 -- Создание выделенной базы данных в UTF-8
-CREATE DATABASE orbit_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE DATABASE stack_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- Создание пользователя с удаленным доступом '%' (Задайте надежный пароль!)
-CREATE USER 'orbit_user'@'%' IDENTIFIED BY 'StrongSecPassword@2026';
+CREATE USER 'stack_user'@'%' IDENTIFIED BY 'StrongSecPassword@2026';
 
 -- Предоставление прав пользователю на базу данных
-GRANT ALL PRIVILEGES ON orbit_db.* TO 'orbit_user'@'%';
+GRANT ALL PRIVILEGES ON stack_db.* TO 'stack_user'@'%';
 
 FLUSH PRIVILEGES;
 EXIT;
@@ -213,11 +227,11 @@ sudo -i -u postgres psql
 ```
 Выполните команды:
 ```sql
--- Создание пользователя 'orbit_user'
-CREATE USER orbit_user WITH PASSWORD 'StrongSecPassword@2026';
+-- Создание пользователя 'stack_user'
+CREATE USER stack_user WITH PASSWORD 'StrongSecPassword@2026';
 
 -- Создание базы данных и назначение владельца
-CREATE DATABASE orbit_db OWNER orbit_user;
+CREATE DATABASE stack_db OWNER stack_user;
 
 \q
 exit
@@ -244,10 +258,10 @@ sudo ufw reload
 3. Перейдите в раздел **«Настройки»** -> Вкладка **«Параметры СУБД (MySQL / PostgreSQL)»**.
 4. Заполните данные вашей запущенной СУБД:
    * **Тип базы данных:** Выберите `MySQL` или `PostgreSQL`.
-   * **Хост / IP:** Укажите IP-адрес вашего сервера Linux. Если база данных установлена на том же сервере, где крутится контейнер Uvwstack Docker, укажите сетевой мост Docker: `172.17.0.1` или IP-адрес самого сервера во внутренней сети.
+   * **Хост / IP:** `mysql` (Docker Compose), `172.17.0.1`, `host.docker.internal` или `localhost` (режим host-сети — см. `docker-compose.host.yml`).
    * **Порт:** `3306` (MySQL) или `5432` (PostgreSQL).
-   * **Название БД:** `orbit_db`.
-   * **Пользователь:** `orbit_user`.
+   * **Название БД:** `stack_db`.
+   * **Пользователь:** `stack_user`.
    * **Пароль:** Ваш пароль (например, `StrongSecPassword@2026`).
 5. Нажмите кнопку **«Проверить соединение»**. Если всё сделано верно, загорится плашка **«Подключение успешно установлено!»**.
 6. Нажмите кнопку **«Применить СУБД и мигрировать»**. Данные мгновенно синхронизируются внутри вашей новой реляционной таблицы безопасности, и приложение перезапустится.

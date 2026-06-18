@@ -370,7 +370,7 @@ export default function SettingsView({
       setUpdateLogs([...logs]);
     };
 
-    addLog(t('Инициализация проверки обновлений Orbit...'));
+    addLog(t('Инициализация проверки обновлений Stack...'));
     setCurrentUpdateStep(t('Проверка GitHub'));
     setUpdateProgress(20);
 
@@ -441,7 +441,7 @@ export default function SettingsView({
 
       if (onLogActivity) {
         onLogActivity(
-          t('Проверка обновлений Orbit'),
+          t('Проверка обновлений Stack'),
           `${t('Проверка GitHub завершена. Релиз:')} ${payload.latestTag || payload.remoteVersion || 'n/a'}`,
           'system'
         );
@@ -662,7 +662,7 @@ export default function SettingsView({
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `it_orbit_secure_backup_${new Date().toISOString().slice(0, 10)}.enc`;
+      a.download = `stack_secure_backup_${new Date().toISOString().slice(0, 10)}.enc`;
       a.click();
       URL.revokeObjectURL(url);
       setBackupSuccess(t("Резервная копия успешно экспортирована!"));
@@ -941,7 +941,7 @@ export default function SettingsView({
                 <h4 className="text-xs font-bold text-slate-705 uppercase tracking-wide">{t("Резервное копирование (Скачивание JSON)")}</h4>
               </div>
               
-              <p className="text-[11px] text-slate-500 leading-relaxed">{t("Создайте полную резервную копию всех сущностей Вашей платформы Orbit (компьютеры, сотрудники, серверы, оргтехника, журналы изменений, аудит). При этом сам лицензионный ключ активации исключается из файла. Это позволяет переносить базу данных на любые другие независимые серверы Orbit без дублирования или компрометации Вашей лицензии.")}</p>
+              <p className="text-[11px] text-slate-500 leading-relaxed">{t("Создайте полную резервную копию всех сущностей платформы Stack (компьютеры, сотрудники, серверы, оргтехника, журналы изменений, аудит). Лицензионный ключ активации исключается из файла — это позволяет переносить базу на другие серверы Stack без компрометации лицензии.")}</p>
 
               <button
                 type="button"
@@ -1010,14 +1010,14 @@ export default function SettingsView({
         </div>
       )}
 
-      {/* Центр автоматического обновления Orbit через GitHub */}
+      {/* Центр автоматического обновления Stack через GitHub */}
       {isAdmin && (
         <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-5 animate-fade-in font-sans">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-100 pb-3">
             <div className="flex items-center gap-2">
               <RefreshCw className="text-blue-500" size={18} />
               <div>
-                <h3 className="font-bold text-slate-805 text-sm tracking-tight">{t("Центр управления обновлениями Orbit")}</h3>
+                <h3 className="font-bold text-slate-805 text-sm tracking-tight">{t("Центр управления обновлениями Stack")}</h3>
                 <p className="text-[10px] text-slate-400">{t("Обновите программное ядро платформы в один клик. Поддерживается прямая проверка и обновление из репозитория GitHub или ручная загрузка архива релиза.")}</p>
               </div>
             </div>
@@ -1062,7 +1062,7 @@ export default function SettingsView({
                         readOnly
                         className="flex-1 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono font-medium text-slate-705 focus:outline-none cursor-default"
                         value={githubRepoUrl}
-                        title={t("Официальный репозиторий обновлений Orbit")}
+                        title={t("Официальный репозиторий обновлений Stack")}
                       />
                       <a
                         href={UVWSTACK_UPDATE_REPO_DISPLAY}
@@ -1106,7 +1106,7 @@ export default function SettingsView({
                 {/* Лицензионное предупреждение */}
                 <div className="flex items-start gap-1.5 text-[10px] text-amber-750 bg-amber-50/70 border border-amber-100 p-2.5 rounded-lg leading-relaxed">
                   <AlertTriangle size={14} className="shrink-0 mt-0.5 text-amber-600" />
-                  <span>{t("Внимание: Обновление ядра Orbit перезаписывает только программную часть приложения. Ваши локально сохраненные данные, сотрудники, схемы сети и журналы аудита останутся целыми и невредимыми!")}</span>
+                  <span>{t("Внимание: обновление ядра Stack перезаписывает только программную часть. Локальные данные, сотрудники, схемы сети и журналы аудита сохраняются.")}</span>
                 </div>
 
                 {/* Progress bar */}
@@ -2220,7 +2220,7 @@ export default function SettingsView({
               
               <div className="space-y-2">
                 <h3 className="text-xl font-bold text-slate-100 tracking-tight flex items-center justify-center gap-2">
-                  <span>{t("Перезапуск ядра Orbit")}</span>
+                  <span>{t("Перезапуск ядра Stack")}</span>
                   <span className="text-blue-400 font-mono font-black">{rebootTimeLeft} сек...</span>
                 </h3>
                 <p className="text-xs text-slate-400 font-mono tracking-wide h-6">
@@ -2233,12 +2233,12 @@ export default function SettingsView({
                 <div>[SYSTEM] Initiating warm reboot command...</div>
                 {rebootTimeLeft <= 4 && <div>[SERVICES] Sending SIGTERM to legacy middleware... OK</div>}
                 {rebootTimeLeft <= 3 && <div>[KERNEL] Loading binary image v2.5.3-production (64-bit)...</div>}
-                {rebootTimeLeft <= 3 && <div>[KERNEL] Injecting Orbit code updates & UI resources... OK</div>}
+                {rebootTimeLeft <= 3 && <div>[KERNEL] Injecting Stack code updates & UI resources... OK</div>}
                 {rebootTimeLeft <= 2 && <div>[DATABASE] Verifying schema integrity of localStorage... OK</div>}
                 {rebootTimeLeft <= 2 && <div>[DATABASE] Applied 2 incremental schema migrations... OK</div>}
                 {rebootTimeLeft <= 1 && <div>[NETWORK] Testing websocket gateway ingress... OK</div>}
                 {rebootTimeLeft <= 1 && <div>[RUNTIME] Executing garbage collection & cache flush...</div>}
-                {rebootTimeLeft === 0 && <div className="text-blue-400 font-bold">[REBOOT] Mounting fully compiled Orbit workspace now.</div>}
+                {rebootTimeLeft === 0 && <div className="text-blue-400 font-bold">[REBOOT] Mounting fully compiled Stack workspace now.</div>}
               </div>
 
               <div className="text-[10px] text-slate-500 font-sans leading-relaxed">{t("Пожалуйста, не закрывайте вкладку. Обновленные файлы, базы данных и параметры сессии применяются автоматически прямо сейчас.")}</div>

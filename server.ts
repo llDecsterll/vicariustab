@@ -17,7 +17,7 @@ const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 
 const PKG = JSON.parse(fs.readFileSync(path.join(process.cwd(), "package.json"), "utf-8")) as { version?: string; name?: string };
-const APP_VERSION = String(PKG.version || "2.6.3");
+const APP_VERSION = String(PKG.version || "2.6.4");
 
 const ENCRYPTION_SECRET = process.env.DB_ENCRYPTION_KEY || "it-orbit-system-fallback-secret-2026-secure-v1";
 const UVWSTACK_UPDATE_REPO =
