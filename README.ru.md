@@ -45,8 +45,6 @@
   <br><em>Учёт компьютеров и оборудования</em>
 </p>
 
-> Обновить скриншоты локально: `npm run build && npm run screenshots` → [`docs/screenshots/ru/`](docs/screenshots/ru/)
-
 ---
 
 ## 📋 Содержание
