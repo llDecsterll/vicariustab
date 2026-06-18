@@ -1,3 +1,4 @@
+/* Release */
 const fs = require('fs');
 
 const terms = JSON.parse(fs.readFileSync('super_safe_terms.json', 'utf8'));

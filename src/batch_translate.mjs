@@ -1,3 +1,4 @@
+/* Release */
 import { translate } from '@vitalets/google-translate-api';
 import fs from 'fs';
 

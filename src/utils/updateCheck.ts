@@ -1,3 +1,4 @@
+/* Release */
 import { APP_VERSION, UVWSTACK_UPDATE_REPO } from '../config/appConfig';
 
 export interface UpdateCheckResult {

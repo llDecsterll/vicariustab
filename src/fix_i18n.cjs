@@ -1,3 +1,4 @@
+/* Release */
 const fs = require('fs');
 
 let content = fs.readFileSync('src/utils/i18n.tsx', 'utf8');

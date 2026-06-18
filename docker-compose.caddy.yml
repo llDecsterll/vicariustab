@@ -1,3 +1,4 @@
+# Release
 # --- Docker Compose for Caddy Web Server with Automated Let's Encrypt TLS ---
 services:
   # First build the production frontend

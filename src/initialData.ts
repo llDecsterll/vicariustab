@@ -5,6 +5,7 @@
  * All rights reserved. Unauthorized copying, modification, distribution or commercial use is prohibited.
  * 保留所有权利。未经版权所有者事先书面同意，禁止复制、修改、分发或商业使用。
  * Все права защищены. Копирование, изменение, распространение и коммерческое использование без письменного согласия правообладателя запрещено.
+ * Release
  */
 import { ObjectItem, NetworkDevice, ComputerItem, EmployeeItem, WarehouseItem, Activity, InventoryAudit, SoftwareItem } from './types';
 

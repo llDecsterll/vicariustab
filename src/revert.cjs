@@ -1,3 +1,4 @@
+/* Release */
 const { execSync } = require('child_process');
 try {
   execSync('git restore src/components/*.tsx');

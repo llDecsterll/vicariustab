@@ -2,6 +2,7 @@
  * COPYRIGHT NOTICE | УВЕДОМЛЕНИЕ ОБ АВТОРСКИХ ПРАВАХ | 版权声明
  * © 2026 Utkin Vladislav Vyacheslavovich (Уткин Владислав Вячеславович)
  * Email: assetorbit@icloud.com | Telegram: https://t.me/Dexterll
+ * Release
  */
 import React from 'react';
 import { Mail, Send } from 'lucide-react';

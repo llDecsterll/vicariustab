@@ -1,3 +1,4 @@
+# Release
 services:
   uvwstack-app:
     build:

@@ -1,3 +1,4 @@
+/* Release */
 /** @deprecated Import from appConfig.ts */
 export {
   UVWSTACK_UPDATE_REPO as ORBIT_UPDATE_REPO,

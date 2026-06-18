@@ -1,3 +1,4 @@
+# Release
 # --- Docker Compose with Let's Encrypt automated TLS validation ---
 services:
   it-inventory:

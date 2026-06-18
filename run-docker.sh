@@ -1,3 +1,4 @@
+/* Release */
 #!/bin/sh
 
 # Color output helpers

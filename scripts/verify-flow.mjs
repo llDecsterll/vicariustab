@@ -1,3 +1,4 @@
+/* Release */
 /**
  * Smoke tests: license activation, backup whitelist, GitHub update API.
  * Run: node scripts/verify-flow.mjs [baseUrl]

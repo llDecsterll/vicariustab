@@ -5,6 +5,7 @@
  * All rights reserved. Unauthorized copying, modification, distribution or commercial use is prohibited.
  * 保留所有权利。未经版权所有者事先书面同意，禁止复制、修改、分发或商业使用。
  * Все права защищены. Копирование, изменение, распространение и коммерческое использование без письменного согласия правообладателя запрещено.
+ * Release
  */
 
 import express from "express";
@@ -16,7 +17,7 @@ const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 
 const PKG = JSON.parse(fs.readFileSync(path.join(process.cwd(), "package.json"), "utf-8")) as { version?: string; name?: string };
-const APP_VERSION = String(PKG.version || "2.6.1");
+const APP_VERSION = String(PKG.version || "2.6.2");
 
 const ENCRYPTION_SECRET = process.env.DB_ENCRYPTION_KEY || "it-orbit-system-fallback-secret-2026-secure-v1";
 const UVWSTACK_UPDATE_REPO =

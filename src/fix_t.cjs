@@ -1,3 +1,4 @@
+/* Release */
 const fs = require('fs');
 
 function fixImportAndDef(file) {
