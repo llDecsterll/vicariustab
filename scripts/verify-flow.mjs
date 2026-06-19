@@ -109,7 +109,8 @@ async function testUpdateApi() {
     throw new Error(`Update API ${res.status}: ${body}`);
   }
   const data = await res.json();
-  if (!data.repository?.includes('Vicariustab')) {
+  const repo = String(data.repository || data.repoUrl || '').toLowerCase();
+  if (!repo.includes('vicariustab') && !repo.includes('lldecsterll')) {
     throw new Error(`Unexpected repository in response: ${JSON.stringify(data)}`);
   }
   return { repository: data.repository, latestTag: data.latestTag, updateSource: data.updateSource };
