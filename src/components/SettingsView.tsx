@@ -59,7 +59,7 @@ import { getSystemRequestCode, getLicenseStatus } from '../utils/license';
 import { copyTextToClipboard } from '../utils/clipboard';
 import { useTranslation, Language } from '../utils/i18n';
 import { VICARIUSTAB_UPDATE_REPO, VICARIUSTAB_UPDATE_REPO_DISPLAY, APP_VERSION } from '../config/appConfig';
-import { buildUpdateNotificationText } from '../utils/updateCheck';
+import { buildUpdateNotificationText, buildUpdateCompletedText, checkForPlatformUpdate, applyPlatformUpdate, fetchUpdateJobStatus, markInstalledCommit, type UpdateCheckResult } from '../utils/updateCheck';
 import CopyrightFooter from './CopyrightFooter';
 
 interface SettingsViewProps {
@@ -375,18 +375,81 @@ export default function SettingsView({
   const [currentUpdateStep, setCurrentUpdateStep] = useState('');
   const [updateCompleted, setUpdateCompleted] = useState(false);
   const [updateErrorMsg, setUpdateErrorMsg] = useState('');
+  const [pendingUpdate, setPendingUpdate] = useState<UpdateCheckResult | null>(null);
   const [systemVersion, setSystemVersion] = useState(() => localStorage.getItem('it_system_version') || `v${APP_VERSION}-stable`);
   const [isRebooting, setIsRebooting] = useState(false);
   const [rebootStep, setRebootStep] = useState('');
-  const [rebootTimeLeft, setRebootTimeLeft] = useState(5);
+  const [rebootTimeLeft, setRebootTimeLeft] = useState(8);
 
-  const startSystemUpdate = async () => {
+  useEffect(() => {
+    if (!isRebooting) return;
+    setRebootStep(t('Применение обновления и перезапуск сервера...'));
+    const timer = setInterval(() => {
+      setRebootTimeLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          window.location.reload();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [isRebooting, t]);
+
+  const pollUpdateJob = () => {
+    const interval = window.setInterval(async () => {
+      const job = await fetchUpdateJobStatus();
+      if (!job) return;
+      setUpdateLogs(job.logs);
+      setUpdateProgress(job.progress);
+      setCurrentUpdateStep(job.step);
+
+      if (job.status === 'completed') {
+        window.clearInterval(interval);
+        setUpdateCompleted(true);
+        setIsUpdating(false);
+        setCurrentUpdateStep('');
+        if (job.latestCommitSha) {
+          markInstalledCommit(job.latestCommitSha);
+        }
+        if (job.remoteVersion) {
+          setSystemVersion(`v${job.remoteVersion}`);
+          localStorage.setItem('it_system_version', `v${job.remoteVersion}`);
+        }
+        setPendingUpdate(null);
+        window.dispatchEvent(
+          new CustomEvent('Vicariustab-update-completed', {
+            detail: { text: buildUpdateCompletedText(job.remoteVersion), remoteVersion: job.remoteVersion },
+          })
+        );
+        if (onLogActivity) {
+          onLogActivity(
+            t('Обновление Vicariustab'),
+            t('Платформа успешно обновлена до стабильной актуальной версии'),
+            'system'
+          );
+        }
+        setIsRebooting(true);
+      }
+
+      if (job.status === 'failed') {
+        window.clearInterval(interval);
+        setUpdateErrorMsg(job.error || t('Ошибка установки обновления'));
+        setIsUpdating(false);
+        setCurrentUpdateStep('');
+      }
+    }, 1500);
+  };
+
+  const checkForUpdates = async () => {
     if (isUpdating) return;
     setIsUpdating(true);
     setUpdateProgress(0);
     setUpdateCompleted(false);
     setUpdateErrorMsg('');
     setUpdateLogs([]);
+    setPendingUpdate(null);
 
     const logs: string[] = [];
     const addLog = (text: string) => {
@@ -400,45 +463,19 @@ export default function SettingsView({
     setUpdateProgress(20);
 
     try {
-      if (updateSourceType === 'github_archive') {
-        addLog(t('Режим ручного архива: автоматическая установка из браузера недоступна.'));
-        addLog(`${t('Выбран файл:')} ${archiveName || 'Vicariustab-release.zip'}`);
-        addLog(t('Распакуйте архив на сервере и выполните: npm install && npm run build && pm2 restart vicariustab-system'));
-        setUpdateProgress(100);
-        setUpdateCompleted(true);
-        setCurrentUpdateStep('');
-        setIsUpdating(false);
-        return;
-      }
-
-      const query = new URLSearchParams({
-        installedCommit: localStorage.getItem('it_installed_commit') || '',
-        currentVersion: APP_VERSION,
-      });
-      const response = await fetch(`/api/update/check?${query.toString()}`);
-      const payload = await response.json();
-      if (!response.ok) {
-        throw new Error(payload?.error || t('Не удалось проверить обновления на GitHub'));
+      const payload = await checkForPlatformUpdate();
+      if (!payload) {
+        throw new Error(t('Не удалось проверить обновления на GitHub'));
       }
 
       setUpdateProgress(60);
-      addLog(`${t('Репозиторий:')} ${payload.repository}`);
-      if (payload.updateSource === 'commit') {
-        addLog(`${t('Последний коммит ветки main:')} ${payload.latestTag || t('не найден')}`);
-        if (payload.publishedAt) {
-          addLog(`${t('Дата коммита:')} ${new Date(payload.publishedAt).toLocaleString()}`);
-        }
-      } else {
-        addLog(`${t('Последний релиз:')} ${payload.latestTag || t('не найден')}`);
-      }
-
-      if (payload.releaseUrl) {
-        addLog(`${t('Страница на GitHub:')} ${payload.releaseUrl}`);
-      }
+      addLog(`${t('Репозиторий:')} ${payload.repository || 'vicariustab'}`);
+      addLog(`${t('Текущая версия:')} v${payload.currentVersion}`);
+      addLog(`${t('Версия на GitHub:')} v${payload.remoteVersion}`);
 
       if (payload.updateAvailable) {
-        addLog(t('На GitHub доступна более новая версия. Автоустановка из браузера отключена.'));
-        addLog(`${t('На сервере выполните:')} git clone ${VICARIUSTAB_UPDATE_REPO} (или git pull) && npm install && npm run build && pm2 restart vicariustab-system`);
+        setPendingUpdate(payload);
+        addLog(t('Доступна новая версия. Нажмите «Установить обновление» для автоматической установки.'));
         window.dispatchEvent(
           new CustomEvent('Vicariustab-update-available', {
             detail: {
@@ -448,13 +485,10 @@ export default function SettingsView({
             },
           })
         );
-        if (payload.latestCommitSha) {
-          localStorage.setItem('it_last_remote_version', payload.latestCommitSha);
-        }
       } else {
         addLog(t('Локальная версия соответствует актуальному состоянию репозитория на GitHub.'));
         if (payload.latestCommitSha) {
-          localStorage.setItem('it_installed_commit', payload.latestCommitSha);
+          markInstalledCommit(payload.latestCommitSha);
         }
       }
 
@@ -476,6 +510,37 @@ export default function SettingsView({
       setIsUpdating(false);
       setCurrentUpdateStep('');
     }
+  };
+
+  const installPlatformUpdate = async () => {
+    if (isUpdating || !pendingUpdate?.updateAvailable) return;
+    setIsUpdating(true);
+    setUpdateProgress(5);
+    setUpdateCompleted(false);
+    setUpdateErrorMsg('');
+    setUpdateLogs([]);
+
+    const logs: string[] = [];
+    const addLog = (text: string) => {
+      const time = new Date().toLocaleTimeString('ru-RU');
+      logs.push(`[${time}] ${text}`);
+      setUpdateLogs([...logs]);
+    };
+
+    addLog(t('Запуск автоматической установки обновления...'));
+    setCurrentUpdateStep(t('Резервное копирование'));
+    setUpdateProgress(10);
+
+    const result = await applyPlatformUpdate();
+    if (!result.started) {
+      setUpdateErrorMsg(result.error || t('Не удалось запустить обновление'));
+      addLog(`${t('Ошибка:')} ${result.error}`);
+      setIsUpdating(false);
+      return;
+    }
+
+    addLog(t('Обновление запущено на сервере. Скачивание, сборка и перезапуск выполняются автоматически.'));
+    pollUpdateJob();
   };
 
   // Editing existing user states
@@ -1149,27 +1214,51 @@ export default function SettingsView({
                   </div>
                 )}
 
-                {updateCompleted && (
+                {updateCompleted && !pendingUpdate && (
                   <div className="p-2.5 text-[10.5px] bg-emerald-50 text-emerald-805 font-bold rounded-lg border border-emerald-100 flex items-center gap-1.5 leading-relaxed">
                     <ShieldCheck size={14} className="shrink-0 text-emerald-600 animate-pulse" />
-                    {t("Проверка завершена. Следуйте инструкциям в журнале для ручного обновления на сервере.")} ({systemVersion})
+                    {t("Платформа актуальна — обновление не требуется.")} ({systemVersion})
                   </div>
                 )}
 
-                <button
-                  type="button"
-                  disabled={isUpdating || (updateSourceType === 'github_archive' && !archiveName)}
-                  onClick={startSystemUpdate}
-                  className="w-full py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-150 text-white disabled:text-slate-400 font-bold rounded-lg text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-2xs"
-                >
-                  {isUpdating ? (
-                    <>
-                      <RefreshCw size={14} className="animate-spin" />{t("Проверка обновлений на GitHub...")}</>
-                  ) : (
-                    <>
-                      <RefreshCw size={14} />{t("Проверить обновления на GitHub")}</>
-                  )}
-                </button>
+                {pendingUpdate?.updateAvailable && (
+                  <div className="p-2.5 text-[10.5px] bg-blue-50 text-blue-900 font-bold rounded-lg border border-blue-100 flex items-center gap-1.5 leading-relaxed">
+                    <Download size={14} className="shrink-0 text-blue-600" />
+                    {t("Доступна версия")} v{pendingUpdate.remoteVersion} ({t("установлена")} v{pendingUpdate.currentVersion})
+                  </div>
+                )}
+
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <button
+                    type="button"
+                    disabled={isUpdating}
+                    onClick={checkForUpdates}
+                    className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 disabled:bg-slate-150 text-slate-700 disabled:text-slate-400 font-bold rounded-lg text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    {isUpdating && !pendingUpdate ? (
+                      <>
+                        <RefreshCw size={14} className="animate-spin" />{t("Проверка обновлений на GitHub...")}</>
+                    ) : (
+                      <>
+                        <RefreshCw size={14} />{t("Проверить обновления на GitHub")}</>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={isUpdating || !pendingUpdate?.updateAvailable}
+                    onClick={installPlatformUpdate}
+                    className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-150 text-white disabled:text-slate-400 font-bold rounded-lg text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-2xs"
+                  >
+                    {isUpdating && pendingUpdate ? (
+                      <>
+                        <RefreshCw size={14} className="animate-spin" />{t("Установка обновления...")}</>
+                    ) : (
+                      <>
+                        <Download size={14} />{t("Установить обновление")}</>
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -1180,7 +1269,7 @@ export default function SettingsView({
                 <h4 className="text-xs font-bold text-slate-705 uppercase tracking-wide">{t("Терминал Docker сборщика (Stdout/Stderr)")}</h4>
               </div>
 
-              <p className="text-[11px] text-slate-500 leading-relaxed">{t("Компиляция кода, верификация синтаксиса и перезавод локального приложения в Docker контейнере логируется в реальном времени. При сбоях сборщик автоматически откатит изменения до стабильной версии.")}</p>
+                <p className="text-[11px] text-slate-500 leading-relaxed">{t("Платформа автоматически проверяет GitHub раз в сутки. Установка выполняется только по кнопке «Установить обновление»: резервная копия данных, загрузка, сборка и перезапуск без SSH.")}</p>
 
               <div className="space-y-1.5">
                 <span className="block text-[10px] font-bold text-slate-405 uppercase flex items-center gap-1">

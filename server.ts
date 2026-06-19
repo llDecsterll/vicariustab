@@ -12,6 +12,12 @@ import express from "express";
 import path from "path";
 import fs from "fs";
 import crypto from "crypto";
+import {
+  getUpdateJob,
+  resetUpdateJobIfStale,
+  startPlatformUpdate,
+  type UpdateCheckPayload,
+} from "./server/updateEngine";
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
@@ -458,6 +464,142 @@ function stripLicenseArtifacts(data: any): any {
   return cleaned;
 }
 
+function parseGithubRepo(repoUrl: string): { owner: string; repo: string } | null {
+  const match = repoUrl.match(/github\.com[/:]([\w.-]+)\/([\w.-]+?)(?:\.git)?\/?$/i);
+  if (!match) return null;
+  return { owner: match[1], repo: match[2] };
+}
+
+async function performGithubUpdateCheck(
+  installedCommit: string,
+  clientVersion: string
+): Promise<UpdateCheckPayload> {
+  const repoUrl = VICARIUSTAB_UPDATE_REPO;
+  const parsed = parseGithubRepo(repoUrl);
+  if (!parsed) {
+    throw new Error("Invalid GitHub repository URL");
+  }
+
+  const headers = {
+    Accept: "application/vnd.github+json",
+    "User-Agent": "Vicariustab-Update-Checker/1.0",
+  };
+
+  let latestTag = "";
+  let releaseUrl = "";
+  let releaseNotes = "";
+  let publishedAt = "";
+  let latestCommitSha = "";
+  let latestCommitDate = "";
+  let defaultBranch = "main";
+  let updateSource: "release" | "tag" | "commit" = "commit";
+  let remoteVersion = "";
+
+  const releaseRes = await fetch(
+    `https://api.github.com/repos/${parsed.owner}/${parsed.repo}/releases/latest`,
+    { headers }
+  );
+
+  if (releaseRes.ok) {
+    const release = (await releaseRes.json()) as {
+      tag_name?: string;
+      html_url?: string;
+      body?: string;
+      published_at?: string;
+    };
+    latestTag = release.tag_name || "";
+    releaseUrl = release.html_url || "";
+    releaseNotes = release.body || "";
+    publishedAt = release.published_at || "";
+    updateSource = "release";
+  } else {
+    const tagRes = await fetch(
+      `https://api.github.com/repos/${parsed.owner}/${parsed.repo}/tags?per_page=1`,
+      { headers }
+    );
+    if (tagRes.ok) {
+      const tags = (await tagRes.json()) as Array<{ name?: string }>;
+      latestTag = tags[0]?.name || "";
+      if (latestTag) {
+        releaseUrl = `https://github.com/${parsed.owner}/${parsed.repo}/releases/tag/${latestTag}`;
+        updateSource = "tag";
+      }
+    }
+
+    if (!latestTag) {
+      const repoMetaRes = await fetch(
+        `https://api.github.com/repos/${parsed.owner}/${parsed.repo}`,
+        { headers }
+      );
+      if (repoMetaRes.ok) {
+        const meta = (await repoMetaRes.json()) as { default_branch?: string; html_url?: string };
+        defaultBranch = meta.default_branch || "main";
+        releaseUrl = meta.html_url || `https://github.com/${parsed.owner}/${parsed.repo}`;
+      }
+
+      const commitRes = await fetch(
+        `https://api.github.com/repos/${parsed.owner}/${parsed.repo}/commits/${defaultBranch}`,
+        { headers }
+      );
+      if (!commitRes.ok) {
+        throw new Error("Unable to reach GitHub API for this repository");
+      }
+      const head = (await commitRes.json()) as {
+        sha?: string;
+        commit?: { message?: string; author?: { date?: string } };
+        html_url?: string;
+      };
+      latestCommitSha = head?.sha || "";
+      latestCommitDate = head?.commit?.author?.date || "";
+      latestTag = latestCommitSha ? `${defaultBranch}@${latestCommitSha.slice(0, 7)}` : defaultBranch;
+      releaseNotes = head?.commit?.message || "";
+      publishedAt = latestCommitDate;
+      releaseUrl = head?.html_url || releaseUrl;
+      updateSource = "commit";
+    }
+  }
+
+  try {
+    const rawPkgRes = await fetch(
+      `https://raw.githubusercontent.com/${parsed.owner}/${parsed.repo}/${defaultBranch}/package.json`,
+      { headers: { "User-Agent": "Vicariustab-Update-Checker/1.0" } }
+    );
+    if (rawPkgRes.ok) {
+      const remotePkg = (await rawPkgRes.json()) as { version?: string };
+      remoteVersion = String(remotePkg.version || "").trim();
+    }
+  } catch {
+    /* non-blocking */
+  }
+
+  if (!remoteVersion && latestTag) {
+    remoteVersion = latestTag.replace(/^v/i, "");
+  }
+
+  const fullCommitSha = latestCommitSha;
+  const versionNewer = Boolean(remoteVersion && compareSemver(remoteVersion, clientVersion) > 0);
+  const commitShaShort = fullCommitSha.toLowerCase().slice(0, 7);
+  const installedShort = installedCommit.toLowerCase().slice(0, 7);
+  const commitChanged = Boolean(commitShaShort && installedShort && commitShaShort !== installedShort);
+  const updateAvailable = versionNewer || commitChanged;
+
+  return {
+    repository: `${parsed.owner}/${parsed.repo}`,
+    repoUrl: VICARIUSTAB_UPDATE_REPO,
+    currentVersion: clientVersion,
+    remoteVersion: remoteVersion || latestTag || fullCommitSha,
+    updateAvailable,
+    latestTag,
+    releaseUrl,
+    releaseNotes,
+    publishedAt,
+    latestCommitSha: fullCommitSha,
+    defaultBranch,
+    updateSource,
+    checkedAt: new Date().toISOString(),
+  };
+}
+
 async function startServer() {
   if (process.env.TRUST_PROXY === "true" || process.env.TRUST_PROXY === "1") {
     app.set("trust proxy", 1);
@@ -714,144 +856,60 @@ async function startServer() {
     }
   });
 
-  function parseGithubRepo(repoUrl: string): { owner: string; repo: string } | null {
-    const match = repoUrl.match(/github\.com[/:]([\w.-]+)\/([\w.-]+?)(?:\.git)?\/?$/i);
-    if (!match) return null;
-    return { owner: match[1], repo: match[2] };
-  }
-
   app.get("/api/update/check", async (req, res) => {
     try {
-      const repoUrl = VICARIUSTAB_UPDATE_REPO;
       const installedCommit = String(req.query.installedCommit || "").trim().toLowerCase();
       const clientVersion = String(req.query.currentVersion || APP_VERSION).trim();
-      const parsed = parseGithubRepo(repoUrl);
-      if (!parsed) {
-        return res.status(400).json({ error: "Invalid GitHub repository URL" });
-      }
-
-      const headers = {
-        Accept: "application/vnd.github+json",
-        "User-Agent": "Vicariustab-Update-Checker/1.0",
-      };
-
-      let latestTag = "";
-      let releaseUrl = "";
-      let releaseNotes = "";
-      let publishedAt = "";
-      let latestCommitSha = "";
-      let latestCommitDate = "";
-      let defaultBranch = "main";
-      let updateSource: "release" | "tag" | "commit" = "commit";
-      let remoteVersion = "";
-
-      const releaseRes = await fetch(
-        `https://api.github.com/repos/${parsed.owner}/${parsed.repo}/releases/latest`,
-        { headers }
-      );
-
-      if (releaseRes.ok) {
-        const release = (await releaseRes.json()) as {
-          tag_name?: string;
-          html_url?: string;
-          body?: string;
-          published_at?: string;
-        };
-        latestTag = release.tag_name || "";
-        releaseUrl = release.html_url || "";
-        releaseNotes = release.body || "";
-        publishedAt = release.published_at || "";
-        updateSource = "release";
-      } else {
-        const tagRes = await fetch(
-          `https://api.github.com/repos/${parsed.owner}/${parsed.repo}/tags?per_page=1`,
-          { headers }
-        );
-        if (tagRes.ok) {
-          const tags = (await tagRes.json()) as Array<{ name?: string }>;
-          latestTag = tags[0]?.name || "";
-          if (latestTag) {
-            releaseUrl = `https://github.com/${parsed.owner}/${parsed.repo}/releases/tag/${latestTag}`;
-            updateSource = "tag";
-          }
-        }
-
-        if (!latestTag) {
-          const repoMetaRes = await fetch(
-            `https://api.github.com/repos/${parsed.owner}/${parsed.repo}`,
-            { headers }
-          );
-          if (repoMetaRes.ok) {
-            const meta = (await repoMetaRes.json()) as { default_branch?: string; html_url?: string };
-            defaultBranch = meta.default_branch || "main";
-            releaseUrl = meta.html_url || `https://github.com/${parsed.owner}/${parsed.repo}`;
-          }
-
-          const commitRes = await fetch(
-            `https://api.github.com/repos/${parsed.owner}/${parsed.repo}/commits/${defaultBranch}`,
-            { headers }
-          );
-          if (!commitRes.ok) {
-            return res.status(502).json({ error: "Unable to reach GitHub API for this repository" });
-          }
-          const head = (await commitRes.json()) as {
-            sha?: string;
-            commit?: { message?: string; author?: { date?: string } };
-            html_url?: string;
-          };
-          latestCommitSha = head?.sha?.slice(0, 7) || "";
-          latestCommitDate = head?.commit?.author?.date || "";
-          latestTag = latestCommitSha ? `${defaultBranch}@${latestCommitSha}` : defaultBranch;
-          releaseNotes = head?.commit?.message || "";
-          publishedAt = latestCommitDate;
-          releaseUrl = head?.html_url || releaseUrl;
-          updateSource = "commit";
-        }
-      }
-
-      try {
-        const rawPkgRes = await fetch(
-          `https://raw.githubusercontent.com/${parsed.owner}/${parsed.repo}/${defaultBranch}/package.json`,
-          { headers: { "User-Agent": "Vicariustab-Update-Checker/1.0" } }
-        );
-        if (rawPkgRes.ok) {
-          const remotePkg = (await rawPkgRes.json()) as { version?: string };
-          remoteVersion = String(remotePkg.version || "").trim();
-        }
-      } catch {
-        /* non-blocking */
-      }
-
-      if (!remoteVersion && latestTag) {
-        remoteVersion = latestTag.replace(/^v/i, "");
-      }
-
-      const fullCommitSha = latestCommitSha;
-      const versionNewer = Boolean(remoteVersion && compareSemver(remoteVersion, clientVersion) > 0);
-      const commitShaShort = fullCommitSha.toLowerCase().slice(0, 7);
-      const installedShort = installedCommit.toLowerCase().slice(0, 7);
-      const commitChanged = Boolean(commitShaShort && installedShort && commitShaShort !== installedShort);
-      const updateAvailable = versionNewer || commitChanged;
-
-      return res.json({
-        repository: `${parsed.owner}/${parsed.repo}`,
-        repoUrl: VICARIUSTAB_UPDATE_REPO,
-        currentVersion: clientVersion,
-        remoteVersion: remoteVersion || latestTag || fullCommitSha,
-        updateAvailable,
-        latestTag,
-        releaseUrl,
-        releaseNotes,
-        publishedAt,
-        latestCommitSha: fullCommitSha,
-        defaultBranch,
-        updateSource,
-        checkedAt: new Date().toISOString(),
-      });
+      const payload = await performGithubUpdateCheck(installedCommit, clientVersion);
+      return res.json(payload);
     } catch (error) {
       console.error("Update check failed:", error);
       return res.status(500).json({ error: "Failed to check GitHub updates" });
     }
+  });
+
+  app.get("/api/update/status", (_req, res) => {
+    resetUpdateJobIfStale();
+    return res.json(getUpdateJob());
+  });
+
+  app.post("/api/update/apply", async (req, res) => {
+    if (isDevelopmentMode()) {
+      return res.status(403).json({
+        error: "Auto-update is disabled in development mode. Use production build (npm run build && npm start).",
+      });
+    }
+
+    resetUpdateJobIfStale();
+    const running = getUpdateJob();
+    if (running.status === "running") {
+      return res.status(409).json({ error: "Update already in progress", job: running });
+    }
+
+    const installedCommit = String(req.body?.installedCommit || "").trim().toLowerCase();
+
+    let check;
+    try {
+      check = await performGithubUpdateCheck(installedCommit, APP_VERSION);
+    } catch (err: any) {
+      return res.status(502).json({ error: err?.message || "Failed to verify GitHub update" });
+    }
+
+    if (!check.updateAvailable) {
+      return res.status(409).json({ error: "No update available on GitHub", check });
+    }
+
+    void startPlatformUpdate({
+      repoUrl: VICARIUSTAB_UPDATE_REPO,
+      appVersion: APP_VERSION,
+      dataDir: DATA_DIR,
+      appRoot: process.cwd(),
+      encrypt,
+      readDbConfig,
+      fetchGithubCheck: () => performGithubUpdateCheck(installedCommit, APP_VERSION),
+    }).catch((err) => console.error("[Update] apply failed:", err));
+
+    return res.json({ started: true, message: "Platform update started" });
   });
 
   app.get("/api/update/repo", (_req, res) => {

@@ -41,7 +41,7 @@ import {
 
 import { ObjectItem, NetworkDevice, ComputerItem, EmployeeItem, EmployeeStatus, WarehouseItem, WarehouseItemType, Activity, InventoryAudit, SystemUser, UserRole, SoftwareItem, ComputerCategory, CustomWarehouse, WarehouseWriteOff } from './types';
 import { getLicenseStatus, activateSystem, deactivateSystem, getSystemRequestCode, applyLicenseStateFromServer, getLicenseSecuritySnapshot } from './utils/license';
-import { checkForPlatformUpdate, markInstalledCommit, buildUpdateNotificationText } from './utils/updateCheck';
+import { checkForPlatformUpdate, markInstalledCommit, buildUpdateNotificationText, shouldNotifyForUpdate, markUpdateNotified } from './utils/updateCheck';
 import { APP_VERSION } from './config/appConfig';
 import {
   filterComputersByEquipmentTab,
@@ -360,7 +360,8 @@ export default function App() {
     const runUpdateCheck = () => {
       checkForPlatformUpdate().then((result) => {
         if (cancelled || !result) return;
-        if (result.updateAvailable) {
+        if (result.updateAvailable && shouldNotifyForUpdate(result.remoteVersion)) {
+          markUpdateNotified(result.remoteVersion);
           window.dispatchEvent(
             new CustomEvent('Vicariustab-update-available', {
               detail: {
@@ -378,7 +379,7 @@ export default function App() {
     };
 
     runUpdateCheck();
-    const interval = setInterval(runUpdateCheck, 6 * 60 * 60 * 1000);
+    const interval = setInterval(runUpdateCheck, 24 * 60 * 60 * 1000);
     return () => {
       cancelled = true;
       clearInterval(interval);

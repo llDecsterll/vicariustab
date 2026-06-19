@@ -246,7 +246,26 @@ export default function Header({
       });
     };
     window.addEventListener('Vicariustab-update-available', handleUpdateAvailable);
-    return () => window.removeEventListener('Vicariustab-update-available', handleUpdateAvailable);
+
+    const handleUpdateCompleted = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { text?: string };
+      const text = detail?.text || 'Обновление Vicariustab установлено. Платформа перезапускается.';
+      setNotifications((prev) => [
+        {
+          id: Date.now() + Math.floor(Math.random() * 1000),
+          text,
+          read: false,
+          targetTab: 'settings',
+        },
+        ...prev,
+      ]);
+    };
+    window.addEventListener('Vicariustab-update-completed', handleUpdateCompleted);
+
+    return () => {
+      window.removeEventListener('Vicariustab-update-available', handleUpdateAvailable);
+      window.removeEventListener('Vicariustab-update-completed', handleUpdateCompleted);
+    };
   }, []);
 
   // Listen to password change events
