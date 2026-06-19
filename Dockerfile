@@ -31,6 +31,7 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 
 COPY --from=build /app/dist ./dist
+COPY --from=build /app/server/workspaceSeed.json ./server/workspaceSeed.json
 
 RUN mkdir -p /app/data \
   && addgroup -S vicariustab && adduser -S vicariustab -G vicariustab \
@@ -40,6 +41,6 @@ USER vicariustab
 EXPOSE 8080
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=25s --retries=3 \
-  CMD wget -qO- "http://127.0.0.1:${PORT}/api/update/repo" >/dev/null 2>&1 || exit 1
+  CMD wget -qO- "http://127.0.0.1:${PORT}/api/health" >/dev/null 2>&1 || exit 1
 
 CMD ["node", "dist/server.cjs"]

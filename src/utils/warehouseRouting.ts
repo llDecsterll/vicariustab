@@ -2,7 +2,16 @@
  * Strict warehouse → equipment group routing.
  * Warehouse receipt type is the source of truth for sidebar groups.
  */
-import type { ComputerCategory, ComputerItem, NetworkDeviceType, WarehouseItemType } from '../types';
+import type {
+  ComputerCategory,
+  ComputerItem,
+  ComputerStatus,
+  CustomWarehouse,
+  NetworkDevice,
+  NetworkDeviceType,
+  WarehouseItem,
+  WarehouseItemType,
+} from '../types';
 
 export type EquipmentTab =
   | 'computers'
@@ -49,6 +58,48 @@ export function filterComputersByEquipmentTab(
       return computers.filter((c) => c.category === 'Другое');
     default:
       return computers;
+  }
+}
+
+export function getCategoriesForEquipmentTab(tab: EquipmentTab): ComputerCategory[] {
+  switch (tab) {
+    case 'computers':
+      return ['ПК', 'Ноутбук'];
+    case 'peripherals':
+      return ['Монитор', 'Периферия'];
+    case 'orgtech':
+      return ['Оргтехника'];
+    case 'surveillance':
+      return ['Видеонаблюдение'];
+    case 'consumables':
+      return ['Расходники'];
+    case 'other_equip':
+      return ['Другое'];
+    default:
+      return [];
+  }
+}
+
+export function getCategoryFilterLabel(category: ComputerCategory): string {
+  switch (category) {
+    case 'Ноутбук':
+      return 'Ноутбуки';
+    case 'ПК':
+      return 'Персональные компьютеры (ПК)';
+    case 'Монитор':
+      return 'Мониторы';
+    case 'Периферия':
+      return 'Периферия';
+    case 'Оргтехника':
+      return 'Оргтехника';
+    case 'Видеонаблюдение':
+      return 'Видеонаблюдение';
+    case 'Расходники':
+      return 'Расходники';
+    case 'Другое':
+      return 'Другое';
+    default:
+      return category;
   }
 }
 
@@ -182,3 +233,36 @@ export function equipmentTabLabel(tab: EquipmentTab): string {
       return tab;
   }
 }
+
+/** Derive lifecycle status for network devices (no explicit status field on model). */
+export function getNetworkDeviceDisplayStatus(
+  device: NetworkDevice,
+  warehouseItems: WarehouseItem[],
+  warehouses: CustomWarehouse[]
+): ComputerStatus {
+  const inv = device.inventoryNumber;
+  if (inv) {
+    const whItem = warehouseItems.find(
+      (w) =>
+        w.inventoryNumber === inv &&
+        w.quantity > 0 &&
+        w.type === 'Сетевое оборудование'
+    );
+    if (whItem) {
+      const wh = warehouses.find((w) => w.name === whItem.warehouseName);
+      const stockObject = wh?.objectName ?? warehouses[0]?.objectName;
+      if (stockObject && device.objectName === stockObject) {
+        return 'На складе';
+      }
+    }
+  }
+  return 'В работе';
+}
+
+export const NETWORK_CATEGORY_FILTER_OPTIONS: { value: NetworkDeviceType | 'Все'; label: string }[] = [
+  { value: 'Все', label: 'Все категории' },
+  { value: 'Коммутатор', label: 'Коммутаторы' },
+  { value: 'Маршрутизатор', label: 'Маршрутизаторы' },
+  { value: 'Точка доступа', label: 'Точки доступа' },
+  { value: 'Другое', label: 'Другое' },
+];

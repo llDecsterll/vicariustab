@@ -10,15 +10,22 @@
 import React, { useState } from 'react';
 import { useTranslation } from '../utils/i18n';
 import { EQUIPMENT_TITLE_MAX_LENGTH, limitEquipmentTitle } from '../utils/equipmentFields';
-import { Network, Plus, Search, Trash2, Edit2, ShieldAlert, Upload, FileText } from 'lucide-react';
-import { NetworkDevice, NetworkDeviceType, ObjectItem } from '../types';
+import {
+  getNetworkDeviceDisplayStatus,
+  NETWORK_CATEGORY_FILTER_OPTIONS,
+} from '../utils/warehouseRouting';
+import EquipmentGroupFilters, { HARDWARE_STATUS_FILTER_OPTIONS } from './EquipmentGroupFilters';
+import { Network, Plus, Search, Edit2, ShieldAlert, Upload, FileText, RotateCcw } from 'lucide-react';
+import { CustomWarehouse, NetworkDevice, NetworkDeviceType, ObjectItem, WarehouseItem } from '../types';
 
 interface NetworkViewProps {
   networkDevices: NetworkDevice[];
   objects: ObjectItem[];
+  warehouseItems?: WarehouseItem[];
+  warehouses?: CustomWarehouse[];
   onAdd: (device: Omit<NetworkDevice, 'id'>) => void;
   onEdit: (id: string, device: Omit<NetworkDevice, 'id'>) => void;
-  onDelete: (id: string) => void;
+  onReturnToWarehouse?: (id: string) => void;
   onViewDetails?: (type: 'computer' | 'network' | 'employee' | 'object' | 'warehouse', id: string) => void;
   currentUser?: { role: 'Viewer' | 'Editor' | 'Admin' };
   allowDirectAdd?: boolean;
@@ -27,24 +34,36 @@ interface NetworkViewProps {
 export default function NetworkView({
   networkDevices,
   objects,
+  warehouseItems = [],
+  warehouses = [],
   onAdd,
   onEdit,
-  onDelete,
+  onReturnToWarehouse,
   onViewDetails,
   currentUser,
   allowDirectAdd = false,
 }: NetworkViewProps) {
   const { t } = useTranslation();
   const [search, setSearch] = useState('');
-  const [filterType, setFilterType] = useState<string>('Все');
+  const [filterCategory, setFilterCategory] = useState<string>('Все');
+  const [filterStatus, setFilterStatus] = useState<string>('Все');
   const [filterObject, setFilterObject] = useState<string>('Все');
   
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const isViewer = currentUser?.role === 'Viewer';
-  const isAdmin = currentUser?.role === 'Admin';
 
+  const handleReturnToWarehouse = (dev: NetworkDevice) => {
+    if (!onReturnToWarehouse) return;
+    if (
+      window.confirm(
+        `${t('Вернуть на склад')} «${dev.deviceName}»${dev.inventoryNumber ? ` (${t('инв. №')} ${dev.inventoryNumber})` : ''}?`
+      )
+    ) {
+      onReturnToWarehouse(dev.id);
+    }
+  };
   // Form states
   const [deviceName, setDeviceName] = useState('');
   const [type, setType] = useState<NetworkDeviceType>('Коммутатор');
@@ -156,10 +175,17 @@ export default function NetworkView({
   const filtered = networkDevices.filter(dev => {
     const matchesSearch = dev.deviceName.toLowerCase().includes(search.toLowerCase()) || 
                           dev.ipAddress.includes(search);
-    const matchesType = filterType === 'Все' || dev.type === filterType;
+    const matchesCategory = filterCategory === 'Все' || dev.type === filterCategory;
+    const displayStatus = getNetworkDeviceDisplayStatus(dev, warehouseItems, warehouses);
+    const matchesStatus = filterStatus === 'Все' || displayStatus === filterStatus;
     const matchesObject = filterObject === 'Все' || dev.objectName === filterObject;
-    return matchesSearch && matchesType && matchesObject;
+    return matchesSearch && matchesCategory && matchesStatus && matchesObject;
   });
+
+  const objectFilterOptions = [
+    { value: 'Все', label: 'Все объекты' },
+    ...objects.map((obj) => ({ value: obj.name, label: obj.name })),
+  ];
 
   return (
     <div className="space-y-6">
@@ -191,36 +217,20 @@ export default function NetworkView({
           )}
         </div>
 
-        <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-50">
-          <div>
-            <label className="text-[10px] text-slate-400 font-bold block mb-1">{t("Тип устройства")}</label>
-            <select
-              value={filterType}
-              onChange={(e) => setFilterType(e.target.value)}
-              className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-blue-500/10 focus:outline-none text-slate-650"
-            >
-              <option value="Все">{t("Все типы")}</option>
-              <option value="Коммутатор">{t("Коммутаторы")}</option>
-              <option value="Маршрутизатор">{t("Маршрутизаторы")}</option>
-              <option value="Точка доступа">{t("Точки доступа")}</option>
-              <option value="Другое">{t("Другое")}</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="text-[10px] text-slate-400 font-bold block mb-1">{t("Локация / Объект")}</label>
-            <select
-              value={filterObject}
-              onChange={(e) => setFilterObject(e.target.value)}
-              className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-blue-500/10 focus:outline-none text-slate-650"
-            >
-              <option value="Все">{t("Все объекты")}</option>
-              {objects.map(obj => (
-                <option key={obj.id} value={obj.name}>{obj.name}</option>
-              ))}
-            </select>
-          </div>
-        </div>
+        <EquipmentGroupFilters
+          categoryValue={filterCategory}
+          onCategoryChange={setFilterCategory}
+          categoryOptions={NETWORK_CATEGORY_FILTER_OPTIONS.map((opt) => ({
+            value: opt.value,
+            label: opt.label,
+          }))}
+          statusValue={filterStatus}
+          onStatusChange={setFilterStatus}
+          statusOptions={HARDWARE_STATUS_FILTER_OPTIONS}
+          objectValue={filterObject}
+          onObjectChange={setFilterObject}
+          objectOptions={objectFilterOptions}
+        />
       </div>
 
       {/* Main Devices Table */}
@@ -275,13 +285,13 @@ export default function NetworkView({
                           <Edit2 size={14} />
                         </button>
                       )}
-                      {isAdmin && (
+                      {!isViewer && onReturnToWarehouse && (
                         <button
-                          onClick={() => onDelete(dev.id)}
-                          className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-red-500 transition-colors cursor-pointer"
-                          title={t("Удалить")}
+                          onClick={() => handleReturnToWarehouse(dev)}
+                          className="p-1 hover:bg-emerald-50 rounded text-slate-400 hover:text-emerald-600 transition-colors cursor-pointer"
+                          title={t("Вернуть на склад")}
                         >
-                          <Trash2 size={14} />
+                          <RotateCcw size={14} />
                         </button>
                       )}
                     </div>

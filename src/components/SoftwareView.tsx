@@ -10,11 +10,12 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
-  Search, Plus, Key, Edit2, Trash2, Copy, Check, Eye, EyeOff, 
+  Search, Plus, Key, Edit2, RotateCcw, Copy, Check, Eye, EyeOff, 
   Layers, User, MapPin, Calendar, Clock, Sparkles, Database, Code, RefreshCw, Monitor
 } from 'lucide-react';
 import { useTranslation } from '../utils/i18n';
 import { EQUIPMENT_TITLE_MAX_LENGTH, limitEquipmentTitle } from '../utils/equipmentFields';
+import EquipmentGroupFilters, { SOFTWARE_STATUS_FILTER_OPTIONS } from './EquipmentGroupFilters';
 import { SoftwareItem, SoftwareCategory, EmployeeItem, ObjectItem, ComputerItem } from '../types';
 
 interface SoftwareViewProps {
@@ -24,8 +25,9 @@ interface SoftwareViewProps {
   computers: ComputerItem[];
   onAdd: (item: Omit<SoftwareItem, 'id'>) => void;
   onEdit: (id: string, item: Omit<SoftwareItem, 'id'>) => void;
-  onDelete: (id: string) => void;
+  onReturnToWarehouse?: (id: string) => void;
   currentUser?: { role: 'Viewer' | 'Editor' | 'Admin' };
+  warehouses?: { name: string }[];
 }
 
 export default function SoftwareView({
@@ -35,20 +37,35 @@ export default function SoftwareView({
   computers,
   onAdd,
   onEdit,
-  onDelete,
-  currentUser
+  onReturnToWarehouse,
+  currentUser,
+  warehouses = [],
 }: SoftwareViewProps) {
   const { t } = useTranslation();
   const [search, setSearch] = useState('');
   const [filterCategory, setFilterCategory] = useState<string>('Все');
   const [filterStatus, setFilterStatus] = useState<string>('Все');
+  const [filterObject, setFilterObject] = useState<string>('Все');
   
   // Modals and editing state
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [revealedKeys, setRevealedKeys] = useState<Record<string, boolean>>({});
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
+  const defaultWarehouseName = warehouses[0]?.name || 'Основной склад ИТ';
+
+  const handleReturnToWarehouse = (item: SoftwareItem) => {
+    if (!onReturnToWarehouse) return;
+    if (item.status === 'Не активирована') return;
+    if (
+      window.confirm(
+        `${t('Вернуть на склад')} «${item.name}» (${defaultWarehouseName})?`
+      )
+    ) {
+      onReturnToWarehouse(item.id);
+    }
+  };
 
   // Form states
   const [name, setName] = useState('');
@@ -172,9 +189,20 @@ export default function SoftwareView({
     
     const matchesCategory = filterCategory === 'Все' || item.category === filterCategory;
     const matchesStatus = filterStatus === 'Все' || item.status === filterStatus;
+    const matchesObject = filterObject === 'Все' || item.objectName === filterObject;
 
-    return matchesSearch && matchesCategory && matchesStatus;
+    return matchesSearch && matchesCategory && matchesStatus && matchesObject;
   });
+
+  const categoryFilterOptions = [
+    { value: 'Все', label: 'Все категории' },
+    ...categories.map((cat) => ({ value: cat, label: cat })),
+  ];
+
+  const objectFilterOptions = [
+    { value: 'Все', label: 'Все объекты' },
+    ...objects.map((obj) => ({ value: obj.name, label: obj.name })),
+  ];
 
   // Analytics helper calculations
   const totalApps = softwareItems.length;
@@ -254,36 +282,17 @@ export default function SoftwareView({
           )}
         </div>
 
-        {/* Filtering parameters */}
-        <div className="flex flex-wrap gap-3 pt-2 border-t border-slate-50">
-          <div>
-            <label className="text-[10px] text-slate-400 font-bold block mb-1">{t("ФИЛЬТР КАТЕГОРИИ")}</label>
-            <select
-              value={filterCategory}
-              onChange={(e) => setFilterCategory(e.target.value)}
-              className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-blue-500/10 focus:outline-none text-slate-650"
-            >
-              <option value="Все">{t("Все категории ПО")}</option>
-              {categories.map((cat) => (
-                <option key={cat} value={cat}>{t(cat)}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="text-[10px] text-slate-400 font-bold block mb-1">{t("СТАТУС ПОДПИСКИ")}</label>
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-blue-500/10 focus:outline-none text-slate-650"
-            >
-              <option value="Все">{t("Все статусы")}</option>
-              <option value="Активна">{t("Активна")}</option>
-              <option value="Истекла">{t("Истекла")}</option>
-              <option value="Не активирована">{t("Не активирована")}</option>
-            </select>
-          </div>
-        </div>
+        <EquipmentGroupFilters
+          categoryValue={filterCategory}
+          onCategoryChange={setFilterCategory}
+          categoryOptions={categoryFilterOptions}
+          statusValue={filterStatus}
+          onStatusChange={setFilterStatus}
+          statusOptions={SOFTWARE_STATUS_FILTER_OPTIONS}
+          objectValue={filterObject}
+          onObjectChange={setFilterObject}
+          objectOptions={objectFilterOptions}
+        />
       </div>
 
       {/* Grid List & Detailed Software Table */}
@@ -410,28 +419,13 @@ export default function SoftwareView({
                           >
                             <Edit2 size={13} />
                           </button>
-                          {confirmDeleteId === item.id ? (
-                            <div className="inline-flex items-center gap-1 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200 text-[10px] animate-fade-in shadow-xs select-none">
-                              <span className="text-rose-700 font-bold">{t("Удалить?")}</span>
-                              <button
-                                onClick={() => {
-                                  onDelete(item.id);
-                                  setConfirmDeleteId(null);
-                                }}
-                                className="px-1.5 py-0.5 bg-rose-600 hover:bg-rose-700 text-white rounded font-bold cursor-pointer transition-colors text-[9px]"
-                              >{t("Да")}</button>
-                              <button
-                                onClick={() => setConfirmDeleteId(null)}
-                                className="px-1.5 py-0.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded font-bold cursor-pointer transition-colors text-[9px]"
-                              >{t("Нет")}</button>
-                            </div>
-                          ) : (
+                          {onReturnToWarehouse && item.status !== 'Не активирована' && (
                             <button
-                              onClick={() => setConfirmDeleteId(item.id)}
-                              className="p-1.5 bg-slate-50 text-slate-450 hover:text-rose-650 hover:bg-rose-50 border border-slate-100 hover:border-rose-100 rounded-lg transition-all"
-                              title={t("Удалить")}
+                              onClick={() => handleReturnToWarehouse(item)}
+                              className="p-1.5 bg-slate-50 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 border border-slate-100 hover:border-emerald-100 rounded-lg transition-all"
+                              title={t("Вернуть на склад")}
                             >
-                              <Trash2 size={13} />
+                              <RotateCcw size={13} />
                             </button>
                           )}
                         </td>

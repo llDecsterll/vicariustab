@@ -1,4 +1,4 @@
-/* Release — smoke tests for all install variants (API / DB / runtime) */
+/* Release — smoke tests for install variants (public API) */
 const BASE = process.argv[2] || 'http://127.0.0.1:8080';
 
 async function getJson(path) {
@@ -20,33 +20,27 @@ async function postJson(path, payload) {
 async function main() {
   const results = [];
 
-  const data = await getJson('/api/data');
-  if (!data.ok && data.status !== 200) {
-    throw new Error(`/api/data failed: ${data.status}`);
+  const health = await getJson('/api/health');
+  if (!health.ok || !health.body.ok) throw new Error('/api/health failed');
+  results.push(['health', { version: health.body.version }]);
+
+  const setup = await getJson('/api/auth/setup-status');
+  if (!setup.ok || typeof setup.body.setupRequired !== 'boolean') {
+    throw new Error(`/api/auth/setup-status failed: ${setup.status}`);
   }
-  results.push(['api-data', { status: data.status }]);
+  results.push(['setup-status', { setupRequired: setup.body.setupRequired }]);
 
-  const defaults = await getJson('/api/db-config/defaults');
-  if (!defaults.ok) throw new Error('/api/db-config/defaults failed');
-  if (!defaults.body.suggestedHost) throw new Error('missing suggestedHost');
-  results.push(['db-defaults', { inDocker: defaults.body.inDocker, suggestedHost: defaults.body.suggestedHost }]);
-
-  const dbCfg = await getJson('/api/db-config');
-  if (!dbCfg.ok) throw new Error('/api/db-config failed');
-  results.push(['db-config', { type: dbCfg.body.type || 'json' }]);
-
-  const dbStatus = await getJson('/api/db-status');
-  if (!dbStatus.ok) throw new Error('/api/db-status failed');
-  results.push(['db-status', { status: dbStatus.body.status }]);
-
-  const runtime = await getJson('/api/system/runtime');
-  if (!runtime.ok) throw new Error('/api/system/runtime failed');
-  if (!runtime.body.version) throw new Error('missing version in runtime');
-  results.push(['runtime', { version: runtime.body.version }]);
+  const data = await getJson('/api/data');
+  if (data.status !== 401) {
+    throw new Error(`/api/data should require auth (expected 401, got ${data.status})`);
+  }
+  results.push(['api-data-auth', { status: data.status }]);
 
   const jsonTest = await postJson('/api/db-config/test', { type: 'json' });
-  if (!jsonTest.ok || !jsonTest.body.success) throw new Error('json db test failed');
-  results.push(['db-test-json', { success: true }]);
+  if (jsonTest.status !== 401) {
+    throw new Error(`/api/db-config/test should require admin auth (expected 401, got ${jsonTest.status})`);
+  }
+  results.push(['db-test-auth', { status: jsonTest.status }]);
 
   console.log('INSTALL CHECKS PASSED');
   for (const [name, detail] of results) {

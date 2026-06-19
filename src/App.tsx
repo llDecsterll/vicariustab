@@ -7,7 +7,7 @@
  * Все права защищены. Копирование, изменение, распространение и коммерческое использование без письменного согласия правообладателя запрещено.
  * Release
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import DashboardView from './components/DashboardView';
@@ -24,6 +24,7 @@ import SettingsView from './components/SettingsView';
 import SecurityView from './components/SecurityView';
 import DetailModal from './components/DetailModal';
 import LoginScreen from './components/LoginScreen';
+import FirstRunSetup from './components/FirstRunSetup';
 import SoftwareView from './components/SoftwareView';
 import { useTranslation } from './utils/i18n';
 import { COPYRIGHT_EMAIL, COPYRIGHT_TELEGRAM_URL } from './legal/copyright';
@@ -58,6 +59,15 @@ import {
 } from './utils/equipmentFields';
 import { Copy, Check, Mail } from 'lucide-react';
 import { copyTextToClipboard } from './utils/clipboard';
+import {
+  authenticateCredentials,
+  sessionHeartbeat,
+  logoutUserSession,
+  markSessionNotificationsRead,
+} from './utils/sessionAuth';
+import { getStoredSessionToken, clearSessionCredentials, authHeaders } from './utils/deviceFingerprint';
+import { apiFetch, setDataRevisionHeader } from './utils/apiClient';
+import { fetchSetupStatus } from './utils/setupAuth';
 
 export default function App() {
   const { t } = useTranslation();
@@ -91,52 +101,10 @@ export default function App() {
   }, []);
 
   const [isLoadedFromServer, setIsLoadedFromServer] = useState<boolean>(false);
-
-  // Load state from custom server API on mount
-  useEffect(() => {
-    fetch('/api/data')
-      .then(res => {
-        if (res.ok) return res.json();
-        throw new Error('Database file is uninitialized or unreachable');
-      })
-      .then(data => {
-        if (data && typeof data === 'object') {
-          // Check licensing parameters first and apply them so MAC address and key remain completely stable on server
-          applyLicenseStateFromServer(data);
-          
-          setLicenseStatus(getLicenseStatus());
-
-          // Load structural records
-          if (Array.isArray(data.objects)) setObjects(data.objects);
-          if (Array.isArray(data.networkDevices)) setNetworkDevices(data.networkDevices);
-          if (Array.isArray(data.computers)) setComputers(data.computers);
-          if (Array.isArray(data.employees)) setEmployees(data.employees);
-          if (Array.isArray(data.warehouseItems)) setWarehouseItems(data.warehouseItems);
-          if (Array.isArray(data.activities)) setActivities(data.activities);
-          if (Array.isArray(data.audits)) setAudits(data.audits);
-          if (Array.isArray(data.softwareItems)) setSoftwareItems(data.softwareItems);
-          if (Array.isArray(data.warehouses)) setWarehouses(data.warehouses);
-          if (Array.isArray(data.warehouseWriteOffs)) setWarehouseWriteOffs(data.warehouseWriteOffs);
-          if (typeof data.workspaceName === 'string') setWorkspaceName(data.workspaceName);
-          if (typeof data.adminEmail === 'string') setAdminEmail(data.adminEmail);
-          if (typeof data.publicUrl === 'string') setPublicUrl(data.publicUrl);
-          
-          if (Array.isArray(data.users)) setUsers(data.users);
-          if (data.tabIcons) setTabIcons(data.tabIcons);
-          if (typeof data.panelLogo === 'string') setPanelLogo(data.panelLogo);
-          if (typeof data.panelColor === 'string') setPanelColor(data.panelColor);
-          if (typeof data.siteFavicon === 'string') setSiteFavicon(data.siteFavicon);
-          if (typeof data.siteLogo === 'string') setSiteLogo(data.siteLogo);
-          if (typeof data.sidebarBgColor === 'string') setSidebarBgColor(data.sidebarBgColor);
-          if (typeof data.sidebarOpacity === 'number') setSidebarOpacity(data.sidebarOpacity);
-        }
-        setIsLoadedFromServer(true);
-      })
-      .catch(err => {
-        console.warn('Could not read persistent state. Initial defaults will be synchronized.', err);
-        setIsLoadedFromServer(true);
-      });
-  }, []);
+  const [dataRevision, setDataRevision] = useState<number | null>(null);
+  const [setupChecking, setSetupChecking] = useState(true);
+  const [setupRequired, setSetupRequired] = useState(false);
+  const [setupCompleteMessage, setSetupCompleteMessage] = useState('');
 
   // Navigation & UI Layout states
   const [activeTab, setActiveTab] = useState<string>('dashboard');
@@ -224,65 +192,19 @@ export default function App() {
   // --- USER ROLE MANAGEMENT STATES ---
   const [users, setUsers] = useState<SystemUser[]>(() => {
     const saved = localStorage.getItem('it_users');
-    const defaultUsersList: SystemUser[] = [
-      {
-        id: 'user-1',
-        name: 'Администратор',
-        email: 'admin@it-dep.ru',
-        role: 'Admin',
-        avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=80&q=80',
-        login: 'Admin',
-        password: 'Admin',
-      },
-      {
-        id: 'user-2',
-        name: 'Екатерина (Редактор)',
-        email: 'katya@it-dep.ru',
-        role: 'Editor',
-        avatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=80&q=80',
-        login: 'katya',
-        password: '456',
-      },
-      {
-        id: 'user-3',
-        name: 'Иван (Просмотр)',
-        email: 'ivan@audit.ru',
-        role: 'Viewer',
-        avatarUrl: 'https://images.unsplash.com/photo-1599566150163-29194dcaad36?auto=format&fit=crop&w=80&q=80',
-        login: 'ivan',
-        password: '789',
-      }
-    ];
-
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
-          // If loaded from localStorage, ensure and inject login/password properties if they're missing
-          return parsed.map(user => {
-            const matchDefault = defaultUsersList.find(d => d.id === user.id);
-            const loginVal = user.id === 'user-1' ? 'Admin' : (user.login || (matchDefault ? matchDefault.login : user.name.split(' ')[0].toLowerCase()));
-            const passwordVal = user.id === 'user-1' ? 'Admin' : (user.password || (matchDefault ? matchDefault.password : '123'));
-            const nameVal = user.id === 'user-1' ? 'Администратор' : user.name;
-            const emailVal = user.id === 'user-1' ? 'admin@it-dep.ru' : user.email;
-            return {
-              ...user,
-              name: nameVal,
-              email: emailVal,
-              login: loginVal,
-              password: passwordVal
-            };
-          });
-        }
+        if (Array.isArray(parsed)) return parsed as SystemUser[];
       } catch (e) {
         console.error('Failed to parse saved users', e);
       }
     }
-    return defaultUsersList;
+    return [];
   });
 
   const [currentUserId, setCurrentUserId] = useState<string>(() => {
-    return localStorage.getItem('it_current_user_id') || 'user-1';
+    return localStorage.getItem('it_current_user_id') || '';
   });
 
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
@@ -326,7 +248,85 @@ export default function App() {
   });
 
   // Derived current user metadata
-  const currentUser = users.find(u => u.id === currentUserId) || users[0];
+  const currentUser = users.find(u => u.id === currentUserId);
+
+  useEffect(() => {
+    void (async () => {
+      const status = await fetchSetupStatus();
+      if (status.setupRequired) {
+        clearSessionCredentials();
+        setIsLoggedIn(false);
+        localStorage.setItem('it_is_logged_in', 'false');
+      }
+      setSetupRequired(status.setupRequired);
+      setSetupChecking(false);
+    })();
+  }, []);
+
+  const applyServerPayload = useCallback((data: Record<string, unknown>) => {
+    if (typeof data._revision === 'number') setDataRevision(data._revision);
+    applyLicenseStateFromServer(data);
+    setLicenseStatus(getLicenseStatus());
+    if (Array.isArray(data.objects)) setObjects(data.objects as ObjectItem[]);
+    if (Array.isArray(data.networkDevices)) setNetworkDevices(data.networkDevices as NetworkDevice[]);
+    if (Array.isArray(data.computers)) setComputers(data.computers as ComputerItem[]);
+    if (Array.isArray(data.employees)) setEmployees(data.employees as EmployeeItem[]);
+    if (Array.isArray(data.warehouseItems)) setWarehouseItems(data.warehouseItems as WarehouseItem[]);
+    if (Array.isArray(data.activities)) setActivities(data.activities as Activity[]);
+    if (Array.isArray(data.audits)) setAudits(data.audits as InventoryAudit[]);
+    if (Array.isArray(data.softwareItems)) setSoftwareItems(data.softwareItems as SoftwareItem[]);
+    if (Array.isArray(data.warehouses)) setWarehouses(data.warehouses as CustomWarehouse[]);
+    if (Array.isArray(data.warehouseWriteOffs)) setWarehouseWriteOffs(data.warehouseWriteOffs as WarehouseWriteOff[]);
+    if (typeof data.workspaceName === 'string') setWorkspaceName(data.workspaceName);
+    if (typeof data.adminEmail === 'string') setAdminEmail(data.adminEmail);
+    if (typeof data.publicUrl === 'string') setPublicUrl(data.publicUrl);
+    if (Array.isArray(data.users)) setUsers(data.users as SystemUser[]);
+    if (data.tabIcons) setTabIcons(data.tabIcons as typeof tabIcons);
+    if (typeof data.panelLogo === 'string') setPanelLogo(data.panelLogo);
+    if (typeof data.panelColor === 'string') setPanelColor(data.panelColor);
+    if (typeof data.siteFavicon === 'string') setSiteFavicon(data.siteFavicon);
+    if (typeof data.siteLogo === 'string') setSiteLogo(data.siteLogo);
+    if (typeof data.sidebarBgColor === 'string') setSidebarBgColor(data.sidebarBgColor);
+    if (typeof data.sidebarOpacity === 'number') setSidebarOpacity(data.sidebarOpacity);
+  }, []);
+
+  const loadDataFromServer = useCallback(async (): Promise<boolean> => {
+    if (!getStoredSessionToken()) return false;
+    const result = await apiFetch<Record<string, unknown>>('/api/data');
+    if (!result.ok) {
+      if (result.status === 401) {
+        clearSessionCredentials();
+        setIsLoggedIn(false);
+      }
+      return false;
+    }
+    if (result.data && typeof result.data === 'object') {
+      applyServerPayload(result.data);
+    }
+    setIsLoadedFromServer(true);
+    return true;
+  }, [applyServerPayload]);
+
+  useEffect(() => {
+    if (isLoggedIn && !getStoredSessionToken()) {
+      setIsLoggedIn(false);
+      localStorage.setItem('it_is_logged_in', 'false');
+      return;
+    }
+    if (isLoggedIn && getStoredSessionToken() && !isLoadedFromServer) {
+      void loadDataFromServer();
+    }
+  }, [isLoggedIn, isLoadedFromServer, loadDataFromServer]);
+
+  useEffect(() => {
+    const onAuthExpired = () => {
+      clearSessionCredentials();
+      setIsLoggedIn(false);
+      setIsLoadedFromServer(false);
+    };
+    window.addEventListener('Vicariustab-auth-expired', onAuthExpired);
+    return () => window.removeEventListener('Vicariustab-auth-expired', onAuthExpired);
+  }, []);
 
   useEffect(() => {
     localStorage.setItem('it_users', JSON.stringify(users));
@@ -477,17 +477,8 @@ export default function App() {
     }
   };
 
-  const handleSelectUser = (id: string) => {
-    setCurrentUserId(id);
-    const target = users.find(u => u.id === id);
-    if (target) {
-      logActivity('Смена аккаунта', `Выполнен вход под именем "${target.name}" (${target.role})`, 'system');
-    }
-  };
-
-  // --- UNIFIED DEBOUNCED SERVER & LOCALSTORAGE STATE SYNCHRONIZATION ---
   useEffect(() => {
-    if (!isLoadedFromServer) return;
+    if (!isLoadedFromServer || !isLoggedIn || !getStoredSessionToken()) return;
 
     const timeoutId = setTimeout(() => {
       // Prepare fully synchronizable server payload
@@ -550,17 +541,30 @@ export default function App() {
       localStorage.setItem('it_sidebar_bg_color', sidebarBgColor);
       localStorage.setItem('it_sidebar_opacity', sidebarOpacity.toString());
 
-      // 2. Transmit state to the backend
-      fetch('/api/data', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(stateToSave)
-      }).catch(err => {
-        console.error('Failed to sync complete system state to server:', err);
-      });
-    }, 1000); // 1-second debounce to merge rapid updates safely
+      // 2. Transmit state to the backend (authenticated + revision check)
+      void (async () => {
+        const result = await apiFetch<{ success?: boolean; revision?: number }>('/api/data', {
+          method: 'POST',
+          headers: setDataRevisionHeader(dataRevision),
+          body: JSON.stringify(stateToSave),
+        });
+        if (result.ok) {
+          if (result.data?.revision !== undefined) {
+            setDataRevision(result.data.revision);
+          }
+        } else {
+          const failed = result as Extract<typeof result, { ok: false }>;
+          if (failed.conflict && failed.payload && typeof failed.payload === 'object') {
+            const conflict = failed.payload as { data?: Record<string, unknown>; revision?: number };
+            console.warn('Server data conflict — reloading authoritative state');
+            if (conflict.data) applyServerPayload(conflict.data);
+            if (typeof conflict.revision === 'number') setDataRevision(conflict.revision);
+          } else if (failed.status === 402) {
+            console.warn('Save rejected: license expired on server');
+          }
+        }
+      })();
+    }, 1000);
 
     return () => clearTimeout(timeoutId);
   }, [
@@ -586,11 +590,13 @@ export default function App() {
     siteLogo,
     sidebarBgColor,
     sidebarOpacity,
-    licenseRevision
+    licenseRevision,
+    dataRevision,
+    isLoggedIn,
+    applyServerPayload,
   ]);
 
-  // Assist log appenders
-  const logActivity = (action: string, detail: string, type: 'create' | 'update' | 'delete' | 'system') => {
+  const logActivity = (action: string, detail: string, type: 'create' | 'update' | 'delete' | 'system' | 'auth') => {
     const roleRu = currentUser?.role === 'Admin' ? 'Админ' : currentUser?.role === 'Editor' ? 'Редактор' : 'Просмотр';
     const newLog: Activity = {
       id: `act-${Date.now()}-${Math.floor(Math.random() * 1000000)}`,
@@ -602,6 +608,120 @@ export default function App() {
     };
     setActivities(prev => [newLog, ...prev]);
   };
+
+  const pushSessionSecurityAlert = useCallback((title: string, body: string, serverNotifId?: string) => {
+    window.dispatchEvent(
+      new CustomEvent('Vicariustab-session-security-alert', {
+        detail: { title, body, targetTab: 'settings', isSecurity: true, serverNotifId },
+      })
+    );
+  }, []);
+
+  const syncAuthAuditFromServer = useCallback(async () => {
+    if (!getStoredSessionToken()) return;
+    try {
+      const res = await fetch('/api/auth/audit', { headers: authHeaders() });
+      if (!res.ok) return;
+      const data = (await res.json()) as {
+        events: Array<{ id: string; timestamp: string; userName: string; action: string; detail: string }>;
+      };
+      const events = data.events || [];
+      if (!events.length) return;
+      setActivities((prev) => {
+        const existingIds = new Set(prev.map((a) => a.id));
+        const merged = events
+          .filter((e) => !existingIds.has(`srv-${e.id}`))
+          .map((e) => ({
+            id: `srv-${e.id}`,
+            timestamp: e.timestamp,
+            user: e.userName,
+            action: e.action,
+            detail: e.detail,
+            type: 'auth' as const,
+          }));
+        if (!merged.length) return prev;
+        return [...merged, ...prev].sort(
+          (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+        );
+      });
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const completeUserLogin = useCallback(async (userId: string, viaSwitch = false) => {
+    setCurrentUserId(userId);
+    setIsLoggedIn(true);
+    setIsLoadedFromServer(false);
+    await loadDataFromServer();
+    const user = users.find((u) => u.id === userId);
+    if (!user) return;
+    logActivity(
+      viaSwitch ? 'Смена аккаунта' : 'Вход в систему',
+      `Пользователь "${user.name}" (${user.role})`,
+      'auth'
+    );
+    await syncAuthAuditFromServer();
+  }, [users, syncAuthAuditFromServer, loadDataFromServer]);
+
+  const handleLogout = useCallback(async () => {
+    const user = users.find((u) => u.id === currentUserId);
+    if (getStoredSessionToken()) {
+      await logoutUserSession(user?.name || 'user');
+      if (user) {
+        logActivity('Выход из системы', `Завершена сессия пользователя "${user.name}"`, 'auth');
+      }
+      await syncAuthAuditFromServer();
+    }
+    clearSessionCredentials();
+    setIsLoggedIn(false);
+    setIsLoadedFromServer(false);
+    setDataRevision(null);
+  }, [users, currentUserId, syncAuthAuditFromServer]);
+
+  const handleSwitchUser = useCallback(async (user: SystemUser, password: string): Promise<boolean> => {
+    const prev = users.find((u) => u.id === currentUserId);
+    if (prev && getStoredSessionToken()) {
+      await logoutUserSession(prev.name);
+    }
+    clearSessionCredentials();
+    const auth = await authenticateCredentials(user.login || user.email, password, user);
+    if (!auth) return false;
+    await completeUserLogin(user.id, true);
+    return true;
+  }, [users, currentUserId, completeUserLogin]);
+
+  // Session heartbeat + remote security alerts (Admin / Editor)
+  useEffect(() => {
+    if (!isLoggedIn || !getStoredSessionToken()) return;
+    const user = users.find((u) => u.id === currentUserId);
+    if (!user || (user.role !== 'Admin' && user.role !== 'Editor')) return;
+    let cancelled = false;
+    const tick = async () => {
+      const result = await sessionHeartbeat();
+      if (cancelled) return;
+      if (result.revoked) {
+        clearSessionCredentials();
+        setIsLoggedIn(false);
+        return;
+      }
+      if (result.notifications?.length) {
+        for (const n of result.notifications) {
+          pushSessionSecurityAlert(n.title, n.body, n.id);
+        }
+        await markSessionNotificationsRead(result.notifications.map((n) => n.id));
+      }
+    };
+
+    void tick();
+    const interval = setInterval(tick, 60_000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [isLoggedIn, currentUserId, users, pushSessionSecurityAlert]);
+
+  // --- UNIFIED DEBOUNCED SERVER & LOCALSTORAGE STATE SYNCHRONIZATION ---
 
   const handleUpdateItem = (type: string, id: string, updatedFields: any) => {
     if (checkLicenseBlocked()) return;
@@ -750,6 +870,11 @@ export default function App() {
         return [...prev, newWhItem];
       }
     });
+  };
+
+  const handleReturnToWarehouse = (itemSource: 'computer' | 'network', itemId: string) => {
+    const targetWhName = warehouses[0]?.name || 'Основной склад ИТ';
+    handleReturnActiveAssetToWarehouse(itemSource, itemId, targetWhName);
   };
 
   const handleReturnActiveAssetToWarehouse = (
@@ -996,6 +1121,65 @@ export default function App() {
     if (!target) return;
     setSoftwareItems(prev => prev.filter(s => s.id !== id));
     logActivity('Удалено ПО', `Удалена карточка ПО "${target.name}"`, 'delete');
+  };
+
+  const handleReturnSoftwareToWarehouse = (id: string) => {
+    if (checkLicenseBlocked()) return;
+    const soft = softwareItems.find((s) => s.id === id);
+    if (!soft) return;
+
+    const targetWhName = warehouses[0]?.name || 'Основной склад ИТ';
+    const defaultObjectName =
+      warehouses.find((w) => w.name === targetWhName)?.objectName || objects[0]?.name || 'Главный офис';
+    const inv = `SW-${soft.id.slice(-8).toUpperCase()}`;
+
+    setSoftwareItems((prev) =>
+      prev.map((s) =>
+        s.id === id
+          ? {
+              ...s,
+              status: 'Не активирована',
+              assignedEmployeeName: 'Свободная лицензия',
+              assignedDeviceId: undefined,
+              objectName: defaultObjectName,
+            }
+          : s
+      )
+    );
+
+    setWarehouseItems((prev) => {
+      const existing = prev.find(
+        (w) =>
+          w.inventoryNumber === inv &&
+          (w.warehouseName || 'Основной склад ИТ') === targetWhName
+      );
+      if (existing) {
+        return prev.map((w) =>
+          w.id === existing.id ? { ...w, quantity: w.quantity + 1, status: 'В наличии' as const } : w
+        );
+      }
+      return [
+        ...prev,
+        {
+          id: `wh-sw-${Date.now()}`,
+          name: soft.name,
+          type: 'Лицензии ПО' as const,
+          model: soft.version || soft.name,
+          inventoryNumber: inv,
+          quantity: 1,
+          unit: 'шт.',
+          costPerUnit: 0,
+          status: 'В наличии' as const,
+          warehouseName: targetWhName,
+        },
+      ];
+    });
+
+    logActivity(
+      'Возврат на склад',
+      `ПО «${soft.name}» возвращено на склад «${targetWhName}»`,
+      'update'
+    );
   };
 
   // Employees CRUD
@@ -1615,9 +1799,11 @@ export default function App() {
           <NetworkView
             networkDevices={networkDevices}
             objects={objects}
+            warehouseItems={warehouseItems}
+            warehouses={warehouses}
             onAdd={handleAddNetwork}
             onEdit={handleEditNetwork}
-            onDelete={handleDeleteNetwork}
+            onReturnToWarehouse={(id) => handleReturnToWarehouse('network', id)}
             onViewDetails={handleNavigateDetail}
             currentUser={currentUser}
           />
@@ -1631,9 +1817,10 @@ export default function App() {
             allComputers={computers}
             onAdd={handleAddComputer}
             onEdit={handleEditComputer}
-            onDelete={handleDeleteComputer}
+            onReturnToWarehouse={(id) => handleReturnToWarehouse('computer', id)}
             onViewDetails={handleNavigateDetail}
             currentUser={currentUser}
+            equipmentTab="computers"
           />
         );
       case 'employees':
@@ -1777,13 +1964,14 @@ export default function App() {
             allComputers={computers}
             onAdd={handleAddComputer}
             onEdit={handleEditComputer}
-            onDelete={handleDeleteComputer}
+            onReturnToWarehouse={(id) => handleReturnToWarehouse('computer', id)}
             onViewDetails={handleNavigateDetail}
             addButtonLabel="Добавить Периферию"
             addModalTitle="Добавить Периферию"
             currentUser={currentUser}
             defaultCategory="Периферия"
             defaultDeviceType="Клавиатура"
+            equipmentTab="peripherals"
           />
         );
       case 'orgtech':
@@ -1795,13 +1983,14 @@ export default function App() {
             allComputers={computers}
             onAdd={handleAddComputer}
             onEdit={handleEditComputer}
-            onDelete={handleDeleteComputer}
+            onReturnToWarehouse={(id) => handleReturnToWarehouse('computer', id)}
             onViewDetails={handleNavigateDetail}
             addButtonLabel="Добавить Оргтехнику"
             addModalTitle="Добавить Оргтехнику"
             currentUser={currentUser}
             defaultCategory="Оргтехника"
             defaultDeviceType="Принтер"
+            equipmentTab="orgtech"
           />
         );
       case 'surveillance':
@@ -1813,13 +2002,14 @@ export default function App() {
             allComputers={computers}
             onAdd={handleAddComputer}
             onEdit={handleEditComputer}
-            onDelete={handleDeleteComputer}
+            onReturnToWarehouse={(id) => handleReturnToWarehouse('computer', id)}
             onViewDetails={handleNavigateDetail}
             addButtonLabel="Добавить Видеооборудование"
             addModalTitle="Добавить Видеооборудование"
             currentUser={currentUser}
             defaultCategory="Видеонаблюдение"
             defaultDeviceType="Видеокамера"
+            equipmentTab="surveillance"
           />
         );
       case 'consumables':
@@ -1831,13 +2021,14 @@ export default function App() {
             allComputers={computers}
             onAdd={handleAddComputer}
             onEdit={handleEditComputer}
-            onDelete={handleDeleteComputer}
+            onReturnToWarehouse={(id) => handleReturnToWarehouse('computer', id)}
             onViewDetails={handleNavigateDetail}
             addButtonLabel="Добавить расходники"
             addModalTitle="Добавить расходники"
             currentUser={currentUser}
             defaultCategory="Расходники"
             defaultDeviceType="Картридж"
+            equipmentTab="consumables"
           />
         );
       case 'other_equip':
@@ -1849,13 +2040,14 @@ export default function App() {
             allComputers={computers}
             onAdd={handleAddComputer}
             onEdit={handleEditComputer}
-            onDelete={handleDeleteComputer}
+            onReturnToWarehouse={(id) => handleReturnToWarehouse('computer', id)}
             onViewDetails={handleNavigateDetail}
             addButtonLabel="Добавить другое оборудование"
             addModalTitle="Добавить другое оборудование"
             currentUser={currentUser}
             defaultCategory="Другое"
             defaultDeviceType="Другое"
+            equipmentTab="other_equip"
           />
         );
       case 'software':
@@ -1867,8 +2059,9 @@ export default function App() {
             computers={computers}
             onAdd={handleAddSoftware}
             onEdit={handleEditSoftware}
-            onDelete={handleDeleteSoftware}
+            onReturnToWarehouse={handleReturnSoftwareToWarehouse}
             currentUser={currentUser}
+            warehouses={warehouses}
           />
         );
       default:
@@ -1925,6 +2118,27 @@ export default function App() {
   const chosenHoverColor = COLOR_MAP_HOVER[panelColor] || '#1d4ed8';
 
   // Check if system trial or year-license has expired (Utkin V.V. 30 days limitation engine)
+  if (setupChecking) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center text-slate-400 text-sm font-sans">
+        {t('Загрузка...')}
+      </div>
+    );
+  }
+
+  if (setupRequired) {
+    return (
+      <FirstRunSetup
+        workspaceName={workspaceName}
+        siteLogo={siteLogo}
+        onComplete={() => {
+          setSetupRequired(false);
+          setSetupCompleteMessage('Учётная запись администратора создана. Войдите в систему.');
+        }}
+      />
+    );
+  }
+
   if (licenseStatus.isExpired) {
     const isLockedOut = licenseStatus.lockoutTimeLeft > 0;
     const lockoutSecs = Math.ceil(licenseStatus.lockoutTimeLeft / 1000);
@@ -2101,15 +2315,20 @@ export default function App() {
           .border-blue-100 { border-color: ${chosenColor}1a !important; }
         `}</style>
         <LoginScreen 
-          users={users} 
           workspaceName={workspaceName}
           siteLogo={siteLogo}
-          onLogin={(userId) => {
-            setCurrentUserId(userId);
-            setIsLoggedIn(true);
-          }} 
+          setupCompleteMessage={setupCompleteMessage || undefined}
+          onLogin={(userId) => void completeUserLogin(userId)}
         />
       </>
+    );
+  }
+
+  if (!isLoadedFromServer || !currentUser) {
+    return (
+      <div className="min-h-screen bg-slate-100 flex items-center justify-center text-slate-500 text-sm font-sans">
+        {t('Загрузка данных...')}
+      </div>
     );
   }
 
@@ -2165,8 +2384,8 @@ export default function App() {
           title={getHeaderTitle()}
           users={users}
           currentUser={currentUser}
-          onSelectUser={handleSelectUser}
-          onLogout={() => setIsLoggedIn(false)}
+          onSwitchUser={handleSwitchUser}
+          onLogout={() => void handleLogout()}
           siteLogo={siteLogo}
           softwareItems={softwareItems}
           audits={audits}

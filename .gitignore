@@ -11,6 +11,8 @@ desktop.ini
 !.env.example
 db.json
 db_config.json
+store_meta.json
+sessions_store.enc
 data/
 *.backup.json
 *.zip

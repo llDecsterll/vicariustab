@@ -1,5 +1,6 @@
 /* Release */
 import { APP_VERSION } from '../config/appConfig';
+import { authHeaders } from './deviceFingerprint';
 
 export interface UpdateCheckResult {
   updateAvailable: boolean;
@@ -53,7 +54,7 @@ export async function checkForPlatformUpdate(): Promise<UpdateCheckResult | null
       installedCommit: getInstalledCommit(),
       currentVersion: APP_VERSION,
     });
-    const res = await fetch(`/api/update/check?${params.toString()}`);
+    const res = await fetch(`/api/update/check?${params.toString()}`, { headers: authHeaders() });
     const data = await res.json();
     if (!res.ok) return null;
     markUpdateCheckTime();
@@ -67,7 +68,7 @@ export async function applyPlatformUpdate(): Promise<{ started: boolean; error?:
   try {
     const res = await fetch('/api/update/apply', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify({ installedCommit: getInstalledCommit() }),
     });
     const data = await res.json();
@@ -82,7 +83,7 @@ export async function applyPlatformUpdate(): Promise<{ started: boolean; error?:
 
 export async function fetchUpdateJobStatus(): Promise<UpdateJobStatus | null> {
   try {
-    const res = await fetch('/api/update/status');
+    const res = await fetch('/api/update/status', { headers: authHeaders() });
     if (!res.ok) return null;
     return (await res.json()) as UpdateJobStatus;
   } catch {

@@ -158,6 +158,25 @@ export interface InventoryAudit {
 
 export type UserRole = 'Viewer' | 'Editor' | 'Admin';
 
+export interface UserSession {
+  id: string;
+  userId: string;
+  userName: string;
+  userRole: 'Admin' | 'Editor';
+  deviceFingerprint: string;
+  ipAddress: string;
+  country?: string;
+  city?: string;
+  browser: string;
+  os: string;
+  device: string;
+  userAgent: string;
+  createdAt: string;
+  lastActivityAt: string;
+  status: 'active' | 'revoked' | 'expired';
+  isCurrent?: boolean;
+}
+
 export interface SystemUser {
   id: string;
   name: string;
@@ -165,9 +184,14 @@ export interface SystemUser {
   role: UserRole;
   avatarUrl?: string;
   isCustom?: boolean; // to delete custom added users
-  login?: string; // NEW: username or login
-  password?: string; // NEW: password string
+  login?: string; // username for sign-in (form-only password below)
+  password?: string; // form-only; never returned from server after save
+  passwordSet?: boolean; // server indicates credentials exist
   isBlocked?: boolean; // NEW: true if user block status is active
+  emailVerified?: boolean;
+  emailNotificationsEnabled?: boolean;
+  telegramChatId?: string;
+  telegramNotificationsEnabled?: boolean;
 }
 
 export type SoftwareCategory = 'Системное ПО' | 'Операционные системы (ОС)' | 'Утилиты и антивирусы' | 'Офисные приложения' | 'Графические редакторы' | 'Корпоративные системы' | 'Иное ПО';

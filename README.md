@@ -8,7 +8,7 @@
 # 🚀 Vicariustab
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.0.0-blue?style=for-the-badge" alt="Version">
+  <img src="https://img.shields.io/badge/version-2.0.1-blue?style=for-the-badge" alt="Version">
   <img src="https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&style=for-the-badge" alt="Docker Ready">
   <img src="https://img.shields.io/badge/Node.js-20+-339933?logo=node.js&style=for-the-badge" alt="Node.js 20">
   <img src="https://img.shields.io/badge/PM2-Supported-blue?style=for-the-badge" alt="PM2">
@@ -57,6 +57,7 @@
   - [Docker + PostgreSQL](#-option-3-docker--postgresql)
   - [Host network + native DB](#-option-4-host-network--native-db-on-ubuntu)
   - [PM2](#-option-5-native-install-pm2)
+- [First launch](#-first-launch)
 - [Database setup](#-database-setup)
   - [MySQL](#mysql)
   - [PostgreSQL](#postgresql)
@@ -145,9 +146,13 @@ Repository: [github.com/llDecsterll/vicariustab](https://github.com/llDecsterll/
 ## 🔐 Security
 
 - AES-256-CBC data encryption
+- **Scrypt password hashing** (passwords are never stored in plain text)
+- **Server-side authentication** — login without a valid account is impossible
+- **Mandatory first-run setup** — no demo access or preset user accounts
 - Encrypted DB connection credentials
 - Automatic DB reconnect and health monitoring
 - Backup with license fields excluded
+- Role-based access (Admin / Editor / Viewer)
 - Distributed deployment (Docker, PM2, MySQL, PostgreSQL)
 
 ---
@@ -290,6 +295,8 @@ Open in browser:
 http://SERVER_IP:8080
 ```
 
+On **first launch**, the **Initial setup** wizard appears — create the administrator account before using the system. See [First launch](#-first-launch).
+
 Data is stored in Docker volume `vicariustab_data` → `/app/data/`.
 
 ---
@@ -396,6 +403,64 @@ pm2 save
 
 ---
 
+# 👤 First launch
+
+After installation, Vicariustab starts with **no user accounts**. The system is unavailable until the administrator is created.
+
+### Step 1 — Initial setup (one time only)
+
+When you open the app for the first time, you will see the **Initial setup** form:
+
+| Field | Requirements |
+|-------|----------------|
+| **Login** | At least 3 characters; letters, digits, `.`, `-`, `_` |
+| **Password** | At least **8 characters** |
+| **Email** | Valid email address |
+
+After successful creation you are redirected to the **login screen**.
+
+### Step 2 — Sign in
+
+Use the login and password you set during setup. Authentication is verified **on the server**; there are no built-in demo accounts.
+
+### Default workspace data
+
+During initial setup the system automatically creates starter data (as in a fresh demo workspace):
+
+- branch offices (objects);
+- employees;
+- computers and peripherals;
+- IT warehouse and stock items;
+- network equipment;
+- software licenses;
+- sample inventory audits and activity log entries.
+
+This helps you explore the interface immediately. You can edit or delete this data at any time.
+
+### User management
+
+- **No preset accounts** (no demo users).
+- Additional users are created only by an **Admin** under **Settings** → **User management**.
+- When adding a user, the password field shows **“At least 8 characters”**; the same rule applies on the server.
+- Passwords are stored as **scrypt hashes** and are not returned to the browser.
+
+### Development (local)
+
+```bash
+npm install
+npm run dev
+```
+
+Open `http://localhost:3000`. For a clean first-run test, delete data files and restart:
+
+```bash
+rm -f db.json store_meta.json sessions_store.enc db_config.json
+```
+
+If the browser still shows an old login screen, clear site data for `localhost` (or use a private/incognito window).
+
+---
+
 # 🗄 Database setup
 
 Use when the DB is installed **natively on Ubuntu** (not via Docker Compose).
@@ -498,20 +563,11 @@ CREATE DATABASE stack_db OWNER stack_user;
 
 # 🔗 Connect database in Vicariustab
 
-After startup, open:
+After startup and **administrator sign-in**, open:
 
 ```text
 http://SERVER_IP:8080
 ```
-
-### Default login
-
-```text
-Login: admin
-Password: admin
-```
-
-> Change the admin password immediately after first login.
 
 ### Settings path
 
@@ -554,6 +610,8 @@ vicariustab/
 │   ├── components/               # Modules: computers, network, warehouse, settings…
 │   ├── utils/                    # License, i18n, updates
 │   └── config/                   # Version, update repo
+├── server/                       # API helpers, password hash, seed data
+│   └── workspaceSeed.json          # Default data on first-run setup
 ├── server.ts                     # Express API, DB, encryption
 ├── Dockerfile
 ├── docker-compose.yml            # App only
@@ -663,6 +721,8 @@ pm2 restart vicariustab-system
 
 | Issue | Solution |
 |-------|----------|
+| **Setup wizard does not appear** | Delete `db.json` / `store_meta.json` in `STACK_DATA_DIR`; clear browser site data |
+| **“Invalid login or password”** | Use credentials from initial setup; no default `admin`/`admin` accounts |
 | **Connection refused to DB from Docker** | Host `172.17.0.1`; MySQL: `bind-address=0.0.0.0`; or `docker-compose.host.yml` |
 | **Connection test fails** | Re-enter password; if saved, leave field empty or type again |
 | **Dockerfile not found** | Run from repo root `~/vicariustab`, not a nested folder |

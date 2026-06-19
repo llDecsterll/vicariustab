@@ -17,7 +17,44 @@ import {
   resetUpdateJobIfStale,
   startPlatformUpdate,
   type UpdateCheckPayload,
-} from "./server/updateEngine";
+} from "./server/updateEngine.ts";
+import {
+  initSessionEngine,
+  registerLogin,
+  resolveSessionFromToken,
+  touchSession,
+  logoutSession,
+  listUserSessions,
+  revokeSession,
+  revokeOtherSessions,
+  getUnreadNotifications,
+  markNotificationsRead,
+  lookupGeo,
+  getClientIp,
+  getSessionAuditEvents,
+} from "./server/sessionEngine.ts";
+import { dispatchNewLoginAlert } from "./server/notificationDispatch.ts";
+import {
+  initDataStore,
+  loadApplicationData,
+  saveApplicationData,
+} from "./server/dataStore.ts";
+import {
+  requireApiAuth,
+  requireWriteRole,
+  requireAdminRole,
+  requireValidLicenseForWrite,
+  parseExpectedRevision,
+  verifyCredentials,
+  readSessionToken,
+  type AuthedRequest,
+} from "./server/apiAuth.ts";
+import {
+  isSetupRequired,
+  createInitialAdmin,
+  sanitizePayloadForClient,
+  preparePayloadForSave,
+} from "./server/userCredentials.ts";
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
@@ -80,6 +117,9 @@ if (!fs.existsSync(DATA_DIR)) {
 
 const DB_PATH = path.join(DATA_DIR, "db.json");
 const CONFIG_PATH = path.join(DATA_DIR, "db_config.json");
+const META_PATH = path.join(DATA_DIR, "store_meta.json");
+
+initSessionEngine(DATA_DIR, encrypt, decrypt);
 
 function isRunningInDocker(): boolean {
   return Boolean(process.env.STACK_DATA_DIR) || fs.existsSync("/.dockerenv");
@@ -401,16 +441,27 @@ async function saveToSql(config: any, payload: any): Promise<void> {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     `);
 
-    for (const key of Object.keys(payload)) {
-      const val = payload[key];
-      const encryptedValue = encrypt(JSON.stringify(val));
-      await connection.query(`
+    await connection.beginTransaction();
+    try {
+      for (const key of Object.keys(payload)) {
+        const val = payload[key];
+        const encryptedValue = encrypt(JSON.stringify(val));
+        await connection.query(
+          `
         INSERT INTO orbit_secure_store (store_key, store_value) 
         VALUES (?, ?) 
         ON DUPLICATE KEY UPDATE store_value = VALUES(store_value)
-      `, [key, encryptedValue]);
+      `,
+          [key, encryptedValue]
+        );
+      }
+      await connection.commit();
+    } catch (err) {
+      await connection.rollback();
+      throw err;
+    } finally {
+      await connection.end();
     }
-    await connection.end();
   } else if (config.type === "postgres") {
     const pg = await import("pg");
     const client = new pg.Pool(pgConnOptions(config));
@@ -422,17 +473,28 @@ async function saveToSql(config: any, payload: any): Promise<void> {
       );
     `);
 
-    for (const key of Object.keys(payload)) {
-      const val = payload[key];
-      const encryptedValue = encrypt(JSON.stringify(val));
-      await client.query(`
+    await client.query("BEGIN");
+    try {
+      for (const key of Object.keys(payload)) {
+        const val = payload[key];
+        const encryptedValue = encrypt(JSON.stringify(val));
+        await client.query(
+          `
         INSERT INTO orbit_secure_store (store_key, store_value) 
         VALUES ($1, $2) 
         ON CONFLICT (store_key) 
         DO UPDATE SET store_value = EXCLUDED.store_value
-      `, [key, encryptedValue]);
+      `,
+          [key, encryptedValue]
+        );
+      }
+      await client.query("COMMIT");
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      await client.end();
     }
-    await client.end();
   }
 }
 
@@ -601,6 +663,16 @@ async function performGithubUpdateCheck(
 }
 
 async function startServer() {
+  initDataStore({
+    encrypt,
+    decrypt,
+    dbPath: DB_PATH,
+    metaPath: META_PATH,
+    readDbConfig,
+    loadFromSql,
+    saveToSql,
+  });
+
   if (process.env.TRUST_PROXY === "true" || process.env.TRUST_PROXY === "1") {
     app.set("trust proxy", 1);
   }
@@ -621,72 +693,154 @@ async function startServer() {
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
-  // Main data API with fallback
-  app.get("/api/data", async (req, res) => {
+  // Public routes (no session token)
+  app.get("/api/health", (_req, res) => {
+    return res.json({ ok: true, version: APP_VERSION });
+  });
+
+  app.get("/api/auth/setup-status", async (_req, res) => {
     try {
-      const config = readDbConfig();
-      if (config.type === "mysql" || config.type === "postgres") {
-        try {
-          const sqlData = await loadFromSql(config);
-          if (sqlData) {
-            return res.json(sqlData);
-          }
-        } catch (sqlErr) {
-          console.error("SQL load error, falling back to local file", sqlErr);
-        }
+      const setupRequired = await isSetupRequired();
+      return res.json({ setupRequired });
+    } catch (err) {
+      console.error("Setup status error:", err);
+      return res.status(500).json({ error: "Failed to read setup status" });
+    }
+  });
+
+  app.post("/api/auth/setup", async (req, res) => {
+    try {
+      if (!(await isSetupRequired())) {
+        return res.status(409).json({ error: "Initial setup already completed", code: "SETUP_DONE" });
+      }
+      const body = req.body || {};
+      await createInitialAdmin({
+        login: String(body.login || ""),
+        password: String(body.password || ""),
+        email: String(body.email || ""),
+      });
+      return res.json({ success: true });
+    } catch (err: any) {
+      return res.status(400).json({ error: err?.message || "Setup failed" });
+    }
+  });
+
+  app.post("/api/auth/authenticate", async (req, res) => {
+    try {
+      const body = req.body || {};
+      const login = String(body.login || "").trim();
+      const password = String(body.password || "");
+      if (!login || !password) {
+        return res.status(400).json({ error: "Login and password required" });
       }
 
-      // Default JSON encryption fallback
-      if (fs.existsSync(DB_PATH)) {
-        const fileContent = fs.readFileSync(DB_PATH, "utf-8").trim();
-        if (!fileContent) {
-          return res.json(null);
-        }
-        
-        if (fileContent.startsWith("{")) {
-          const raw = JSON.parse(fileContent);
-          const encryptedRaw = encrypt(fileContent);
-          fs.writeFileSync(DB_PATH, encryptedRaw, "utf-8");
-          return res.json(raw);
-        }
-        
-        const decrypted = decrypt(fileContent);
-        return res.json(JSON.parse(decrypted));
+      const user = await verifyCredentials(login, password);
+      if (!user) {
+        return res.status(401).json({ error: "Invalid credentials", code: "AUTH_FAILED" });
       }
-      return res.json(null);
+
+      if (await isSetupRequired()) {
+        return res.status(403).json({ error: "Complete initial setup first", code: "SETUP_REQUIRED" });
+      }
+
+      const ip = getClientIp(req);
+      const geo = await lookupGeo(ip);
+      const result = registerLogin({
+        userId: user.id,
+        userName: user.name,
+        userRole: user.role,
+        deviceFingerprint: String(body.deviceFingerprint || "unknown"),
+        ipAddress: ip,
+        country: geo.country,
+        city: geo.city,
+        browser: String(body.browser || "Unknown"),
+        os: String(body.os || "Unknown"),
+        device: String(body.device || "Desktop"),
+        userAgent: String(body.userAgent || ""),
+      });
+
+      let dispatch;
+      if (result.isNewDevice && result.notification) {
+        const proto = String(req.headers["x-forwarded-proto"] || "http").split(",")[0].trim();
+        const host = String(req.headers["x-forwarded-host"] || req.headers.host || "localhost");
+        const sessionsUrl = `${proto}://${host}/?tab=settings&section=sessions`;
+        dispatch = await dispatchNewLoginAlert(result.notification, {
+          email: user.email,
+          emailVerified: Boolean(body.emailVerified ?? user.email?.includes("@")),
+          emailNotificationsEnabled: body.emailNotificationsEnabled !== false,
+          telegramChatId: body.telegramChatId,
+          telegramNotificationsEnabled: Boolean(body.telegramChatId && body.telegramNotificationsEnabled),
+        }, sessionsUrl);
+      }
+
+      return res.json({
+        sessionToken: result.sessionToken,
+        sessionId: result.sessionId,
+        userId: user.id,
+        userName: user.name,
+        userRole: user.role,
+        isNewDevice: result.isNewDevice,
+        session: result.session,
+        notification: result.isNewDevice ? result.notification : undefined,
+        dispatch,
+      });
+    } catch (err: any) {
+      console.error("Auth authenticate error:", err);
+      return res.status(500).json({ error: "Authentication failed" });
+    }
+  });
+
+  // All other /api routes require a valid session token
+  app.use("/api", requireApiAuth);
+
+  // Main data API with optimistic locking
+  app.get("/api/data", async (_req, res) => {
+    try {
+      const { data, revision } = await loadApplicationData();
+      if (!data) return res.json({ _revision: revision });
+      const safe = sanitizePayloadForClient(data);
+      return res.json({ ...(safe || data), _revision: revision });
     } catch (error) {
       console.error("Error reading database:", error);
       return res.status(500).json({ error: "Failed to read server database" });
     }
   });
 
-  app.post("/api/data", async (req, res) => {
-    try {
-      const data = req.body;
-      const config = readDbConfig();
-
-      if (config.type === "mysql" || config.type === "postgres") {
-        try {
-          await saveToSql(config, data);
-          return res.json({ success: true });
-        } catch (sqlErr) {
-          console.error("SQL save error, writing fallback to local file also", sqlErr);
+  app.post(
+    "/api/data",
+    requireWriteRole,
+    requireValidLicenseForWrite,
+    async (req: AuthedRequest, res) => {
+      try {
+        const data = req.body;
+        if (!data || typeof data !== "object") {
+          return res.status(400).json({ error: "Invalid payload" });
         }
+        const prepared = await preparePayloadForSave(data as Record<string, unknown>);
+        const expectedRevision = parseExpectedRevision(req);
+        const result = await saveApplicationData(prepared, expectedRevision);
+        if ("conflict" in result && result.conflict) {
+          return res.status(409).json({
+            error: "Data conflict — another session saved changes first",
+            code: "REVISION_CONFLICT",
+            revision: result.revision,
+            data: result.data,
+          });
+        }
+        return res.json({ success: true, revision: result.revision });
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : "Failed to save data";
+        console.error("Error writing database:", error);
+        if (message.includes("пароль") || message.includes("Логин") || message.includes("email")) {
+          return res.status(400).json({ error: message });
+        }
+        return res.status(500).json({ error: "Failed to save data" });
       }
-
-      // Also write locally as failover backup
-      const rawString = JSON.stringify(data, null, 2);
-      const encryptedData = encrypt(rawString);
-      fs.writeFileSync(DB_PATH, encryptedData, "utf-8");
-      return res.json({ success: true });
-    } catch (error) {
-      console.error("Error writing database:", error);
-      return res.status(500).json({ error: "Failed to save data" });
     }
-  });
+  );
 
   // Export encrypted backup (supports transferring db easily)
-  app.get("/api/backup/export", async (req, res) => {
+  app.get("/api/backup/export", requireAdminRole, async (_req, res) => {
     try {
       const config = readDbConfig();
       let rawString = "";
@@ -723,7 +877,7 @@ async function startServer() {
   });
 
   // Import encrypted backup
-  app.post("/api/backup/import", async (req, res) => {
+  app.post("/api/backup/import", requireAdminRole, async (req, res) => {
     try {
       const { backup } = req.body;
       if (!backup || typeof backup !== "string") {
@@ -744,8 +898,7 @@ async function startServer() {
       if (config.type === "mysql" || config.type === "postgres") {
         await saveToSql(config, sanitized);
       }
-
-      fs.writeFileSync(DB_PATH, encrypt(JSON.stringify(sanitized, null, 2)), "utf-8");
+      await saveApplicationData(sanitized as Record<string, unknown>, null);
       return res.json({ success: true });
     } catch (error) {
       console.error("Error importing backup:", error);
@@ -777,7 +930,7 @@ async function startServer() {
   });
 
   // GET current DB config settings (removes sensitive credentials)
-  app.get("/api/db-config", (req, res) => {
+  app.get("/api/db-config", requireAdminRole, (req, res) => {
     const config = readDbConfig();
     const cleanConfig = { ...config };
     const hasPassword = Boolean(cleanConfig.password);
@@ -796,7 +949,7 @@ async function startServer() {
   });
 
   // TEST database connection with given params
-  app.post("/api/db-config/test", async (req, res) => {
+  app.post("/api/db-config/test", requireAdminRole, async (req, res) => {
     try {
       const config = req.body;
       if (config.type === "json") {
@@ -814,7 +967,7 @@ async function startServer() {
   });
 
   // SAVE database configuration and migrate data
-  app.post("/api/db-config", async (req, res) => {
+  app.post("/api/db-config", requireAdminRole, async (req, res) => {
     try {
       const newConfig = mergeDbCredentials(req.body);
       const oldConfig = readDbConfig();
@@ -873,7 +1026,7 @@ async function startServer() {
     return res.json(getUpdateJob());
   });
 
-  app.post("/api/update/apply", async (req, res) => {
+  app.post("/api/update/apply", requireAdminRole, async (req, res) => {
     if (isDevelopmentMode()) {
       return res.status(403).json({
         error: "Auto-update is disabled in development mode. Use production build (npm run build && npm start).",
@@ -914,6 +1067,81 @@ async function startServer() {
 
   app.get("/api/update/repo", (_req, res) => {
     return res.json({ repoUrl: VICARIUSTAB_UPDATE_REPO, currentVersion: APP_VERSION });
+  });
+
+  app.post("/api/auth/logout", (req, res) => {
+    const token = readSessionToken(req);
+    const session = resolveSessionFromToken(token);
+    if (!session) return res.json({ success: true });
+    logoutSession(session.id, String(req.body?.userName || session.userName), getClientIp(req));
+    return res.json({ success: true });
+  });
+
+  app.post("/api/auth/heartbeat", (req, res) => {
+    const token = readSessionToken(req);
+    const session = resolveSessionFromToken(token);
+    if (!session) return res.status(401).json({ error: "Session revoked or expired" });
+    touchSession(session.id);
+    const notifications = getUnreadNotifications(session.userId).map((n) => ({
+      id: n.id,
+      title: n.title,
+      body: n.body,
+      meta: n.meta,
+    }));
+    return res.json({ ok: true, notifications });
+  });
+
+  app.get("/api/auth/sessions", (req, res) => {
+    const token = readSessionToken(req);
+    const session = resolveSessionFromToken(token);
+    if (!session) return res.status(401).json({ error: "Unauthorized" });
+    const sessions = listUserSessions(session.userId).map((s) => ({
+      ...s,
+      isCurrent: s.id === session.id,
+    }));
+    return res.json({ sessions, currentSessionId: session.id });
+  });
+
+  app.delete("/api/auth/sessions/:sessionId", (req, res) => {
+    const token = readSessionToken(req);
+    const requester = resolveSessionFromToken(token);
+    if (!requester) return res.status(401).json({ error: "Unauthorized" });
+    const result = revokeSession(requester.id, String(req.params.sessionId || ""));
+    if (!result.ok) return res.status(400).json({ error: result.error });
+    return res.json({ success: true });
+  });
+
+  app.post("/api/auth/sessions/revoke-others", (req, res) => {
+    const token = readSessionToken(req);
+    const requester = resolveSessionFromToken(token);
+    if (!requester) return res.status(401).json({ error: "Unauthorized" });
+    const result = revokeOtherSessions(requester.id);
+    if (!result.ok) return res.status(400).json({ error: result.error });
+    return res.json({ success: true, revokedCount: result.revokedCount });
+  });
+
+  app.get("/api/auth/notifications", (req, res) => {
+    const token = readSessionToken(req);
+    const session = resolveSessionFromToken(token);
+    if (!session) return res.status(401).json({ error: "Unauthorized" });
+    return res.json({ notifications: getUnreadNotifications(session.userId) });
+  });
+
+  app.post("/api/auth/notifications/read", (req, res) => {
+    const token = readSessionToken(req);
+    const session = resolveSessionFromToken(token);
+    if (!session) return res.status(401).json({ error: "Unauthorized" });
+    const ids = Array.isArray(req.body?.ids) ? req.body.ids.map(String) : undefined;
+    markNotificationsRead(session.userId, ids);
+    return res.json({ success: true });
+  });
+
+  app.get("/api/auth/audit", (req, res) => {
+    const token = readSessionToken(req);
+    const session = resolveSessionFromToken(token);
+    if (!session) return res.status(401).json({ error: "Unauthorized" });
+    const events = getSessionAuditEvents(200).filter((e) => e.userId === session.userId);
+    return res.json({ events });
   });
 
   app.get("/api/system/runtime", (req, res) => {

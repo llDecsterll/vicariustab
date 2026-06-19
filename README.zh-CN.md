@@ -8,7 +8,7 @@
 # 🚀 Vicariustab
 
 <p align="center">
-  <img src="https://img.shields.io/badge/版本-2.0.0-blue?style=for-the-badge" alt="Version">
+  <img src="https://img.shields.io/badge/版本-2.0.1-blue?style=for-the-badge" alt="Version">
   <img src="https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&style=for-the-badge" alt="Docker Ready">
   <img src="https://img.shields.io/badge/Node.js-20+-339933?logo=node.js&style=for-the-badge" alt="Node.js 20">
   <img src="https://img.shields.io/badge/PM2-Supported-blue?style=for-the-badge" alt="PM2">
@@ -60,6 +60,7 @@
   - [Docker + PostgreSQL](#-方式-3docker--postgresql)
   - [Host 网络 + 本地数据库](#-方式-4host-网络--ubuntu-本地数据库)
   - [PM2](#-方式-5原生安装-pm2)
+- [首次启动](#-首次启动)
 - [数据库配置](#-数据库配置)
   - [MySQL](#mysql)
   - [PostgreSQL](#postgresql)
@@ -148,9 +149,13 @@
 ## 🔐 安全
 
 - AES-256-CBC 数据加密
+- **Scrypt 密码哈希**（密码不以明文存储）
+- **服务端身份验证** — 无有效账户无法登录
+- **强制首次配置** — 无演示访问与预设用户账户
 - 数据库连接凭据加密存储
 - 自动重连与健康监控
 - 备份排除许可证字段
+- 基于角色的访问（Admin / Editor / Viewer）
 - 分布式部署（Docker、PM2、MySQL、PostgreSQL）
 
 ---
@@ -293,6 +298,8 @@ docker compose logs -f vicariustab-app
 http://服务器IP:8080
 ```
 
+**首次启动**时将显示 **「初始配置」** 向导 — 使用前须先创建管理员账户。详见 [首次启动](#-首次启动)。
+
 数据保存在 Docker 卷 `vicariustab_data` → `/app/data/`。
 
 ---
@@ -399,6 +406,64 @@ pm2 save
 
 ---
 
+# 👤 首次启动
+
+安装完成后，Vicariustab **没有任何用户账户**。创建管理员之前无法使用系统。
+
+### 步骤 1 — 初始配置（仅一次）
+
+首次打开应用时，将显示 **「初始配置」** 表单：
+
+| 字段 | 要求 |
+|------|------|
+| **登录名** | 至少 3 个字符；字母、数字、`.`、`-`、`_` |
+| **密码** | 至少 **8 个字符** |
+| **邮箱** | 有效的电子邮件地址 |
+
+创建成功后将跳转到 **登录界面**。
+
+### 步骤 2 — 登录
+
+使用初始配置时设置的登录名和密码。身份验证在 **服务端** 完成；系统不提供内置演示账户。
+
+### 默认工作区数据
+
+初始配置时会自动创建 starter 数据（与全新演示环境相同）：
+
+- 分支机构（对象）；
+- 员工；
+- 计算机与外设；
+- IT 仓库与库存；
+- 网络设备；
+- 软件许可证；
+- 示例盘点与活动日志。
+
+便于立即熟悉界面，可随时修改或删除。
+
+### 用户管理
+
+- **无预设账户**（无演示用户）。
+- 仅 **管理员** 可在 **设置** → **用户管理** 中创建新用户。
+- 添加用户时密码框提示 **「至少 8 个字符」**；服务端同样校验。
+- 密码以 **scrypt 哈希** 存储，不会返回浏览器。
+
+### 本地开发
+
+```bash
+npm install
+npm run dev
+```
+
+访问 `http://localhost:3000`。测试全新安装时，删除数据文件并重启：
+
+```bash
+rm -f db.json store_meta.json sessions_store.enc db_config.json
+```
+
+若浏览器仍显示旧登录页，请清除 `localhost` 站点数据（或使用隐私/无痕窗口）。
+
+---
+
 # 🗄 数据库配置
 
 适用于在 **Ubuntu 本地安装**数据库（非 Docker Compose）的情况。
@@ -501,20 +566,11 @@ CREATE DATABASE stack_db OWNER stack_user;
 
 # 🔗 在 Vicariustab 中连接数据库
 
-启动后访问：
+启动并完成 **管理员登录** 后访问：
 
 ```text
 http://服务器IP:8080
 ```
-
-### 默认登录
-
-```text
-用户名: admin
-密码: admin
-```
-
-> 首次登录后请立即修改管理员密码。
 
 ### 设置路径
 
@@ -557,6 +613,8 @@ vicariustab/
 │   ├── components/               # 模块：计算机、网络、仓库、设置…
 │   ├── utils/                    # 许可证、i18n、更新
 │   └── config/                   # 版本、更新仓库
+├── server/                       # API、密码哈希、种子数据
+│   └── workspaceSeed.json          # 首次启动时的默认数据
 ├── server.ts                     # Express API、数据库、加密
 ├── Dockerfile
 ├── docker-compose.yml            # 仅应用
@@ -666,6 +724,8 @@ pm2 restart vicariustab-system
 
 | 问题 | 解决方案 |
 |------|----------|
+| **未出现初始配置向导** | 删除 `STACK_DATA_DIR` 中的 `db.json` / `store_meta.json`；清除浏览器站点数据 |
+| **「登录名或密码错误」** | 使用初始配置时的凭据；无默认 `admin`/`admin` 账户 |
 | **Docker 内连接数据库被拒绝** | 主机 `172.17.0.1`；MySQL：`bind-address=0.0.0.0`；或 `docker-compose.host.yml` |
 | **连接测试失败** | 重新输入密码；若已保存可留空或再次输入 |
 | **找不到 Dockerfile** | 在仓库根目录 `~/vicariustab` 运行，勿使用嵌套目录 |

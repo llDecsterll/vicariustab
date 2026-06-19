@@ -72,6 +72,7 @@ export default function ActivityLogView({
             if (act.type === 'create') markerColor = 'bg-emerald-500';
             else if (act.type === 'delete') markerColor = 'bg-rose-500';
             else if (act.type === 'system') markerColor = 'bg-slate-400';
+            else if (act.type === 'auth') markerColor = 'bg-amber-500';
 
             return (
               <div key={act.id} className="relative group">

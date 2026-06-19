@@ -25,7 +25,7 @@ interface HeaderProps {
   title?: string;
   users: SystemUser[];
   currentUser: SystemUser;
-  onSelectUser: (id: string) => void;
+  onSwitchUser: (user: SystemUser, password: string) => Promise<boolean>;
   onLogout: () => void;
   siteLogo?: string;
   softwareItems?: SoftwareItem[];
@@ -44,7 +44,7 @@ export default function Header({
   title = 'Инвентаризация оборудования',
   users,
   currentUser,
-  onSelectUser,
+  onSwitchUser,
   onLogout,
   siteLogo,
   softwareItems,
@@ -52,7 +52,7 @@ export default function Header({
 }: HeaderProps) {
   const { t } = useTranslation();
   const [showResults, setShowResults] = useState(false);
-  const [notifications, setNotifications] = useState<{ id: number; text: string; read: boolean; targetTab?: string; isSecurity?: boolean }[]>(() => {
+  const [notifications, setNotifications] = useState<{ id: number; text: string; title?: string; body?: string; read: boolean; targetTab?: string; isSecurity?: boolean; serverNotifId?: string }[]>(() => {
     const saved = localStorage.getItem('Vicariustab_notifications') || localStorage.getItem('orbit_notifications');
     if (saved) {
       try {
@@ -266,6 +266,44 @@ export default function Header({
       window.removeEventListener('Vicariustab-update-available', handleUpdateAvailable);
       window.removeEventListener('Vicariustab-update-completed', handleUpdateCompleted);
     };
+  }, []);
+
+  // Session security alerts (new device login)
+  useEffect(() => {
+    const handleSessionSecurity = (e: Event) => {
+      const detail = (e as CustomEvent).detail as {
+        title?: string;
+        body?: string;
+        targetTab?: string;
+        isSecurity?: boolean;
+        serverNotifId?: string;
+      };
+      const title = detail?.title || 'Обнаружен новый вход в учётную запись';
+      const body = detail?.body || '';
+      const summary = body.split('\n').filter(Boolean).slice(0, 2).join(' · ') || title;
+
+      setNotifications((prev) => {
+        if (detail.serverNotifId && prev.some((n) => n.serverNotifId === detail.serverNotifId && !n.read)) {
+          return prev;
+        }
+        return [
+          {
+            id: Date.now() + Math.floor(Math.random() * 1000),
+            text: summary,
+            title,
+            body,
+            read: false,
+            targetTab: detail?.targetTab || 'settings',
+            isSecurity: true,
+            serverNotifId: detail.serverNotifId,
+          },
+          ...prev,
+        ];
+      });
+    };
+
+    window.addEventListener('Vicariustab-session-security-alert', handleSessionSecurity);
+    return () => window.removeEventListener('Vicariustab-session-security-alert', handleSessionSecurity);
   }, []);
 
   // Listen to password change events
@@ -597,7 +635,19 @@ export default function Header({
                     >
                       <div className="flex gap-2 items-start flex-1 mr-2 min-w-0">
                         <div className={`w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 ${!n.read ? 'bg-blue-500' : 'bg-slate-300'}`} />
-                        <div className="flex-1 leading-normal break-words">{n.text}</div>
+                        <div className="flex-1 leading-normal break-words min-w-0">
+                          {n.title ? (
+                            <>
+                              <div className={`${!n.read ? 'font-bold' : 'font-semibold'} text-slate-800`}>{n.title}</div>
+                              <div className="text-[10px] text-slate-500 mt-1 whitespace-pre-line leading-relaxed">{n.body || n.text}</div>
+                              {n.isSecurity && (
+                                <div className="text-[10px] text-blue-600 mt-1.5 font-semibold">{t('Открыть активные сессии →')}</div>
+                              )}
+                            </>
+                          ) : (
+                            n.text
+                          )}
+                        </div>
                       </div>
                       
                       <button
@@ -737,15 +787,16 @@ export default function Header({
 
             <form onSubmit={(e) => {
               e.preventDefault();
-              const reqPass = pendingUser.password || '';
-              if (!reqPass || passwordInput === reqPass || passwordInput === 'admin') {
-                onSelectUser(pendingUser.id);
-                setPendingUser(null);
-                setPasswordInput('');
-                setPasswordError('');
-              } else {
-                setPasswordError('Неверный пароль.');
-              }
+              void (async () => {
+                const ok = await onSwitchUser(pendingUser, passwordInput);
+                if (ok) {
+                  setPendingUser(null);
+                  setPasswordInput('');
+                  setPasswordError('');
+                } else {
+                  setPasswordError('Неверный пароль.');
+                }
+              })();
             }} className="space-y-3">
               <div>
                 <input

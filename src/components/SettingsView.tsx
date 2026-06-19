@@ -61,6 +61,8 @@ import { useTranslation, Language } from '../utils/i18n';
 import { VICARIUSTAB_UPDATE_REPO, VICARIUSTAB_UPDATE_REPO_DISPLAY, APP_VERSION } from '../config/appConfig';
 import { buildUpdateNotificationText, buildUpdateCompletedText, checkForPlatformUpdate, applyPlatformUpdate, fetchUpdateJobStatus, markInstalledCommit, type UpdateCheckResult } from '../utils/updateCheck';
 import CopyrightFooter from './CopyrightFooter';
+import ActiveSessionsPanel from './ActiveSessionsPanel';
+import { authHeaders } from '../utils/deviceFingerprint';
 
 interface SettingsViewProps {
   onResetData: () => void;
@@ -119,7 +121,7 @@ interface SettingsViewProps {
   onActivate: (key: string) => boolean;
   onDeactivate: () => void;
   onRefreshLicense?: () => void;
-  onLogActivity?: (action: string, detail: string, type: 'create' | 'update' | 'delete' | 'system') => void;
+  onLogActivity?: (action: string, detail: string, type: 'create' | 'update' | 'delete' | 'system' | 'auth') => void;
 }
 
 export default function SettingsView({
@@ -175,7 +177,7 @@ export default function SettingsView({
   }, [publicUrl]);
 
   useEffect(() => {
-    fetch('/api/system/runtime')
+    fetch('/api/system/runtime', { headers: authHeaders() })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => setRuntimeInfo(data))
       .catch(() => setRuntimeInfo(null));
@@ -201,6 +203,7 @@ export default function SettingsView({
   const [newUserRole, setNewUserRole] = useState<UserRole>('Viewer');
   const [newUserLogin, setNewUserLogin] = useState('');
   const [newUserPassword, setNewUserPassword] = useState('');
+  const [newUserError, setNewUserError] = useState('');
   const [avatarIndex, setAvatarIndex] = useState(0);
 
   // Self avatar configuration
@@ -208,24 +211,24 @@ export default function SettingsView({
 
   // Self-service password and login states
   const [selfLogin, setSelfLogin] = useState(currentUser.login || '');
-  const [selfPassword, setSelfPassword] = useState(currentUser.password || '');
+  const [selfPassword, setSelfPassword] = useState('');
   const [showSelfPassword, setShowSelfPassword] = useState(false);
   const [selfSecuritySuccess, setSelfSecuritySuccess] = useState(false);
 
-  // Sync state when currentUser properties update
   React.useEffect(() => {
     setSelfLogin(currentUser.login || '');
-    setSelfPassword(currentUser.password || '');
-  }, [currentUser.id, currentUser.login, currentUser.password]);
+    setSelfPassword('');
+  }, [currentUser.id, currentUser.login]);
 
   const handleUpdateSelfCredentials = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selfLogin.trim() || !selfPassword.trim()) return;
+    if (!selfLogin.trim()) return;
+    if (!selfPassword.trim() && !currentUser.passwordSet) return;
     if (onUpdateUser) {
-      onUpdateUser(currentUser.id, {
-        login: selfLogin,
-        password: selfPassword
-      });
+      const updates: Partial<SystemUser> = { login: selfLogin.trim() };
+      if (selfPassword.trim()) updates.password = selfPassword;
+      onUpdateUser(currentUser.id, updates);
+      setSelfPassword('');
       setSelfSecuritySuccess(true);
       setTimeout(() => setSelfSecuritySuccess(false), 3000);
     }
@@ -585,8 +588,8 @@ export default function SettingsView({
   // Load backend database settings on mount
   React.useEffect(() => {
     Promise.all([
-      fetch('/api/db-config').then((res) => res.json()),
-      fetch('/api/db-config/defaults').then((res) => res.json()),
+      fetch('/api/db-config', { headers: authHeaders() }).then((res) => res.json()),
+      fetch('/api/db-config/defaults', { headers: authHeaders() }).then((res) => res.json()),
     ])
       .then(([config, defaults]) => {
         if (defaults?.hint) setDbDockerHint(defaults.hint);
@@ -622,7 +625,7 @@ export default function SettingsView({
   React.useEffect(() => {
     let active = true;
     const checkStatus = () => {
-      fetch('/api/db-status')
+      fetch('/api/db-status', { headers: authHeaders() })
         .then(res => {
           if (!res.ok) {
             return { status: 'unchecked', error: 'Connection initializing' };
@@ -658,7 +661,7 @@ export default function SettingsView({
       
       const res = await fetch('/api/db-config/test', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({
           type: dbType,
           host: dbHost,
@@ -705,7 +708,7 @@ export default function SettingsView({
 
       const res = await fetch('/api/db-config', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify(payload)
       });
 
@@ -741,7 +744,7 @@ export default function SettingsView({
     try {
       setBackupLoading(true);
       setBackupError('');
-      const res = await fetch('/api/backup/export');
+      const res = await fetch('/api/backup/export', { headers: authHeaders() });
       if (!res.ok) throw new Error(t("Не удалось получить файл бэкапа"));
       const data = await res.json();
       if (!data.backup) throw new Error(t("Файл бэкапа пуст"));
@@ -777,6 +780,7 @@ export default function SettingsView({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...authHeaders(),
         },
         body: JSON.stringify({ backup: text }),
       });
@@ -824,7 +828,15 @@ export default function SettingsView({
 
   const handleAddUserSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newUserName || !newUserEmail || !newUserLogin || !newUserPassword) return;
+    setNewUserError('');
+    if (!newUserName || !newUserEmail || !newUserLogin || !newUserPassword) {
+      setNewUserError(t('Заполните все обязательные поля.'));
+      return;
+    }
+    if (newUserPassword.length < 8) {
+      setNewUserError(t('Пароль должен содержать не менее 8 символов'));
+      return;
+    }
     
     onAddUser({
       name: newUserName,
@@ -985,9 +997,10 @@ export default function SettingsView({
             <div className="relative">
               <input
                 type={showSelfPassword ? "text" : "password"}
-                required
+                required={!currentUser.passwordSet}
                 value={selfPassword}
                 onChange={(e) => setSelfPassword(e.target.value)}
+                placeholder={currentUser.passwordSet ? t('Оставьте пустым, чтобы не менять') : t('Не менее 8 символов')}
                 className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-mono font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-805 pr-8"
               />
               <button
@@ -1007,6 +1020,68 @@ export default function SettingsView({
             <Save size={13} />{t("Обновить доступы")}</button>
         </form>
       </div>
+
+      {(currentUser.role === 'Admin' || currentUser.role === 'Editor') && (
+        <>
+          <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-4 animate-fade-in">
+            <div className="flex items-center gap-2 border-b border-slate-50 pb-2">
+              <Shield className="text-blue-500" size={16} />
+              <div>
+                <h3 className="font-bold text-slate-805 text-sm tracking-tight">{t('Каналы уведомлений о входе')}</h3>
+                <p className="text-[10px] text-slate-400">
+                  {t('При входе с нового устройства уведомления отправляются в центр уведомлений, на email и в Telegram (если настроено).')}
+                </p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={currentUser.emailVerified ?? Boolean(currentUser.email?.includes('@'))}
+                  onChange={(e) => onUpdateUser?.(currentUser.id, { emailVerified: e.target.checked })}
+                  className="rounded border-slate-300"
+                />
+                <span>{t('Email подтверждён')}</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={currentUser.emailNotificationsEnabled !== false}
+                  onChange={(e) => onUpdateUser?.(currentUser.id, { emailNotificationsEnabled: e.target.checked })}
+                  className="rounded border-slate-300"
+                />
+                <span>{t('Уведомления на email')}</span>
+              </label>
+              <div className="space-y-1 md:col-span-2">
+                <label className="block text-[10px] font-bold text-slate-450 uppercase">{t('Telegram Chat ID')}</label>
+                <input
+                  type="text"
+                  placeholder={t('Например: 123456789')}
+                  value={currentUser.telegramChatId || ''}
+                  onChange={(e) => onUpdateUser?.(currentUser.id, { telegramChatId: e.target.value.trim() || undefined })}
+                  className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                />
+              </div>
+              <label className="flex items-center gap-2 cursor-pointer md:col-span-2">
+                <input
+                  type="checkbox"
+                  checked={Boolean(currentUser.telegramChatId && currentUser.telegramNotificationsEnabled)}
+                  disabled={!currentUser.telegramChatId}
+                  onChange={(e) => onUpdateUser?.(currentUser.id, { telegramNotificationsEnabled: e.target.checked })}
+                  className="rounded border-slate-300 disabled:opacity-50"
+                />
+                <span>{t('Уведомления в Telegram')}</span>
+              </label>
+            </div>
+          </div>
+
+          <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm animate-fade-in">
+            <ActiveSessionsPanel
+              onLogAuth={(action, detail) => onLogActivity?.(action, detail, 'auth')}
+            />
+          </div>
+        </>
+      )}
 
       {/* Резервное копирование и Восстановление данных платформы (СБ-Защищенный Режим) */}
       {isAdmin && (
@@ -2059,7 +2134,7 @@ export default function SettingsView({
                                 setEditUserName(u.name || '');
                                 setEditUserEmail(u.email || '');
                                 setEditUserLogin(u.login || '');
-                                setEditUserPassword(u.password || '');
+                                setEditUserPassword('');
                                 setEditUserRole(u.role || 'Viewer');
                               }}
                               className="p-1 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
@@ -2144,11 +2219,11 @@ export default function SettingsView({
                           <div>
                             <label className="block text-[8px] font-bold text-slate-400 uppercase mb-0.5">{t("Логин")}</label>
                             <input
-                              type="password"
+                              type="text"
                               value={editUserLogin}
                               onChange={(e) => setEditUserLogin(e.target.value)}
                               className="w-full px-2 py-1 border border-slate-200 rounded-lg text-xs font-mono font-bold focus:outline-none focus:ring-1 focus:ring-blue-500/20 text-slate-800"
-                              autoComplete="new-password"
+                              autoComplete="username"
                             />
                           </div>
                           <div>
@@ -2157,6 +2232,7 @@ export default function SettingsView({
                               type="password"
                               value={editUserPassword}
                               onChange={(e) => setEditUserPassword(e.target.value)}
+                              placeholder={u.passwordSet ? t('Пусто = не менять') : t('Новый пароль')}
                               className="w-full px-2 py-1 border border-slate-200 rounded-lg text-xs font-mono font-bold focus:outline-none focus:ring-1 focus:ring-blue-500/20 text-slate-800"
                               autoComplete="new-password"
                             />
@@ -2178,14 +2254,15 @@ export default function SettingsView({
                           <button
                             type="button"
                             onClick={() => {
-                              if (onUpdateUser && editUserName.trim() && editUserLogin.trim() && editUserPassword.trim()) {
-                                onUpdateUser(u.id, {
+                              if (onUpdateUser && editUserName.trim() && editUserLogin.trim()) {
+                                const updates: Partial<SystemUser> = {
                                   name: editUserName,
                                   email: editUserEmail,
                                   login: editUserLogin,
-                                  password: editUserPassword,
-                                  role: editUserRole
-                                });
+                                  role: editUserRole,
+                                };
+                                if (editUserPassword.trim()) updates.password = editUserPassword;
+                                onUpdateUser(u.id, updates);
                               }
                               setEditingUserId(null);
                             }}
@@ -2270,14 +2347,14 @@ export default function SettingsView({
                 <div>
                   <label className="block text-[10px] font-bold text-slate-455 uppercase mb-1">{t("Логин")}</label>
                   <input
-                    type="password"
+                    type="text"
                     required
                     disabled={!isAdmin}
                     placeholder="anna"
                     value={newUserLogin}
                     onChange={(e) => setNewUserLogin(e.target.value)}
                     className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-705 font-mono"
-                    autoComplete="new-password"
+                    autoComplete="username"
                   />
                 </div>
                 <div>
@@ -2285,8 +2362,9 @@ export default function SettingsView({
                   <input
                     type="password"
                     required
+                    minLength={8}
                     disabled={!isAdmin}
-                    placeholder="pass44"
+                    placeholder={t('Не менее 8 символов')}
                     value={newUserPassword}
                     onChange={(e) => setNewUserPassword(e.target.value)}
                     className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-705 font-mono"
@@ -2294,6 +2372,10 @@ export default function SettingsView({
                   />
                 </div>
               </div>
+
+              {newUserError && (
+                <p className="text-[10px] text-rose-600 font-semibold">{newUserError}</p>
+              )}
 
               <div>
                 <label className="block text-[10px] font-bold text-slate-450 uppercase mb-1">{t("Выбрать роль (Доступ)")}</label>

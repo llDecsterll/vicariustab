@@ -8,7 +8,7 @@
  * Release
  */
 import React, { useState } from 'react';
-import { Laptop, Plus, Search, Trash2, Edit2, Shield, Settings2, FileText, Upload, Paperclip } from 'lucide-react';
+import { Laptop, Plus, Search, Trash2, Edit2, Shield, Settings2, FileText, Upload, Paperclip, RotateCcw } from 'lucide-react';
 import { ComputerItem, ComputerCategory, ComputerStatus, EmployeeItem, ObjectItem } from '../types';
 import { getDeviceIcon } from '../utils/deviceIcons';
 import { useTranslation } from '../utils/i18n';
@@ -17,6 +17,12 @@ import {
   limitEquipmentTitle,
   supportsComputerSpecifications,
 } from '../utils/equipmentFields';
+import {
+  type EquipmentTab,
+  getCategoriesForEquipmentTab,
+  getCategoryFilterLabel,
+} from '../utils/warehouseRouting';
+import EquipmentGroupFilters, { HARDWARE_STATUS_FILTER_OPTIONS } from './EquipmentGroupFilters';
 
 interface ComputersViewProps {
   computers: ComputerItem[];
@@ -25,13 +31,16 @@ interface ComputersViewProps {
   allComputers?: ComputerItem[];
   onAdd: (comp: Omit<ComputerItem, 'id'>) => void;
   onEdit: (id: string, comp: Omit<ComputerItem, 'id'>) => void;
-  onDelete: (id: string) => void;
+  onDelete?: (id: string) => void;
+  onReturnToWarehouse?: (id: string) => void;
   onViewDetails?: (type: 'computer' | 'network' | 'employee' | 'object' | 'warehouse', id: string) => void;
   addButtonLabel?: string;
   addModalTitle?: string;
   currentUser?: { role: 'Viewer' | 'Editor' | 'Admin' };
   defaultCategory?: ComputerCategory;
   defaultDeviceType?: string;
+  /** When set, view is an equipment group: scoped categories, no delete — return to warehouse only */
+  equipmentTab?: EquipmentTab;
   /** Equipment is added only via warehouse; direct add in group views is disabled by default */
   allowDirectAdd?: boolean;
 }
@@ -72,18 +81,24 @@ export default function ComputersView({
   onAdd,
   onEdit,
   onDelete,
+  onReturnToWarehouse,
   onViewDetails,
   addButtonLabel = 'Добавить компьютер',
   addModalTitle = 'Добавить компьютер',
   currentUser,
   defaultCategory,
   defaultDeviceType,
+  equipmentTab,
   allowDirectAdd = false,
 }: ComputersViewProps) {
   const { t } = useTranslation();
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('Все');
   const [filterCategory, setFilterCategory] = useState<string>('Все');
+  const [filterObject, setFilterObject] = useState<string>('Все');
+
+  const isEquipmentGroup = Boolean(equipmentTab);
+  const allowedCategories = equipmentTab ? getCategoriesForEquipmentTab(equipmentTab) : null;
 
   const isViewer = currentUser?.role === 'Viewer';
   const isAdmin = currentUser?.role === 'Admin';
@@ -305,14 +320,50 @@ export default function ComputersView({
     setShowModal(false);
   };
 
+  const handleReturnToWarehouse = (comp: ComputerItem) => {
+    if (!onReturnToWarehouse) return;
+    if (comp.status === 'На складе' || comp.status === 'Списано') return;
+    if (
+      window.confirm(
+        `${t('Вернуть на склад')} «${comp.model}» (${t('инв. №')} ${comp.inventoryNumber})?`
+      )
+    ) {
+      onReturnToWarehouse(comp.id);
+    }
+  };
+
+  const categoryOptionsForForm = (() => {
+    const base = allowedCategories ?? (['ПК', 'Ноутбук', 'Монитор', 'Периферия', 'Оргтехника', 'Видеонаблюдение', 'Расходники', 'Другое'] as ComputerCategory[]);
+    if (editingId && category && !base.includes(category)) {
+      return [...base, category];
+    }
+    return base;
+  })();
+
   const filtered = computers.filter(c => {
     const matchesSearch = c.model.toLowerCase().includes(search.toLowerCase()) || 
                           c.inventoryNumber.toLowerCase().includes(search.toLowerCase()) || 
                           c.employeeName.toLowerCase().includes(search.toLowerCase());
     const matchesStatus = filterStatus === 'Все' || c.status === filterStatus;
     const matchesCategory = filterCategory === 'Все' || c.category === filterCategory;
-    return matchesSearch && matchesStatus && matchesCategory;
+    const matchesObject = filterObject === 'Все' || c.objectName === filterObject;
+    return matchesSearch && matchesStatus && matchesCategory && matchesObject;
   });
+
+  const categoryFilterOptions = (() => {
+    const cats =
+      allowedCategories ??
+      (['ПК', 'Ноутбук', 'Монитор', 'Периферия', 'Оргтехника', 'Видеонаблюдение', 'Расходники', 'Другое'] as ComputerCategory[]);
+    return [
+      { value: 'Все', label: 'Все категории' },
+      ...cats.map((cat) => ({ value: cat, label: getCategoryFilterLabel(cat) })),
+    ];
+  })();
+
+  const objectFilterOptions = [
+    { value: 'Все', label: 'Все объекты' },
+    ...objects.map((obj) => ({ value: obj.name, label: obj.name })),
+  ];
 
   return (
     <div className="space-y-6">
@@ -346,41 +397,19 @@ export default function ComputersView({
           )}
         </div>
 
-        <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-50">
-          <div>
-            <label className="text-[10px] text-slate-400 font-bold block mb-1">{t("СИСТЕМНЫЙ СТАТУС")}</label>
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-blue-500/10 focus:outline-none text-slate-650"
-            >
-              <option value="Все">{t("Все статусы")}</option>
-              <option value="В работе">{t("В работе")}</option>
-              <option value="На ремонте">{t("На ремонте")}</option>
-              <option value="На складе">{t("На складе")}</option>
-              <option value="Списано">{t("Списано")}</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="text-[10px] text-slate-400 font-bold block mb-1">{t("КАТЕГОРИЯ")}</label>
-            <select
-              value={filterCategory}
-              onChange={(e) => setFilterCategory(e.target.value)}
-              className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-blue-500/10 focus:outline-none text-slate-650"
-            >
-              <option value="Все">{t("Все категории")}</option>
-              <option value="Ноутбук">{t("Ноутбуки")}</option>
-              <option value="ПК">{t("Персональные компьютеры (ПК)")}</option>
-              <option value="Монитор">{t("Мониторы")}</option>
-              <option value="Периферия">{t("Периферия")}</option>
-              <option value="Оргтехника">{t("Оргтехника")}</option>
-              <option value="Видеонаблюдение">{t("Видеонаблюдение")}</option>
-              <option value="Расходники">{t("Расходники")}</option>
-              <option value="Другое">{t("Другое")}</option>
-            </select>
-          </div>
-        </div>
+        {isEquipmentGroup && (
+          <EquipmentGroupFilters
+            categoryValue={filterCategory}
+            onCategoryChange={setFilterCategory}
+            categoryOptions={categoryFilterOptions}
+            statusValue={filterStatus}
+            onStatusChange={setFilterStatus}
+            statusOptions={HARDWARE_STATUS_FILTER_OPTIONS}
+            objectValue={filterObject}
+            onObjectChange={setFilterObject}
+            objectOptions={objectFilterOptions}
+          />
+        )}
       </div>
 
       {/* Main Table */}
@@ -498,7 +527,16 @@ export default function ComputersView({
                             <Edit2 size={14} />
                           </button>
                         )}
-                        {isAdmin && (
+                        {isEquipmentGroup && !isViewer && onReturnToWarehouse && c.status !== 'На складе' && c.status !== 'Списано' && (
+                          <button
+                            onClick={() => handleReturnToWarehouse(c)}
+                            className="p-1 hover:bg-emerald-50 rounded text-slate-400 hover:text-emerald-600 transition-colors cursor-pointer"
+                            title={t("Вернуть на склад")}
+                          >
+                            <RotateCcw size={14} />
+                          </button>
+                        )}
+                        {!isEquipmentGroup && isAdmin && onDelete && (
                           <button
                             onClick={() => onDelete(c.id)}
                             className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-red-500 transition-colors cursor-pointer"
@@ -548,14 +586,11 @@ export default function ComputersView({
                       }}
                       className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-700 font-semibold"
                     >
-                      <option value="ПК">{t("ПК")}</option>
-                      <option value="Ноутбук">{t("Ноутбук")}</option>
-                      <option value="Монитор">{t("Монитор")}</option>
-                      <option value="Периферия">{t("Периферия")}</option>
-                      <option value="Оргтехника">{t("Оргтехника")}</option>
-                      <option value="Видеонаблюдение">{t("Видеонаблюдение")}</option>
-                      <option value="Расходники">{t("Расходники")}</option>
-                      <option value="Другое">{t("Другое")}</option>
+                      {categoryOptionsForForm.map((cat) => (
+                        <option key={cat} value={cat}>
+                          {t(cat)}
+                        </option>
+                      ))}
                     </select>
                   </div>
 
