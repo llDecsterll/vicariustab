@@ -1823,6 +1823,16 @@ const dictionary: Record<string, Record<Language, string>> = {
     en: "Delete?",
     zh: "删除吗？"
   },
+  "Удалить позицию со склада? Связанное оборудование будет удалено из реестра.": {
+    ru: "Удалить позицию со склада? Связанное оборудование будет удалено из реестра.",
+    en: "Remove this warehouse item? Linked equipment records will also be deleted.",
+    zh: "从仓库删除此条目？关联的设备记录也将被删除。"
+  },
+  "Удалить позицию": {
+    ru: "Удалить позицию",
+    en: "Delete warehouse item",
+    zh: "删除仓库条目"
+  },
   "Удалить из гарантии": {
     ru: "Удалить из гарантии",
     en: "Remove from warranty",

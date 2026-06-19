@@ -48,6 +48,25 @@ export function getWarehouseItemSpecs(item: WarehouseItem | ComputerReceiptSpecs
   };
 }
 
+/** Match base inventory number or batch suffix (e.g. INV-001, INV-001-2) */
+export function matchesBaseInventoryNumber(
+  itemInventoryNumber: string | undefined | null,
+  baseInventoryNumber: string | undefined | null
+): boolean {
+  if (!itemInventoryNumber || !baseInventoryNumber) return false;
+  return (
+    itemInventoryNumber === baseInventoryNumber ||
+    itemInventoryNumber.startsWith(`${baseInventoryNumber}-`)
+  );
+}
+
+export function isNotLinkedToInventoryBase(
+  itemInventoryNumber: string | undefined | null,
+  baseInventoryNumber: string | undefined | null
+): boolean {
+  return !matchesBaseInventoryNumber(itemInventoryNumber, baseInventoryNumber);
+}
+
 /** Apply receipt specs to a single registry unit (supports batch qty > 1) */
 export function buildComputerSpecsFromReceipt(
   specs: ComputerReceiptSpecs,

@@ -53,6 +53,8 @@ import {
   buildComputerSpecsFromReceipt,
   getWarehouseItemSpecs,
   limitEquipmentTitle,
+  matchesBaseInventoryNumber,
+  isNotLinkedToInventoryBase,
 } from './utils/equipmentFields';
 import { Copy, Check, Mail } from 'lucide-react';
 import { copyTextToClipboard } from './utils/clipboard';
@@ -1245,11 +1247,11 @@ export default function App() {
         let countRemoved = 0;
         // Identify individual computer items associated with this inventory number
         const matchingIdle = prev.filter(c => 
-          (c.inventoryNumber === inventoryNumber || c.inventoryNumber.startsWith(inventoryNumber + '-'))
+          matchesBaseInventoryNumber(c.inventoryNumber, inventoryNumber)
           && c.status === 'На складе'
         );
         const matchingActive = prev.filter(c => 
-          (c.inventoryNumber === inventoryNumber || c.inventoryNumber.startsWith(inventoryNumber + '-'))
+          matchesBaseInventoryNumber(c.inventoryNumber, inventoryNumber)
           && c.status !== 'На складе'
         );
 
@@ -1357,7 +1359,7 @@ export default function App() {
     } else {
       // Find matching items currently "На складе" (on-stock)
       const matchingCompsOnStock = computers.filter(c => 
-        (c.inventoryNumber === inventoryNumber || c.inventoryNumber.startsWith(inventoryNumber + '-')) 
+        matchesBaseInventoryNumber(c.inventoryNumber, inventoryNumber)
         && c.status === 'На складе'
       );
 
@@ -1393,7 +1395,9 @@ export default function App() {
 
           const newCompsToAppend: ComputerItem[] = [];
           for (let i = 0; i < remainingToCreate; i++) {
-            const suffixesCount = prev.filter(c => c.inventoryNumber.startsWith(inventoryNumber + '-')).length;
+            const suffixesCount = prev.filter(c =>
+              c.inventoryNumber?.startsWith(`${inventoryNumber}-`)
+            ).length;
             const suffix = (quantity > 1 || suffixesCount > 0) ? `-${suffixesCount + i + 1}` : '';
             const invNum = `${inventoryNumber}${suffix}`;
             const unitSpecs = buildComputerSpecsFromReceipt(
@@ -1459,10 +1463,23 @@ export default function App() {
     setWarehouseItems(prev => prev.filter(w => w.id !== id));
     logActivity('Удален артикул', `Со склада удалена карточка товара "${target.name}"`, 'delete');
 
-    // CASCADE DELETION requested: "если я удаляю с склада оборудование то оно удаляется с других к примеру удалил компьютер то он удалился в компьютерах и так с остальным оборудованиям"
-    setComputers(prev => prev.filter(c => c.inventoryNumber !== target.inventoryNumber && !c.inventoryNumber.startsWith(target.inventoryNumber + '-')));
-    setNetworkDevices(prev => prev.filter(nd => nd.inventoryNumber !== target.inventoryNumber && !nd.inventoryNumber.startsWith(target.inventoryNumber + '-')));
-    
+    setComputers(prev => prev.filter(c => isNotLinkedToInventoryBase(c.inventoryNumber, target.inventoryNumber)));
+    setNetworkDevices(prev => prev.filter(nd => isNotLinkedToInventoryBase(nd.inventoryNumber, target.inventoryNumber)));
+
+    setSelectedDetail(prev => {
+      if (!prev) return null;
+      if (prev.type === 'warehouse' && prev.id === id) return null;
+      if (prev.type === 'computer') {
+        const comp = computers.find(c => c.id === prev.id);
+        if (comp && matchesBaseInventoryNumber(comp.inventoryNumber, target.inventoryNumber)) return null;
+      }
+      if (prev.type === 'network') {
+        const dev = networkDevices.find(n => n.id === prev.id);
+        if (dev && matchesBaseInventoryNumber(dev.inventoryNumber, target.inventoryNumber)) return null;
+      }
+      return prev;
+    });
+
     logActivity('Каскадное удаление', `Каскадно удалены связанные активные карточки оборудования с инвентарным номером "${target.inventoryNumber}"`, 'system');
   };
 

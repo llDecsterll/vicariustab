@@ -538,7 +538,7 @@ export default function WarehouseView({
     // Search matching
     const matchesSearch = item.name.toLowerCase().includes(search.toLowerCase()) || 
                           item.model.toLowerCase().includes(search.toLowerCase()) || 
-                          item.inventoryNumber.toLowerCase().includes(search.toLowerCase());
+                          (item.inventoryNumber || '').toLowerCase().includes(search.toLowerCase());
     
     // Category match
     const matchesTab = activeTab === 'Все' || item.type === activeTab;
@@ -935,7 +935,11 @@ export default function WarehouseView({
                               )}
                               {isAdmin && (
                                 <button
-                                  onClick={() => onDelete(item.id)}
+                                  onClick={() => {
+                                    if (window.confirm(t('Удалить позицию со склада? Связанное оборудование будет удалено из реестра.'))) {
+                                      onDelete(item.id);
+                                    }
+                                  }}
                                   className="p-1.5 hover:bg-red-50 rounded-lg text-slate-400 hover:text-red-500 transition-colors cursor-pointer"
                                   title={t("Удалить позицию")}
                                 >

@@ -47,6 +47,7 @@ import { useTranslation } from '../utils/i18n';
 import {
   supportsComputerSpecifications,
   hasAnyComputerSpecs,
+  matchesBaseInventoryNumber,
 } from '../utils/equipmentFields';
 
 interface DetailModalProps {
@@ -2055,10 +2056,8 @@ export default function DetailModal({
                         )}
                       </div>
                       {item.quantity > 1 && (() => {
-                        const linkedUnits = computers.filter(
-                          (c) =>
-                            c.inventoryNumber === item.inventoryNumber ||
-                            c.inventoryNumber.startsWith(`${item.inventoryNumber}-`)
+                        const linkedUnits = computers.filter((c) =>
+                          matchesBaseInventoryNumber(c.inventoryNumber, item.inventoryNumber)
                         );
                         if (linkedUnits.length === 0) return null;
                         return (
