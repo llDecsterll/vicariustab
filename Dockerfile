@@ -1,5 +1,5 @@
 # Release
-# Uvwstack — production image (Express + static Vite build)
+# Vicariustab — production image (Express + static Vite build)
 # syntax=docker/dockerfile:1
 
 FROM node:20-alpine AS build
@@ -33,9 +33,9 @@ RUN npm ci --omit=dev && npm cache clean --force
 COPY --from=build /app/dist ./dist
 
 RUN mkdir -p /app/data \
-  && addgroup -S uvwstack && adduser -S uvwstack -G uvwstack \
-  && chown -R uvwstack:uvwstack /app
-USER uvwstack
+  && addgroup -S vicariustab && adduser -S vicariustab -G vicariustab \
+  && chown -R vicariustab:vicariustab /app
+USER vicariustab
 
 EXPOSE 8080
 

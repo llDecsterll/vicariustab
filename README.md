@@ -1,11 +1,11 @@
-<p align="center">
+﻿<p align="center">
   <strong>Documentation languages / Языки документации / 文档语言</strong><br>
   <a href="README.md"><b>English</b></a> ·
   <a href="README.ru.md">Русский</a> ·
   <a href="README.zh-CN.md">中文</a>
 </p>
 
-# 🚀 Uvwstack (Stack)
+# 🚀 Vicariustab
 
 <p align="center">
   <img src="https://img.shields.io/badge/version-2.0.0-blue?style=for-the-badge" alt="Version">
@@ -24,13 +24,13 @@
 # 📸 Interface screenshots
 
 <p align="center">
-  <img src="docs/screenshots/en/01-login.png" alt="Stack login screen" width="720">
+  <img src="docs/screenshots/en/01-login.png" alt="Vicariustab login screen" width="720">
   <br><em>Login screen</em>
 </p>
 
 | Dashboard | Network equipment |
 | :---: | :---: |
-| <img src="docs/screenshots/en/02-dashboard.png" alt="Stack dashboard" width="420"> | <img src="docs/screenshots/en/04-network.png" alt="Network equipment" width="420"> |
+| <img src="docs/screenshots/en/02-dashboard.png" alt="Vicariustab dashboard" width="420"> | <img src="docs/screenshots/en/04-network.png" alt="Network equipment" width="420"> |
 
 | IT warehouse | Employees |
 | :---: | :---: |
@@ -60,7 +60,7 @@
 - [Database setup](#-database-setup)
   - [MySQL](#mysql)
   - [PostgreSQL](#postgresql)
-- [Connect Stack to DB](#-connect-database-in-uvwstack)
+- [Connect Vicariustab to DB](#-connect-database-in-Vicariustab)
 - [Project structure](#-project-structure)
 - [Environment variables](#-environment-variables)
 - [Updates](#-system-updates)
@@ -72,7 +72,7 @@
 
 # 📖 About
 
-**Uvwstack** (UI name: **Stack**) is a professional web platform for centralized IT asset inventory and management.
+**Vicariustab** is a professional web platform for centralized IT asset inventory and management.
 
 Designed for:
 
@@ -96,7 +96,7 @@ Full tracking of:
 
 All data is stored centrally and accessed via a modern browser. The UI supports **English**, **Russian**, and **Chinese**.
 
-Repository: [github.com/llDecsterll/uvwstack](https://github.com/llDecsterll/uvwstack)
+Repository: [github.com/llDecsterll/vicariustab](https://github.com/llDecsterll/vicariustab)
 
 ---
 
@@ -232,7 +232,7 @@ sudo apt install -y git curl ca-certificates
 To remove an old copy:
 
 ```bash
-rm -rf uvwstack
+rm -rf vicariustab
 ```
 
 ---
@@ -240,9 +240,9 @@ rm -rf uvwstack
 ## Clone repository
 
 ```bash
-git clone https://github.com/llDecsterll/uvwstack.git
+git clone https://github.com/llDecsterll/vicariustab.git
 
-cd uvwstack
+cd vicariustab
 
 cp .env.example .env
 ```
@@ -281,7 +281,7 @@ Check status:
 
 ```bash
 docker compose ps
-docker compose logs -f uvwstack-app
+docker compose logs -f vicariustab-app
 ```
 
 Open in browser:
@@ -290,7 +290,7 @@ Open in browser:
 http://SERVER_IP:8080
 ```
 
-Data is stored in Docker volume `uvwstack_data` → `/app/data/`.
+Data is stored in Docker volume `vicariustab_data` → `/app/data/`.
 
 ---
 
@@ -311,7 +311,7 @@ docker compose -f docker-compose.yml -f docker-compose.mysql.yml up -d --build
 
 Passwords in `.env` (`MYSQL_PASSWORD`, `MYSQL_ROOT_PASSWORD`) — see `.env.example`.
 
-Stack auto-connects on first start via `STACK_DEFAULT_DB_*` variables.
+Vicariustab auto-connects on first start via `STACK_DEFAULT_DB_*` variables.
 
 ---
 
@@ -338,7 +338,7 @@ If MySQL or PostgreSQL runs **on the host** and listens on `127.0.0.1`, use host
 docker compose -f docker-compose.yml -f docker-compose.host.yml up -d --build
 ```
 
-In Stack DB settings use host **`localhost`**.
+In Vicariustab DB settings use host **`localhost`**.
 
 ---
 
@@ -377,7 +377,7 @@ sudo npm install -g pm2
 ## Start application
 
 ```bash
-PORT=8080 NODE_ENV=production pm2 start dist/server.cjs --name "uvwstack-system"
+PORT=8080 NODE_ENV=production pm2 start dist/server.cjs --name "vicariustab-system"
 ```
 
 ---
@@ -415,7 +415,7 @@ sudo systemctl start mysql
 
 ### Docker access (bind-address)
 
-If Stack runs in Docker (bridge mode), MySQL must accept connections beyond `127.0.0.1`:
+If Vicariustab runs in Docker (bridge mode), MySQL must accept connections beyond `127.0.0.1`:
 
 ```bash
 sudo nano /etc/mysql/mysql.conf.d/mysqld.cnf
@@ -496,7 +496,7 @@ CREATE DATABASE stack_db OWNER stack_user;
 
 ---
 
-# 🔗 Connect database in Uvwstack
+# 🔗 Connect database in Vicariustab
 
 After startup, open:
 
@@ -548,7 +548,7 @@ The system will:
 # 📂 Project structure
 
 ```text
-uvwstack/
+vicariustab/
 │
 ├── src/                          # React UI
 │   ├── components/               # Modules: computers, network, warehouse, settings…
@@ -614,7 +614,7 @@ STACK_DATA_DIR=/app/data
 
 DB_HOST_GATEWAY=host.docker.internal
 
-GITHUB_UPDATE_REPO=https://github.com/llDecsterll/uvwstack.git
+GITHUB_UPDATE_REPO=https://github.com/llDecsterll/vicariustab.git
 ```
 
 ---
@@ -624,7 +624,7 @@ GITHUB_UPDATE_REPO=https://github.com/llDecsterll/uvwstack.git
 ### Docker
 
 ```bash
-cd ~/uvwstack
+cd ~/vicariustab
 
 git pull origin main
 
@@ -642,7 +642,7 @@ docker compose -f docker-compose.yml -f docker-compose.mysql.yml up -d --build
 ### PM2
 
 ```bash
-cd ~/uvwstack
+cd ~/vicariustab
 
 git pull origin main
 
@@ -650,12 +650,12 @@ npm install
 
 npm run build
 
-pm2 restart uvwstack-system
+pm2 restart vicariustab-system
 ```
 
 ### Via UI
 
-**Settings** → **Stack update center** — checks GitHub releases.
+**Settings** → **Vicariustab update center** — checks GitHub releases.
 
 ---
 
@@ -665,7 +665,7 @@ pm2 restart uvwstack-system
 |-------|----------|
 | **Connection refused to DB from Docker** | Host `172.17.0.1`; MySQL: `bind-address=0.0.0.0`; or `docker-compose.host.yml` |
 | **Connection test fails** | Re-enter password; if saved, leave field empty or type again |
-| **Dockerfile not found** | Run from repo root `~/uvwstack`, not a nested folder |
+| **Dockerfile not found** | Run from repo root `~/vicariustab`, not a nested folder |
 | **Port 8080 in use** | Change `PORT` and port mapping in `docker-compose.yml` |
 | **Build OOM on small VPS** | Dockerfile sets `SKIP_OBFUSCATION=true` by default |
 
@@ -679,7 +679,7 @@ ip addr show docker0 | grep inet
 Logs:
 
 ```bash
-docker compose logs -f uvwstack-app
+docker compose logs -f vicariustab-app
 ```
 
 More details: [DOCKER.md](./DOCKER.md) (Russian)
@@ -705,7 +705,7 @@ COPYRIGHT.md
 📧 E-mail:
 
 ```text
-assetorbit@icloud.com
+vicariustab@icloud.com
 ```
 
 📨 Telegram:
@@ -717,17 +717,17 @@ assetorbit@icloud.com
 🌐 GitHub:
 
 ```text
-https://github.com/llDecsterll/uvwstack
+https://github.com/llDecsterll/vicariustab
 ```
 
 ---
 
 # ⭐ Support the project
 
-If Uvwstack is useful to you:
+If Vicariustab is useful to you:
 
 - Star ⭐ the repository
-- Report bugs via [Issues](https://github.com/llDecsterll/uvwstack/issues)
+- Report bugs via [Issues](https://github.com/llDecsterll/vicariustab/issues)
 - Suggest new features
 - Contact us for an enterprise license
 

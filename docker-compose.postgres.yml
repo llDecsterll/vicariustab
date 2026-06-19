@@ -20,7 +20,7 @@ services:
       retries: 8
       start_period: 20s
 
-  uvwstack-app:
+  vicariustab-app:
     depends_on:
       postgres:
         condition: service_healthy

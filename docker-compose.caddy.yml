@@ -18,17 +18,17 @@ services:
       - "443:443"
     environment:
       STACK_DOMAIN: ${STACK_DOMAIN:?Set STACK_DOMAIN in .env, e.g. stack.example.com}
-      ACME_EMAIL: ${STACK_TLS_EMAIL:-assetorbit@icloud.com}
+      ACME_EMAIL: ${STACK_TLS_EMAIL:-vicariustab@icloud.com}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
-      - uvwstack-app
+      - vicariustab-app
     networks:
       - stack_net
 
-  uvwstack-app:
+  vicariustab-app:
     ports: !reset []
     expose:
       - "8080"

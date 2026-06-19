@@ -1,7 +1,7 @@
 /*
  * COPYRIGHT NOTICE | УВЕДОМЛЕНИЕ ОБ АВТОРСКИХ ПРАВАХ | 版权声明
  * © 2026 Utkin Vladislav Vyacheslavovich (Уткин Владислав Вячеславович)
- * Email: assetorbit@icloud.com | Telegram: https://t.me/Dexterll
+ * Email: vicariustab@icloud.com | Telegram: https://t.me/Dexterll
  * All rights reserved. Unauthorized copying, modification, distribution or commercial use is prohibited.
  * 保留所有权利。未经版权所有者事先书面同意，禁止复制、修改、分发或商业使用。
  * Все права защищены. Копирование, изменение, распространение и коммерческое использование без письменного согласия правообладателя запрещено.
@@ -44,6 +44,10 @@ import {
 import { ObjectItem, NetworkDevice, ComputerItem, EmployeeItem, WarehouseItem, SystemUser } from '../types';
 import { getDeviceIcon } from '../utils/deviceIcons';
 import { useTranslation } from '../utils/i18n';
+import {
+  supportsComputerSpecifications,
+  hasAnyComputerSpecs,
+} from '../utils/equipmentFields';
 
 interface DetailModalProps {
   isOpen: boolean;
@@ -1834,7 +1838,10 @@ export default function DetailModal({
                         </div>
                       )}
 
-                      {((item.category === 'ПК' || item.category === 'Ноутбук' || item.deviceType === 'ПК' || item.deviceType === 'Ноутбук')) && (
+                      {supportsComputerSpecifications({
+                        category: item.category,
+                        deviceType: item.deviceType,
+                      }) && (
                         <div className="space-y-4">
                           <div className="flex items-center justify-between border-b border-slate-100 pb-2">
                             <h4 className="font-bold text-slate-800 flex items-center gap-1.5 text-xs uppercase tracking-wider">
@@ -2024,6 +2031,56 @@ export default function DetailModal({
                   })()}
 
                   {/* Warehouse stock count toggles */}
+                  {itemType === 'warehouse' && item.type === 'Компьютеры' && hasAnyComputerSpecs(item) && (
+                    <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl space-y-3 shadow-2xs">
+                      <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                        <Cpu size={14} className="text-amber-500" />
+                        {t("Характеристики комплектующих (шаблон партии)")}
+                      </h4>
+                      {item.quantity > 1 && (
+                        <p className="text-[10px] text-slate-500 leading-relaxed">
+                          {t("Каждая единица в реестре получает эти характеристики. Откройте карточку конкретного инв. номера для просмотра.")}
+                        </p>
+                      )}
+                      <div className="grid grid-cols-2 gap-3 text-[11px]">
+                        <div><span className="text-slate-400 font-bold text-[9px] uppercase block">{t("Процессор (CPU):")}</span><span className="font-semibold text-slate-700">{item.cpuModel || '—'}</span></div>
+                        <div><span className="text-slate-400 font-bold text-[9px] uppercase block">{t("Оперативная память (RAM):")}</span><span className="font-semibold text-slate-700">{item.ramModel || '—'}</span></div>
+                        <div><span className="text-slate-400 font-bold text-[9px] uppercase block">{t("Накопитель (SSD / HDD):")}</span><span className="font-semibold text-slate-700">{item.hddModel || '—'}</span></div>
+                        <div><span className="text-slate-400 font-bold text-[9px] uppercase block">{t("Видеокарта (GPU):")}</span><span className="font-semibold text-slate-700">{item.gpuModel || '—'}</span></div>
+                        <div><span className="text-slate-400 font-bold text-[9px] uppercase block">{t("Материнская плата:")}</span><span className="font-semibold text-slate-700">{item.motherboardModel || '—'}</span></div>
+                        <div><span className="text-slate-400 font-bold text-[9px] uppercase block">{t("Блок питания (PSU):")}</span><span className="font-semibold text-slate-700">{item.powerSupplyModel || '—'}</span></div>
+                        <div className="col-span-2"><span className="text-slate-400 font-bold text-[9px] uppercase block">{t("Корпус (Case):")}</span><span className="font-semibold text-slate-700">{item.caseModel || '—'}</span></div>
+                        {item.serialNumber && (
+                          <div className="col-span-2"><span className="text-slate-400 font-bold text-[9px] uppercase block">{t("Серийный номер (базовый):")}</span><span className="font-semibold text-slate-700 font-mono">{item.serialNumber}</span></div>
+                        )}
+                      </div>
+                      {item.quantity > 1 && (() => {
+                        const linkedUnits = computers.filter(
+                          (c) =>
+                            c.inventoryNumber === item.inventoryNumber ||
+                            c.inventoryNumber.startsWith(`${item.inventoryNumber}-`)
+                        );
+                        if (linkedUnits.length === 0) return null;
+                        return (
+                          <div className="pt-2 border-t border-slate-100 space-y-1.5">
+                            <span className="text-[10px] font-bold text-slate-500 uppercase">{t("Единицы в реестре")}</span>
+                            {linkedUnits.map((unit) => (
+                              <button
+                                key={unit.id}
+                                type="button"
+                                onClick={() => onNavigateDetail('computer', unit.id)}
+                                className="w-full text-left text-[11px] px-2.5 py-1.5 rounded-lg border border-slate-150 bg-white hover:border-blue-300 hover:text-blue-700 transition-colors font-mono"
+                              >
+                                {unit.inventoryNumber} • {unit.deviceType || unit.category}
+                                {(unit.cpuModel || unit.ramModel) ? ` • ${unit.cpuModel || ''} ${unit.ramModel || ''}`.trim() : ''}
+                              </button>
+                            ))}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
+
                   {itemType === 'warehouse' && (
                     <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl space-y-3 shadow-2xs">
                       <h4 className="text-xs font-bold text-slate-705 uppercase tracking-wider flex items-center gap-1.5">

@@ -1,7 +1,7 @@
 /*
  * COPYRIGHT NOTICE | УВЕДОМЛЕНИЕ ОБ АВТОРСКИХ ПРАВАХ | 版权声明
  * © 2026 Utkin Vladislav Vyacheslavovich (Уткин Владислав Вячеславович)
- * Email: assetorbit@icloud.com | Telegram: https://t.me/Dexterll
+ * Email: vicariustab@icloud.com | Telegram: https://t.me/Dexterll
  * All rights reserved. Unauthorized copying, modification, distribution or commercial use is prohibited.
  * 保留所有权利。未经版权所有者事先书面同意，禁止复制、修改、分发或商业使用。
  * Все права защищены. Копирование, изменение, распространение и коммерческое использование без письменного согласия правообладателя запрещено.
@@ -56,8 +56,9 @@ import {
 } from 'lucide-react';
 import { SystemUser, UserRole } from '../types';
 import { getSystemRequestCode, getLicenseStatus } from '../utils/license';
+import { copyTextToClipboard } from '../utils/clipboard';
 import { useTranslation, Language } from '../utils/i18n';
-import { UVWSTACK_UPDATE_REPO, UVWSTACK_UPDATE_REPO_DISPLAY, APP_VERSION } from '../config/appConfig';
+import { VICARIUSTAB_UPDATE_REPO, VICARIUSTAB_UPDATE_REPO_DISPLAY, APP_VERSION } from '../config/appConfig';
 import { buildUpdateNotificationText } from '../utils/updateCheck';
 import CopyrightFooter from './CopyrightFooter';
 
@@ -184,6 +185,15 @@ export default function SettingsView({
   const [inputLicenseKey, setInputLicenseKey] = useState('');
   const [activationError, setActivationError] = useState('');
   const [activationSuccess, setActivationSuccess] = useState(false);
+  const [requestCodeCopied, setRequestCodeCopied] = useState(false);
+  const licenseRequestCode = getSystemRequestCode();
+
+  const handleCopyRequestCode = async () => {
+    const ok = await copyTextToClipboard(licenseRequestCode);
+    if (!ok) return;
+    setRequestCodeCopied(true);
+    setTimeout(() => setRequestCodeCopied(false), 2000);
+  };
 
   // New Custom User form states
   const [newUserName, setNewUserName] = useState('');
@@ -259,7 +269,7 @@ export default function SettingsView({
       });
       
       const payload = {
-        app: 'Uvwstack',
+        app: 'Vicariustab',
         backupVersion: '2.0',
         createdAt: new Date().toISOString(),
         author: 'Utkin V.V. Compliance Engine',
@@ -272,7 +282,7 @@ export default function SettingsView({
       const file = new Blob([jsonStr], { type: 'application/json;charset=utf-8' });
       element.href = URL.createObjectURL(file);
       const dateStr = new Date().toISOString().slice(0,10);
-      element.download = `uvwstack_platform_backup_no_license_${dateStr}.json`;
+      element.download = `Vicariustab_platform_backup_no_license_${dateStr}.json`;
       document.body.appendChild(element);
       element.click();
       document.body.removeChild(element);
@@ -356,7 +366,7 @@ export default function SettingsView({
 
   // States of platform automated updater
   const [updateSourceType, setUpdateSourceType] = useState<'github' | 'github_archive'>('github');
-  const githubRepoUrl = UVWSTACK_UPDATE_REPO;
+  const githubRepoUrl = VICARIUSTAB_UPDATE_REPO;
   const [archiveFile, setArchiveFile] = useState<File | null>(null);
   const [archiveName, setArchiveName] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
@@ -385,15 +395,15 @@ export default function SettingsView({
       setUpdateLogs([...logs]);
     };
 
-    addLog(t('Инициализация проверки обновлений Stack...'));
+    addLog(t('Инициализация проверки обновлений Vicariustab...'));
     setCurrentUpdateStep(t('Проверка GitHub'));
     setUpdateProgress(20);
 
     try {
       if (updateSourceType === 'github_archive') {
         addLog(t('Режим ручного архива: автоматическая установка из браузера недоступна.'));
-        addLog(`${t('Выбран файл:')} ${archiveName || 'uvwstack-release.zip'}`);
-        addLog(t('Распакуйте архив на сервере и выполните: npm install && npm run build && pm2 restart uvwstack-system'));
+        addLog(`${t('Выбран файл:')} ${archiveName || 'Vicariustab-release.zip'}`);
+        addLog(t('Распакуйте архив на сервере и выполните: npm install && npm run build && pm2 restart vicariustab-system'));
         setUpdateProgress(100);
         setUpdateCompleted(true);
         setCurrentUpdateStep('');
@@ -402,7 +412,6 @@ export default function SettingsView({
       }
 
       const query = new URLSearchParams({
-        repo: githubRepoUrl,
         installedCommit: localStorage.getItem('it_installed_commit') || '',
         currentVersion: APP_VERSION,
       });
@@ -429,9 +438,9 @@ export default function SettingsView({
 
       if (payload.updateAvailable) {
         addLog(t('На GitHub доступна более новая версия. Автоустановка из браузера отключена.'));
-        addLog(`${t('На сервере выполните:')} git clone ${UVWSTACK_UPDATE_REPO} (или git pull) && npm install && npm run build && pm2 restart uvwstack-system`);
+        addLog(`${t('На сервере выполните:')} git clone ${VICARIUSTAB_UPDATE_REPO} (или git pull) && npm install && npm run build && pm2 restart vicariustab-system`);
         window.dispatchEvent(
-          new CustomEvent('uvwstack-update-available', {
+          new CustomEvent('Vicariustab-update-available', {
             detail: {
               text: buildUpdateNotificationText(payload),
               remoteVersion: payload.remoteVersion,
@@ -456,7 +465,7 @@ export default function SettingsView({
 
       if (onLogActivity) {
         onLogActivity(
-          t('Проверка обновлений Stack'),
+          t('Проверка обновлений Vicariustab'),
           `${t('Проверка GitHub завершена. Релиз:')} ${payload.latestTag || payload.remoteVersion || 'n/a'}`,
           'system'
         );
@@ -957,7 +966,7 @@ export default function SettingsView({
                 <h4 className="text-xs font-bold text-slate-705 uppercase tracking-wide">{t("Резервное копирование (Скачивание JSON)")}</h4>
               </div>
               
-              <p className="text-[11px] text-slate-500 leading-relaxed">{t("Создайте полную резервную копию всех сущностей платформы Stack (компьютеры, сотрудники, серверы, оргтехника, журналы изменений, аудит). Лицензионный ключ активации исключается из файла — это позволяет переносить базу на другие серверы Stack без компрометации лицензии.")}</p>
+              <p className="text-[11px] text-slate-500 leading-relaxed">{t("Создайте полную резервную копию всех сущностей Вашей платформы Vicariustab (компьютеры, сотрудники, серверы, оргтехника, журналы изменений, аудит). При этом сам лицензионный ключ активации исключается из файла. Это позволяет переносить базу данных на любые другие независимые серверы Vicariustab без дублирования или компрометации Вашей лицензии.")}</p>
 
               <button
                 type="button"
@@ -1026,14 +1035,14 @@ export default function SettingsView({
         </div>
       )}
 
-      {/* Центр автоматического обновления Stack через GitHub */}
+      {/* Центр автоматического обновления Vicariustab через GitHub */}
       {isAdmin && (
         <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-5 animate-fade-in font-sans">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-100 pb-3">
             <div className="flex items-center gap-2">
               <RefreshCw className="text-blue-500" size={18} />
               <div>
-                <h3 className="font-bold text-slate-805 text-sm tracking-tight">{t("Центр управления обновлениями Stack")}</h3>
+                <h3 className="font-bold text-slate-805 text-sm tracking-tight">{t("Центр управления обновлениями Vicariustab")}</h3>
                 <p className="text-[10px] text-slate-400">{t("Обновите программное ядро платформы в один клик. Поддерживается прямая проверка и обновление из репозитория GitHub или ручная загрузка архива релиза.")}</p>
               </div>
             </div>
@@ -1078,10 +1087,10 @@ export default function SettingsView({
                         readOnly
                         className="flex-1 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono font-medium text-slate-705 focus:outline-none cursor-default"
                         value={githubRepoUrl}
-                        title={t("Официальный репозиторий обновлений Stack")}
+                        title={t("Официальный репозиторий обновлений Vicariustab")}
                       />
                       <a
-                        href={UVWSTACK_UPDATE_REPO_DISPLAY}
+                        href={VICARIUSTAB_UPDATE_REPO_DISPLAY}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="px-2.5 py-1.5 bg-slate-200 text-slate-600 hover:bg-slate-300 rounded-lg flex items-center justify-center transition-colors"
@@ -1122,7 +1131,7 @@ export default function SettingsView({
                 {/* Лицензионное предупреждение */}
                 <div className="flex items-start gap-1.5 text-[10px] text-amber-750 bg-amber-50/70 border border-amber-100 p-2.5 rounded-lg leading-relaxed">
                   <AlertTriangle size={14} className="shrink-0 mt-0.5 text-amber-600" />
-                  <span>{t("Внимание: обновление ядра Stack перезаписывает только программную часть. Локальные данные, сотрудники, схемы сети и журналы аудита сохраняются.")}</span>
+                  <span>{t("Внимание: Обновление ядра Vicariustab перезаписывает только программную часть приложения. Ваши локально сохраненные данные, сотрудники, схемы сети и журналы аудита останутся целыми и невредимыми!")}</span>
                 </div>
 
                 {/* Progress bar */}
@@ -1281,12 +1290,12 @@ export default function SettingsView({
                 <span className="text-xs font-bold uppercase tracking-wider">{t('Публичный URL и домен (HTTPS)')}</span>
               </div>
               <p className="text-[10px] text-slate-500 leading-relaxed">
-                {t('Укажите адрес, по которому пользователи открывают Stack из интернета (например https://stack.company.com).')}
+                {t('Укажите адрес, по которому пользователи открывают Vicariustab из интернета (например https://vicariustab.company.com).')}
               </p>
               <input
                 type="url"
                 disabled={!isAdmin && currentUser.role !== 'Editor'}
-                placeholder="https://stack.example.com"
+                placeholder="https://vicariustab.example.com"
                 value={tempPublicUrl}
                 onChange={(e) => setTempPublicUrl(e.target.value)}
                 className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-705 disabled:bg-slate-50 disabled:text-slate-400 font-mono"
@@ -1717,7 +1726,7 @@ export default function SettingsView({
               {t('Лицензирование и активация продукта')}
             </h3>
             <p className="text-xs text-slate-500">
-              {t('Управление лицензионным статусом локальной (on-premises) инсталляции Stack.')}
+              {t('Управление лицензионным статусом локальной (on-premises) инсталляции Vicariustab.')}
             </p>
           </div>
         </div>
@@ -1729,20 +1738,29 @@ export default function SettingsView({
             
             {/* Equipment hardware identification ID for licensing */}
             <div className="space-y-2">
-              <div className="p-3 bg-blue-50/50 border border-blue-200/40 rounded-xl flex items-center justify-between text-xs text-slate-700">
+              <div className="p-3 bg-blue-50/50 border border-blue-200/40 rounded-xl space-y-2 text-xs text-slate-700">
                 <span className="font-medium flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>{t("Уникальный Код Запроса Лицензии:")}</span>
-                <div className="flex items-center gap-2">
-                  <code className="bg-blue-100 text-blue-900 font-mono text-[10.5px] font-bold px-2.5 py-1 rounded uppercase tracking-wider">
-                    {getSystemRequestCode()}
-                  </code>
+                  <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+                  {t("Уникальный Код Запроса Лицензии:")}
+                </span>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <input
+                    type="text"
+                    readOnly
+                    value={licenseRequestCode}
+                    onFocus={(e) => e.currentTarget.select()}
+                    onClick={(e) => e.currentTarget.select()}
+                    aria-label={t("Уникальный Код Запроса Лицензии")}
+                    className="flex-1 min-w-0 bg-blue-100 text-blue-900 font-mono text-[10.5px] font-bold px-2.5 py-1.5 rounded uppercase tracking-wider select-all cursor-text border border-blue-200/60"
+                  />
                   <button
                     type="button"
-                    onClick={() => {
-                      navigator.clipboard.writeText(getSystemRequestCode());
-                    }}
-                    className="text-[10px] text-blue-700 font-bold hover:underline cursor-pointer bg-white border border-blue-200/60 px-2 py-1 rounded-lg shadow-sm"
-                  >{t("Копировать")}</button>
+                    onClick={handleCopyRequestCode}
+                    className="text-[10px] text-blue-700 font-bold hover:underline cursor-pointer bg-white border border-blue-200/60 px-2 py-1 rounded-lg shadow-sm flex items-center justify-center gap-1.5 shrink-0"
+                  >
+                    {requestCodeCopied ? <Check size={12} className="text-emerald-600" /> : <Copy size={12} />}
+                    {requestCodeCopied ? t("Скопировано") : t("Копировать")}
+                  </button>
                 </div>
               </div>
 
@@ -2255,7 +2273,7 @@ export default function SettingsView({
               
               <div className="space-y-2">
                 <h3 className="text-xl font-bold text-slate-100 tracking-tight flex items-center justify-center gap-2">
-                  <span>{t("Перезапуск ядра Stack")}</span>
+                  <span>{t("Перезапуск ядра Vicariustab")}</span>
                   <span className="text-blue-400 font-mono font-black">{rebootTimeLeft} сек...</span>
                 </h3>
                 <p className="text-xs text-slate-400 font-mono tracking-wide h-6">
@@ -2268,12 +2286,12 @@ export default function SettingsView({
                 <div>[SYSTEM] Initiating warm reboot command...</div>
                 {rebootTimeLeft <= 4 && <div>[SERVICES] Sending SIGTERM to legacy middleware... OK</div>}
                 {rebootTimeLeft <= 3 && <div>[KERNEL] Loading binary image v2.5.3-production (64-bit)...</div>}
-                {rebootTimeLeft <= 3 && <div>[KERNEL] Injecting Stack code updates & UI resources... OK</div>}
+                {rebootTimeLeft <= 3 && <div>[KERNEL] Injecting Vicariustab code updates & UI resources... OK</div>}
                 {rebootTimeLeft <= 2 && <div>[DATABASE] Verifying schema integrity of localStorage... OK</div>}
                 {rebootTimeLeft <= 2 && <div>[DATABASE] Applied 2 incremental schema migrations... OK</div>}
                 {rebootTimeLeft <= 1 && <div>[NETWORK] Testing websocket gateway ingress... OK</div>}
                 {rebootTimeLeft <= 1 && <div>[RUNTIME] Executing garbage collection & cache flush...</div>}
-                {rebootTimeLeft === 0 && <div className="text-blue-400 font-bold">[REBOOT] Mounting fully compiled Stack workspace now.</div>}
+                {rebootTimeLeft === 0 && <div className="text-blue-400 font-bold">[REBOOT] Mounting fully compiled Vicariustab workspace now.</div>}
               </div>
 
               <div className="text-[10px] text-slate-500 font-sans leading-relaxed">{t("Пожалуйста, не закрывайте вкладку. Обновленные файлы, базы данных и параметры сессии применяются автоматически прямо сейчас.")}</div>

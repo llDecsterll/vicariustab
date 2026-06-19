@@ -1,7 +1,7 @@
 /*
  * COPYRIGHT NOTICE | УВЕДОМЛЕНИЕ ОБ АВТОРСКИХ ПРАВАХ | 版权声明
  * © 2026 Utkin Vladislav Vyacheslavovich (Уткин Владислав Вячеславович)
- * Email: assetorbit@icloud.com | Telegram: https://t.me/Dexterll
+ * Email: vicariustab@icloud.com | Telegram: https://t.me/Dexterll
  * Release
  */
 import React from 'react';
@@ -45,11 +45,11 @@ export default function CopyrightFooter({ variant = 'dark', className = '' }: Co
           isSettings ? 'text-slate-500 text-xs' : isSidebar ? 'text-[10px] text-slate-500' : 'text-[10px] text-slate-400'
         }`}
       >
-        {t('Программный код Uvwstack защищён авторским правом. Запрещено копирование и модификация без согласия автора.')}
+        {t('Программный код Vicariustab защищён авторским правом. Запрещено копирование и модификация без согласия автора.')}
       </p>
       {isSettings && (
         <p className="text-xs text-slate-600 leading-relaxed pt-1 border-t border-slate-100">
-          {t('Для приобретения коммерческой лицензии Uvwstack отправьте запрос правообладателю по электронной почте или в Telegram. Укажите код запроса лицензии и данные организации.')}
+          {t('Для приобретения коммерческой лицензии Vicariustab отправьте запрос правообладателю по электронной почте или в Telegram. Укажите код запроса лицензии и данные организации.')}
         </p>
       )}
       <div
@@ -62,7 +62,7 @@ export default function CopyrightFooter({ variant = 'dark', className = '' }: Co
           className={`text-blue-600 hover:text-blue-500 transition-colors font-bold font-mono hover:underline flex items-center gap-1.5 ${
             isSidebar ? 'text-xs text-blue-400 hover:text-blue-300' : isSettings ? 'text-sm' : 'text-sm text-blue-400 hover:text-blue-300'
           }`}
-          title={t('Отправить письмо (assetorbit@icloud.com)')}
+          title={t('Отправить письмо (vicariustab@icloud.com)')}
         >
           <Mail size={isSidebar ? 11 : 13} className="shrink-0" />
           <span className={isSidebar ? 'truncate min-w-0' : ''}>{COPYRIGHT_EMAIL}</span>

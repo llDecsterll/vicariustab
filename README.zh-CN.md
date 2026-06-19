@@ -1,11 +1,11 @@
-<p align="center">
+﻿<p align="center">
   <strong>文档语言 / Documentation languages / Языки документации</strong><br>
   <a href="README.md">English</a> ·
   <a href="README.ru.md">Русский</a> ·
   <a href="README.zh-CN.md"><b>中文</b></a>
 </p>
 
-# 🚀 Uvwstack (Stack)
+# 🚀 Vicariustab
 
 <p align="center">
   <img src="https://img.shields.io/badge/版本-2.0.0-blue?style=for-the-badge" alt="Version">
@@ -20,13 +20,13 @@
 # 📸 界面截图
 
 <p align="center">
-  <img src="docs/screenshots/zh/01-login.png" alt="Stack 登录界面" width="720">
+  <img src="docs/screenshots/zh/01-login.png" alt="Vicariustab 登录界面" width="720">
   <br><em>登录界面</em>
 </p>
 
 | 仪表盘 | 网络设备 |
 | :---: | :---: |
-| <img src="docs/screenshots/zh/02-dashboard.png" alt="Stack 仪表盘" width="420"> | <img src="docs/screenshots/zh/04-network.png" alt="网络设备" width="420"> |
+| <img src="docs/screenshots/zh/02-dashboard.png" alt="Vicariustab 仪表盘" width="420"> | <img src="docs/screenshots/zh/04-network.png" alt="网络设备" width="420"> |
 
 | IT 仓库 | 员工 |
 | :---: | :---: |
@@ -63,7 +63,7 @@
 - [数据库配置](#-数据库配置)
   - [MySQL](#mysql)
   - [PostgreSQL](#postgresql)
-- [连接数据库](#-在-uvwstack-中连接数据库)
+- [连接数据库](#-在-Vicariustab-中连接数据库)
 - [项目结构](#-项目结构)
 - [环境变量](#-环境变量)
 - [系统更新](#-系统更新)
@@ -75,7 +75,7 @@
 
 # 📖 项目简介
 
-**Uvwstack**（界面名称：**Stack**）是企业级 IT 资产集中管理与盘点 Web 平台。
+**Vicariustab** 是企业级 IT 资产集中管理与盘点 Web 平台。
 
 适用于：
 
@@ -99,7 +99,7 @@
 
 数据集中存储，通过现代浏览器访问。界面支持**中文**、**俄语**和**英语**。
 
-代码仓库：[github.com/llDecsterll/uvwstack](https://github.com/llDecsterll/uvwstack)
+代码仓库：[github.com/llDecsterll/vicariustab](https://github.com/llDecsterll/vicariustab)
 
 ---
 
@@ -235,7 +235,7 @@ sudo apt install -y git curl ca-certificates
 如需清理旧副本：
 
 ```bash
-rm -rf uvwstack
+rm -rf vicariustab
 ```
 
 ---
@@ -243,9 +243,9 @@ rm -rf uvwstack
 ## 克隆仓库
 
 ```bash
-git clone https://github.com/llDecsterll/uvwstack.git
+git clone https://github.com/llDecsterll/vicariustab.git
 
-cd uvwstack
+cd vicariustab
 
 cp .env.example .env
 ```
@@ -284,7 +284,7 @@ docker compose up -d
 
 ```bash
 docker compose ps
-docker compose logs -f uvwstack-app
+docker compose logs -f vicariustab-app
 ```
 
 浏览器访问：
@@ -293,7 +293,7 @@ docker compose logs -f uvwstack-app
 http://服务器IP:8080
 ```
 
-数据保存在 Docker 卷 `uvwstack_data` → `/app/data/`。
+数据保存在 Docker 卷 `vicariustab_data` → `/app/data/`。
 
 ---
 
@@ -314,7 +314,7 @@ docker compose -f docker-compose.yml -f docker-compose.mysql.yml up -d --build
 
 密码在 `.env` 中配置（`MYSQL_PASSWORD`、`MYSQL_ROOT_PASSWORD`）— 见 `.env.example`。
 
-首次启动时 Stack 通过 `STACK_DEFAULT_DB_*` 环境变量自动连接。
+首次启动时 Vicariustab 通过 `STACK_DEFAULT_DB_*` 环境变量自动连接。
 
 ---
 
@@ -341,7 +341,7 @@ docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d --buil
 docker compose -f docker-compose.yml -f docker-compose.host.yml up -d --build
 ```
 
-在 Stack 数据库设置中填写主机 **`localhost`**。
+在 Vicariustab 数据库设置中填写主机 **`localhost`**。
 
 ---
 
@@ -380,7 +380,7 @@ sudo npm install -g pm2
 ## 启动应用
 
 ```bash
-PORT=8080 NODE_ENV=production pm2 start dist/server.cjs --name "uvwstack-system"
+PORT=8080 NODE_ENV=production pm2 start dist/server.cjs --name "vicariustab-system"
 ```
 
 ---
@@ -418,7 +418,7 @@ sudo systemctl start mysql
 
 ### Docker 访问（bind-address）
 
-若 Stack 在 Docker bridge 模式运行，MySQL 需接受 `127.0.0.1` 以外的连接：
+若 Vicariustab 在 Docker bridge 模式运行，MySQL 需接受 `127.0.0.1` 以外的连接：
 
 ```bash
 sudo nano /etc/mysql/mysql.conf.d/mysqld.cnf
@@ -499,7 +499,7 @@ CREATE DATABASE stack_db OWNER stack_user;
 
 ---
 
-# 🔗 在 Uvwstack 中连接数据库
+# 🔗 在 Vicariustab 中连接数据库
 
 启动后访问：
 
@@ -551,7 +551,7 @@ http://服务器IP:8080
 # 📂 项目结构
 
 ```text
-uvwstack/
+vicariustab/
 │
 ├── src/                          # React 前端
 │   ├── components/               # 模块：计算机、网络、仓库、设置…
@@ -617,7 +617,7 @@ STACK_DATA_DIR=/app/data
 
 DB_HOST_GATEWAY=host.docker.internal
 
-GITHUB_UPDATE_REPO=https://github.com/llDecsterll/uvwstack.git
+GITHUB_UPDATE_REPO=https://github.com/llDecsterll/vicariustab.git
 ```
 
 ---
@@ -627,7 +627,7 @@ GITHUB_UPDATE_REPO=https://github.com/llDecsterll/uvwstack.git
 ### Docker
 
 ```bash
-cd ~/uvwstack
+cd ~/vicariustab
 
 git pull origin main
 
@@ -645,7 +645,7 @@ docker compose -f docker-compose.yml -f docker-compose.mysql.yml up -d --build
 ### PM2
 
 ```bash
-cd ~/uvwstack
+cd ~/vicariustab
 
 git pull origin main
 
@@ -653,12 +653,12 @@ npm install
 
 npm run build
 
-pm2 restart uvwstack-system
+pm2 restart vicariustab-system
 ```
 
 ### 通过界面
 
-**设置** → **Stack 更新中心** — 检查 GitHub 发布版本。
+**设置** → **Vicariustab 更新中心** — 检查 GitHub 发布版本。
 
 ---
 
@@ -668,7 +668,7 @@ pm2 restart uvwstack-system
 |------|----------|
 | **Docker 内连接数据库被拒绝** | 主机 `172.17.0.1`；MySQL：`bind-address=0.0.0.0`；或 `docker-compose.host.yml` |
 | **连接测试失败** | 重新输入密码；若已保存可留空或再次输入 |
-| **找不到 Dockerfile** | 在仓库根目录 `~/uvwstack` 运行，勿使用嵌套目录 |
+| **找不到 Dockerfile** | 在仓库根目录 `~/vicariustab` 运行，勿使用嵌套目录 |
 | **8080 端口被占用** | 修改 `.env` 中的 `PORT` 及 compose 端口映射 |
 | **小内存 VPS 构建失败** | Dockerfile 默认 `SKIP_OBFUSCATION=true` |
 
@@ -682,7 +682,7 @@ ip addr show docker0 | grep inet
 日志：
 
 ```bash
-docker compose logs -f uvwstack-app
+docker compose logs -f vicariustab-app
 ```
 
 详见：[DOCKER.md](./DOCKER.md)（俄语）
@@ -708,7 +708,7 @@ COPYRIGHT.md
 📧 邮箱：
 
 ```text
-assetorbit@icloud.com
+vicariustab@icloud.com
 ```
 
 📨 Telegram：
@@ -720,17 +720,17 @@ assetorbit@icloud.com
 🌐 GitHub：
 
 ```text
-https://github.com/llDecsterll/uvwstack
+https://github.com/llDecsterll/vicariustab
 ```
 
 ---
 
 # ⭐ 支持项目
 
-若 Uvwstack 对您有帮助：
+若 Vicariustab 对您有帮助：
 
 - 为仓库点 ⭐ Star
-- 通过 [Issues](https://github.com/llDecsterll/uvwstack/issues) 报告问题
+- 通过 [Issues](https://github.com/llDecsterll/vicariustab/issues) 报告问题
 - 提出新功能建议
 - 联系获取企业许可证
 

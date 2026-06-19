@@ -1,7 +1,7 @@
 /*
  * COPYRIGHT NOTICE | УВЕДОМЛЕНИЕ ОБ АВТОРСКИХ ПРАВАХ | 版权声明
  * © 2026 Utkin Vladislav Vyacheslavovich (Уткин Владислав Вячеславович)
- * Email: assetorbit@icloud.com | Telegram: https://t.me/Dexterll
+ * Email: vicariustab@icloud.com | Telegram: https://t.me/Dexterll
  * All rights reserved. Unauthorized copying, modification, distribution or commercial use is prohibited.
  * 保留所有权利。未经版权所有者事先书面同意，禁止复制、修改、分发或商业使用。
  * Все права защищены. Копирование, изменение, распространение и коммерческое использование без письменного согласия правообладателя запрещено.
@@ -260,7 +260,7 @@ export default function DashboardView({
               onClick={onAddNetwork}
               className="bg-blue-50 hover:bg-blue-100 text-blue-600 py-1.5 px-3 rounded-lg text-xs font-medium flex items-center gap-1 transition-all"
             >
-              <Plus size={14} />{t("Добавить")}</button>
+              <Plus size={14} />{t("На склад")}</button>
           </div>
 
           <div className="overflow-x-auto">
@@ -312,7 +312,7 @@ export default function DashboardView({
               onClick={onAddComputer}
               className="bg-blue-50 hover:bg-blue-100 text-blue-600 py-1.5 px-3 rounded-lg text-xs font-medium flex items-center gap-1 transition-all"
             >
-              <Plus size={14} />{t("Добавить")}</button>
+              <Plus size={14} />{t("На склад")}</button>
           </div>
 
           <div className="overflow-x-auto">

@@ -1,7 +1,7 @@
 /*
  * COPYRIGHT NOTICE | УВЕДОМЛЕНИЕ ОБ АВТОРСКИХ ПРАВАХ | 版权声明
  * © 2026 Utkin Vladislav Vyacheslavovich (Уткин Владислав Вячеславович)
- * Email: assetorbit@icloud.com | Telegram: https://t.me/Dexterll
+ * Email: vicariustab@icloud.com | Telegram: https://t.me/Dexterll
  * All rights reserved. Unauthorized copying, modification, distribution or commercial use is prohibited.
  * 保留所有权利。未经版权所有者事先书面同意，禁止复制、修改、分发或商业使用。
  * Все права защищены. Копирование, изменение, распространение и коммерческое использование без письменного согласия правообладателя запрещено.
@@ -9,6 +9,8 @@
  */
 import React from 'react';
 import { useTranslation } from '../utils/i18n';
+import BrandLogo from './BrandLogo';
+import { COPYRIGHT_EMAIL } from '../legal/copyright';
 import { 
   LayoutDashboard, 
   Building2, 
@@ -89,7 +91,7 @@ export default function Sidebar({
 
   const copyEmailToClipboard = (e: React.MouseEvent) => {
     e.preventDefault();
-    navigator.clipboard.writeText("assetorbit@icloud.com");
+    navigator.clipboard.writeText(COPYRIGHT_EMAIL);
     setEmailCopied(true);
     setTimeout(() => {
       setEmailCopied(false);
@@ -155,11 +157,11 @@ export default function Sidebar({
     >
       {/* Brand Logo */}
       <div className="h-16 flex items-center px-4 border-b border-[#1e293b] gap-3 overflow-hidden">
-        <div className="bg-[#2563eb] text-white p-2 rounded-lg flex items-center justify-center shrink-0 shadow-md">
+        <div className="bg-[#2563eb] text-white p-1 rounded-lg flex items-center justify-center shrink-0 shadow-md">
           {panelLogo ? (
             <img src={panelLogo} alt="Custom Logo" className="w-[20px] h-[20px] object-contain rounded" referrerPolicy="no-referrer" />
           ) : (
-            <Database size={20} className="text-white" />
+            <BrandLogo size={28} variant="compact" className="shadow-none border-0" />
           )}
         </div>
         {!isCollapsed && (

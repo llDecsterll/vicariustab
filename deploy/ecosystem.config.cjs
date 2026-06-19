@@ -2,7 +2,7 @@
 module.exports = {
   apps: [
     {
-      name: 'uvwstack',
+      name: 'vicariustab-system',
       script: 'dist/server.cjs',
       cwd: __dirname.replace(/[/\\]deploy$/, ''),
       instances: 1,

@@ -1,7 +1,7 @@
 /*
  * COPYRIGHT NOTICE | УВЕДОМЛЕНИЕ ОБ АВТОРСКИХ ПРАВАХ | 版权声明
  * © 2026 Utkin Vladislav Vyacheslavovich (Уткин Владислав Вячеславович)
- * Email: assetorbit@icloud.com | Telegram: https://t.me/Dexterll
+ * Email: vicariustab@icloud.com | Telegram: https://t.me/Dexterll
  * All rights reserved. Unauthorized copying, modification, distribution or commercial use is prohibited.
  * 保留所有权利。未经版权所有者事先书面同意，禁止复制、修改、分发或商业使用。
  * Все права защищены. Копирование, изменение, распространение и коммерческое использование без письменного согласия правообладателя запрещено.
@@ -11,6 +11,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useTranslation } from '../utils/i18n';
 import { Search, Bell, User, Check, Laptop, Network, Users, Building2, HelpCircle, Shield, Edit, Eye, LogIn, Trash2, X } from 'lucide-react';
 import { ComputerItem, NetworkDevice, EmployeeItem, ObjectItem, SystemUser, SoftwareItem, InventoryAudit } from '../types';
+import BrandLogo from './BrandLogo';
 
 interface HeaderProps {
   searchQuery: string;
@@ -52,7 +53,7 @@ export default function Header({
   const { t } = useTranslation();
   const [showResults, setShowResults] = useState(false);
   const [notifications, setNotifications] = useState<{ id: number; text: string; read: boolean; targetTab?: string; isSecurity?: boolean }[]>(() => {
-    const saved = localStorage.getItem('uvwstack_notifications') || localStorage.getItem('orbit_notifications');
+    const saved = localStorage.getItem('Vicariustab_notifications') || localStorage.getItem('orbit_notifications');
     if (saved) {
       try {
         return JSON.parse(saved);
@@ -68,7 +69,7 @@ export default function Header({
   });
 
   useEffect(() => {
-    localStorage.setItem('uvwstack_notifications', JSON.stringify(notifications));
+    localStorage.setItem('Vicariustab_notifications', JSON.stringify(notifications));
   }, [notifications]);
 
   // Safe calculators inside Header.tsx for dynamic matching
@@ -230,7 +231,7 @@ export default function Header({
   useEffect(() => {
     const handleUpdateAvailable = (e: Event) => {
       const detail = (e as CustomEvent).detail as { text?: string };
-      const text = detail?.text || 'Доступно обновление Uvwstack. Откройте Настройки → Центр обновлений.';
+      const text = detail?.text || 'Доступно обновление Vicariustab. Откройте Настройки → Центр обновлений.';
       setNotifications((prev) => {
         if (prev.some((n) => n.text === text && !n.read)) return prev;
         return [
@@ -244,8 +245,8 @@ export default function Header({
         ];
       });
     };
-    window.addEventListener('uvwstack-update-available', handleUpdateAvailable);
-    return () => window.removeEventListener('uvwstack-update-available', handleUpdateAvailable);
+    window.addEventListener('Vicariustab-update-available', handleUpdateAvailable);
+    return () => window.removeEventListener('Vicariustab-update-available', handleUpdateAvailable);
   }, []);
 
   // Listen to password change events
@@ -268,10 +269,10 @@ export default function Header({
       });
     };
     
-    window.addEventListener('uvwstack-password-changed', handlePasswordChangedEvent);
+    window.addEventListener('Vicariustab-password-changed', handlePasswordChangedEvent);
     window.addEventListener('orbit-password-changed', handlePasswordChangedEvent);
     return () => {
-      window.removeEventListener('uvwstack-password-changed', handlePasswordChangedEvent);
+      window.removeEventListener('Vicariustab-password-changed', handlePasswordChangedEvent);
       window.removeEventListener('orbit-password-changed', handlePasswordChangedEvent);
     };
   }, []);
@@ -335,7 +336,7 @@ export default function Header({
       const isLicense = text.includes('лицензия') || text.includes('лицензион');
       const isInventory = text.includes('инвентаризац') || text.includes('аудит');
       const isPassword = text.includes('парол');
-      const isUpdate = text.includes('обновлен') || text.includes('update') || text.includes('uvwstack');
+      const isUpdate = text.includes('обновлен') || text.includes('update') || text.includes('Vicariustab');
       return !(isWarranty || isLicense || isInventory || isPassword) || isUpdate;
     });
   };
@@ -370,7 +371,9 @@ export default function Header({
             className="w-8 h-8 object-contain rounded" 
             referrerPolicy="no-referrer"
           />
-        ) : null}
+        ) : (
+          <BrandLogo size={32} variant="compact" />
+        )}
         <h1 className="text-xl font-bold text-slate-800 tracking-tight hidden md:block">
           {t(title)}
         </h1>

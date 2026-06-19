@@ -1,7 +1,7 @@
 /*
  * COPYRIGHT NOTICE | УВЕДОМЛЕНИЕ ОБ АВТОРСКИХ ПРАВАХ | 版权声明
  * © 2026 Utkin Vladislav Vyacheslavovich (Уткин Владислав Вячеславович)
- * Email: assetorbit@icloud.com | Telegram: https://t.me/Dexterll
+ * Email: vicariustab@icloud.com | Telegram: https://t.me/Dexterll
  * All rights reserved. Unauthorized copying, modification, distribution or commercial use is prohibited.
  * 保留所有权利。未经版权所有者事先书面同意，禁止复制、修改、分发或商业使用。
  * Все права защищены. Копирование, изменение, распространение и коммерческое использование без письменного согласия правообладателя запрещено.
@@ -14,6 +14,7 @@ import {
   Layers, User, MapPin, Calendar, Clock, Sparkles, Database, Code, RefreshCw, Monitor
 } from 'lucide-react';
 import { useTranslation } from '../utils/i18n';
+import { EQUIPMENT_TITLE_MAX_LENGTH, limitEquipmentTitle } from '../utils/equipmentFields';
 import { SoftwareItem, SoftwareCategory, EmployeeItem, ObjectItem, ComputerItem } from '../types';
 
 interface SoftwareViewProps {
@@ -136,10 +137,10 @@ export default function SoftwareView({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return;
+    if (!limitEquipmentTitle(name.trim())) return;
 
     const payload = {
-      name,
+      name: limitEquipmentTitle(name.trim()),
       category,
       licenseKey: licenseKey || t('Без ключа'),
       version: version || '1.0',
@@ -482,11 +483,13 @@ export default function SoftwareView({
                     <input
                       type="text"
                       required
+                      maxLength={EQUIPMENT_TITLE_MAX_LENGTH}
                       placeholder={t("Например: Microsoft Office, Adobe Photoshop")}
                       value={name}
-                      onChange={(e) => setName(e.target.value)}
+                      onChange={(e) => setName(limitEquipmentTitle(e.target.value))}
                       className="w-full px-3.5 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/10 focus:outline-none"
                     />
+                    <span className="text-[10px] text-slate-400">{name.length}/{EQUIPMENT_TITLE_MAX_LENGTH}</span>
                   </div>
 
                   {/* Category Selection */}

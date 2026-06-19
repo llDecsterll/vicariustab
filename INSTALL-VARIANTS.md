@@ -1,4 +1,4 @@
-# Release — варианты установки Stack (Uvwstack)
+﻿# Release — варианты установки Vicariustab
 
 Проверка API после запуска: `npm run verify:install http://127.0.0.1:8080`
 

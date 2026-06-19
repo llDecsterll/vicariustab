@@ -1,7 +1,7 @@
 /*
  * COPYRIGHT NOTICE | УВЕДОМЛЕНИЕ ОБ АВТОРСКИХ ПРАВАХ | 版权声明
  * © 2026 Utkin Vladislav Vyacheslavovich (Уткин Владислав Вячеславович)
- * Email: assetorbit@icloud.com | Telegram: https://t.me/Dexterll
+ * Email: vicariustab@icloud.com | Telegram: https://t.me/Dexterll
  * All rights reserved. Unauthorized copying, modification, distribution or commercial use is prohibited.
  * 保留所有权利。未经版权所有者事先书面同意，禁止复制、修改、分发或商业使用。
  * Все права защищены. Копирование, изменение, распространение и коммерческое использование без письменного согласия правообладателя запрещено.
@@ -12,6 +12,11 @@ import { Laptop, Plus, Search, Trash2, Edit2, Shield, Settings2, FileText, Uploa
 import { ComputerItem, ComputerCategory, ComputerStatus, EmployeeItem, ObjectItem } from '../types';
 import { getDeviceIcon } from '../utils/deviceIcons';
 import { useTranslation } from '../utils/i18n';
+import {
+  EQUIPMENT_TITLE_MAX_LENGTH,
+  limitEquipmentTitle,
+  supportsComputerSpecifications,
+} from '../utils/equipmentFields';
 
 interface ComputersViewProps {
   computers: ComputerItem[];
@@ -27,6 +32,8 @@ interface ComputersViewProps {
   currentUser?: { role: 'Viewer' | 'Editor' | 'Admin' };
   defaultCategory?: ComputerCategory;
   defaultDeviceType?: string;
+  /** Equipment is added only via warehouse; direct add in group views is disabled by default */
+  allowDirectAdd?: boolean;
 }
 
 const mapDeviceTypeToCategory = (type: string, currentCategory?: ComputerCategory): ComputerCategory => {
@@ -71,6 +78,7 @@ export default function ComputersView({
   currentUser,
   defaultCategory,
   defaultDeviceType,
+  allowDirectAdd = false,
 }: ComputersViewProps) {
   const { t } = useTranslation();
   const [search, setSearch] = useState('');
@@ -256,12 +264,13 @@ export default function ComputersView({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!model.trim() || !inventoryNumber.trim()) return;
+    const trimmedModel = limitEquipmentTitle(model.trim());
+    if (!trimmedModel || !inventoryNumber.trim()) return;
 
     const payload = {
       category,
       deviceType,
-      model,
+      model: trimmedModel,
       inventoryNumber,
       employeeName: category === 'Оргтехника' ? 'Склад ИТ' : employeeName,
       status,
@@ -321,7 +330,7 @@ export default function ComputersView({
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           </div>
 
-          {!isViewer && (
+          {!isViewer && allowDirectAdd && (
             <button
               onClick={handleOpenAdd}
               className="bg-blue-600 hover:bg-blue-700 text-white font-medium text-sm py-2 px-4 rounded-lg flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer"
@@ -329,6 +338,11 @@ export default function ComputersView({
               <Plus size={16} />
               {t(addButtonLabel)}
             </button>
+          )}
+          {!isViewer && !allowDirectAdd && (
+            <p className="text-[11px] text-slate-500 max-w-xs text-right leading-snug">
+              {t('Оборудование добавляется через «Склад ИТ» → Поступление. После приёмки оно автоматически попадает в нужную группу.')}
+            </p>
           )}
         </div>
 
@@ -591,15 +605,17 @@ export default function ComputersView({
                     <input
                       type="text"
                       required
+                      maxLength={EQUIPMENT_TITLE_MAX_LENGTH}
                       placeholder={(deviceType === 'ПК' || category === 'ПК') 
                         ? t("Счет № 4758 от 12.05.2026") 
                         : (deviceType === 'Картриджи') 
                           ? t("Наименование") 
                           : "Dell Latitude 5420 / AMD Ryzen 5, etc"}
                       value={model}
-                      onChange={(e) => setModel(e.target.value)}
+                      onChange={(e) => setModel(limitEquipmentTitle(e.target.value))}
                       className="w-full px-3 py-2 border border-slate-205 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-700"
                     />
+                    <span className="text-[10px] text-slate-400">{model.length}/{EQUIPMENT_TITLE_MAX_LENGTH}</span>
                   </div>
 
                   {!(deviceType === 'ПК' || category === 'ПК') && deviceType !== 'Картриджи' && (
@@ -759,9 +775,15 @@ export default function ComputersView({
               </div>
 
               {/* SECTION 2: PC Hardware Components (Shown only when category or deviceType is "ПК") */}
-              {(deviceType === 'ПК' || category === 'ПК') && (
+              {supportsComputerSpecifications({ category, deviceType }) && (
                 <div className="space-y-3.5 pt-4 border-t border-slate-100 bg-slate-50/50 p-4 rounded-2xl">
-                  <h4 className="text-xs font-bold text-amber-600 uppercase tracking-wider">{t("Конфигурация комплектующих ПК")}</h4>
+                  <h4 className="text-xs font-bold text-amber-600 uppercase tracking-wider">
+                    {deviceType === 'Ноутбук' || category === 'Ноутбук'
+                      ? t("Конфигурация ноутбука")
+                      : deviceType === 'Сервер'
+                        ? t("Конфигурация сервера")
+                        : t("Конфигурация комплектующих ПК")}
+                  </h4>
                   
                   {/* CPU */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pb-3 border-b border-slate-100/55">

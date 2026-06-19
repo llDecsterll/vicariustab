@@ -1,7 +1,7 @@
 /*
  * COPYRIGHT NOTICE | УВЕДОМЛЕНИЕ ОБ АВТОРСКИХ ПРАВАХ | 版权声明
  * © 2026 Utkin Vladislav Vyacheslavovich (Уткин Владислав Вячеславович)
- * Email: assetorbit@icloud.com | Telegram: https://t.me/Dexterll
+ * Email: vicariustab@icloud.com | Telegram: https://t.me/Dexterll
  * All rights reserved. Unauthorized copying, modification, distribution or commercial use is prohibited.
  * 保留所有权利。未经版权所有者事先书面同意，禁止复制、修改、分发或商业使用。
  * Все права защищены. Копирование, изменение, распространение и коммерческое использование без письменного согласия правообладателя запрещено.
@@ -29,8 +29,8 @@ const PKG = JSON.parse(fs.readFileSync(path.join(process.cwd(), "package.json"),
 const APP_VERSION = String(PKG.version || "2.6.4");
 
 const ENCRYPTION_SECRET = process.env.DB_ENCRYPTION_KEY || "it-orbit-system-fallback-secret-2026-secure-v1";
-const UVWSTACK_UPDATE_REPO =
-  process.env.GITHUB_UPDATE_REPO || "https://github.com/llDecsterll/uvwstack.git";
+const VICARIUSTAB_UPDATE_REPO =
+  process.env.GITHUB_UPDATE_REPO || "https://github.com/llDecsterll/vicariustab.git";
 const ALGORITHM = "aes-256-cbc";
 
 function compareSemver(a: string, b: string): number {
@@ -722,7 +722,7 @@ async function startServer() {
 
   app.get("/api/update/check", async (req, res) => {
     try {
-      const repoUrl = String(req.query.repo || UVWSTACK_UPDATE_REPO);
+      const repoUrl = VICARIUSTAB_UPDATE_REPO;
       const installedCommit = String(req.query.installedCommit || "").trim().toLowerCase();
       const clientVersion = String(req.query.currentVersion || APP_VERSION).trim();
       const parsed = parseGithubRepo(repoUrl);
@@ -732,7 +732,7 @@ async function startServer() {
 
       const headers = {
         Accept: "application/vnd.github+json",
-        "User-Agent": "Uvwstack-Update-Checker/1.0",
+        "User-Agent": "Vicariustab-Update-Checker/1.0",
       };
 
       let latestTag = "";
@@ -812,7 +812,7 @@ async function startServer() {
       try {
         const rawPkgRes = await fetch(
           `https://raw.githubusercontent.com/${parsed.owner}/${parsed.repo}/${defaultBranch}/package.json`,
-          { headers: { "User-Agent": "Uvwstack-Update-Checker/1.0" } }
+          { headers: { "User-Agent": "Vicariustab-Update-Checker/1.0" } }
         );
         if (rawPkgRes.ok) {
           const remotePkg = (await rawPkgRes.json()) as { version?: string };
@@ -835,7 +835,7 @@ async function startServer() {
 
       return res.json({
         repository: `${parsed.owner}/${parsed.repo}`,
-        repoUrl: UVWSTACK_UPDATE_REPO,
+        repoUrl: VICARIUSTAB_UPDATE_REPO,
         currentVersion: clientVersion,
         remoteVersion: remoteVersion || latestTag || fullCommitSha,
         updateAvailable,
@@ -855,7 +855,7 @@ async function startServer() {
   });
 
   app.get("/api/update/repo", (_req, res) => {
-    return res.json({ repoUrl: UVWSTACK_UPDATE_REPO, currentVersion: APP_VERSION });
+    return res.json({ repoUrl: VICARIUSTAB_UPDATE_REPO, currentVersion: APP_VERSION });
   });
 
   app.get("/api/system/runtime", (req, res) => {
@@ -922,7 +922,7 @@ async function startServer() {
   }, 12000);
 
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`[Uvwstack Server] Active Multi-DBMS secured container server running on port ${PORT}`);
+    console.log(`[Vicariustab Server] Active Multi-DBMS secured container server running on port ${PORT}`);
   });
 }
 

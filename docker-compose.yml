@@ -1,10 +1,10 @@
 # Release
 services:
-  uvwstack-app:
+  vicariustab-app:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: uvwstack_app
+    container_name: vicariustab_app
     restart: unless-stopped
     ports:
       - "8080:8080"
@@ -16,9 +16,9 @@ services:
       STACK_DATA_DIR: /app/data
       DB_HOST_GATEWAY: host.docker.internal
       DB_ENCRYPTION_KEY: ${DB_ENCRYPTION_KEY:-change-me-in-production}
-      GITHUB_UPDATE_REPO: https://github.com/llDecsterll/uvwstack.git
+      GITHUB_UPDATE_REPO: https://github.com/llDecsterll/vicariustab.git
     volumes:
-      - uvwstack_data:/app/data
+      - vicariustab_data:/app/data
     logging:
       driver: json-file
       options:
@@ -26,4 +26,4 @@ services:
         max-file: "3"
 
 volumes:
-  uvwstack_data:
+  vicariustab_data:

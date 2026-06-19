@@ -1,5 +1,5 @@
 /* Release */
-import { APP_VERSION, UVWSTACK_UPDATE_REPO } from '../config/appConfig';
+import { APP_VERSION } from '../config/appConfig';
 
 export interface UpdateCheckResult {
   updateAvailable: boolean;
@@ -24,7 +24,6 @@ export function markInstalledCommit(sha: string): void {
 export async function checkForPlatformUpdate(): Promise<UpdateCheckResult | null> {
   try {
     const params = new URLSearchParams({
-      repo: UVWSTACK_UPDATE_REPO,
       installedCommit: getInstalledCommit(),
       currentVersion: APP_VERSION,
     });
@@ -39,5 +38,5 @@ export async function checkForPlatformUpdate(): Promise<UpdateCheckResult | null
 
 export function buildUpdateNotificationText(result: UpdateCheckResult): string {
   const remote = result.remoteVersion || result.latestTag || result.latestCommitSha || '?';
-  return `Доступно обновление Uvwstack: v${remote} (установлена v${result.currentVersion || APP_VERSION}). Откройте Настройки → Центр обновлений.`;
+  return `Доступно обновление Vicariustab: v${remote} (установлена v${result.currentVersion || APP_VERSION}). Откройте Настройки → Центр обновлений.`;
 }

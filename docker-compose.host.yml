@@ -6,7 +6,7 @@
 #   STACK_DEFAULT_DB_HOST=127.0.0.1
 #   STACK_DEFAULT_DB_PASSWORD=...
 services:
-  uvwstack-app:
+  vicariustab-app:
     network_mode: host
     ports: !reset []
     extra_hosts: !reset []

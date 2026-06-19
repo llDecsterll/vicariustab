@@ -1,7 +1,7 @@
 /*
  * COPYRIGHT NOTICE | УВЕДОМЛЕНИЕ ОБ АВТОРСКИХ ПРАВАХ | 版权声明
  * © 2026 Utkin Vladislav Vyacheslavovich (Уткин Владислав Вячеславович)
- * Email: assetorbit@icloud.com | Telegram: https://t.me/Dexterll
+ * Email: vicariustab@icloud.com | Telegram: https://t.me/Dexterll
  * All rights reserved. Unauthorized copying, modification, distribution or commercial use is prohibited.
  * 保留所有权利。未经版权所有者事先书面同意，禁止复制、修改、分发或商业使用。
  * Все права защищены. Копирование, изменение, распространение и коммерческое использование без письменного согласия правообладателя запрещено.
@@ -12,6 +12,9 @@ import { motion } from 'motion/react';
 import { User, Lock, Eye, EyeOff, ShieldCheck, CheckCircle2, AlertCircle, Laptop, Copy, Check, Mail } from 'lucide-react';
 import { SystemUser } from '../types';
 import { useTranslation } from '../utils/i18n';
+import BrandLogo from './BrandLogo';
+import { APP_NAME } from '../config/appConfig';
+import { COPYRIGHT_EMAIL } from '../legal/copyright';
 
 interface LoginScreenProps {
   users: SystemUser[];
@@ -32,7 +35,7 @@ export default function LoginScreen({ users, onLogin, workspaceName, siteLogo }:
 
   const copyEmailToClipboard = (e: React.MouseEvent) => {
     e.preventDefault();
-    navigator.clipboard.writeText("assetorbit@icloud.com");
+    navigator.clipboard.writeText(COPYRIGHT_EMAIL);
     setEmailCopied(true);
     setTimeout(() => {
       setEmailCopied(false);
@@ -99,17 +102,15 @@ export default function LoginScreen({ users, onLogin, workspaceName, siteLogo }:
               referrerPolicy="no-referrer"
             />
           ) : (
-            <div className="p-2.5 bg-blue-600 rounded-2xl shadow-lg border border-blue-500/30 flex items-center justify-center text-white">
-              <Laptop size={28} className="animate-pulse" />
-            </div>
+            <BrandLogo size={48} variant="full" className="shadow-lg border-blue-500/30" />
           )}
           <span className="text-[20px] font-black tracking-widest text-white font-mono">
-            {workspaceName ? workspaceName.toUpperCase() : 'IT INVENTORY'}
+            {workspaceName ? workspaceName.toUpperCase() : APP_NAME.toUpperCase()}
           </span>
         </div>
         <h2 className="mt-4 text-center text-2xl font-extrabold tracking-tight text-white">{t("Вход в ИТ-Инвентарь")}</h2>
         <p className="mt-1.5 text-center text-xs text-slate-400 max-w-xs mx-auto">
-          {t("Единая корпоративная система учета оборудования и инвентаризации филиалов")} — {workspaceName || 'Stack'}
+          {t("Единая корпоративная система учета оборудования и инвентаризации филиалов")} — {workspaceName || APP_NAME}
         </p>
       </div>
 

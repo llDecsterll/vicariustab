@@ -1,6 +1,6 @@
-# Release
+﻿# Release
 
-**Uvwstack / Stack** v2.0.0 — внешний домен HTTPS, 5 вариантов установки, MySQL/PostgreSQL.
+**Vicariustab** v2.0.0 — внешний домен HTTPS, 5 вариантов установки, MySQL/PostgreSQL.
 
 | Язык | Файл |
 |------|------|
@@ -10,4 +10,4 @@
 
 Установка: [DOCKER.md](./DOCKER.md) · [INSTALL-VARIANTS.md](./INSTALL-VARIANTS.md)
 
-© 2026 Utkin Vladislav Vyacheslavovich · assetorbit@icloud.com
+© 2026 Utkin Vladislav Vyacheslavovich · vicariustab@icloud.com

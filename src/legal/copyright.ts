@@ -1,16 +1,16 @@
 /*
  * COPYRIGHT NOTICE | УВЕДОМЛЕНИЕ ОБ АВТОРСКИХ ПРАВАХ | 版权声明
  * © 2026 Utkin Vladislav Vyacheslavovich (Уткин Владислав Вячеславович)
- * Email: assetorbit@icloud.com | Telegram: https://t.me/Dexterll
+ * Email: vicariustab@icloud.com | Telegram: https://t.me/Dexterll
  */
-/** Legal identity and contact constants — Utkin Vladislav Vyacheslavovich / Uvwstack */
+/** Legal identity and contact constants — Utkin Vladislav Vyacheslavovich / Vicariustab */
 
 export const COPYRIGHT_OWNER_RU = 'Уткин Владислав Вячеславович';
 export const COPYRIGHT_OWNER_EN = 'Utkin Vladislav Vyacheslavovich';
 export const COPYRIGHT_OWNER_ZH = '乌金·弗拉迪斯拉夫·维亚切斯拉维奇';
 
 export const COPYRIGHT_YEAR = '2026';
-export const COPYRIGHT_EMAIL = 'assetorbit@icloud.com';
+export const COPYRIGHT_EMAIL = 'vicariustab@icloud.com';
 export const COPYRIGHT_TELEGRAM_URL = 'https://t.me/Dexterll';
 export const COPYRIGHT_TELEGRAM_HANDLE = '@Dexterll';
 

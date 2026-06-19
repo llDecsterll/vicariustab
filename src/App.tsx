@@ -1,7 +1,7 @@
 /*
  * COPYRIGHT NOTICE | УВЕДОМЛЕНИЕ ОБ АВТОРСКИХ ПРАВАХ | 版权声明
  * © 2026 Utkin Vladislav Vyacheslavovich (Уткин Владислав Вячеславович)
- * Email: assetorbit@icloud.com | Telegram: https://t.me/Dexterll
+ * Email: vicariustab@icloud.com | Telegram: https://t.me/Dexterll
  * All rights reserved. Unauthorized copying, modification, distribution or commercial use is prohibited.
  * 保留所有权利。未经版权所有者事先书面同意，禁止复制、修改、分发或商业使用。
  * Все права защищены. Копирование, изменение, распространение и коммерческое использование без письменного согласия правообладателя запрещено.
@@ -43,7 +43,19 @@ import { ObjectItem, NetworkDevice, ComputerItem, EmployeeItem, EmployeeStatus, 
 import { getLicenseStatus, activateSystem, deactivateSystem, getSystemRequestCode, applyLicenseStateFromServer, getLicenseSecuritySnapshot } from './utils/license';
 import { checkForPlatformUpdate, markInstalledCommit, buildUpdateNotificationText } from './utils/updateCheck';
 import { APP_VERSION } from './config/appConfig';
+import {
+  filterComputersByEquipmentTab,
+  resolveWarehouseComputerRoute,
+  resolveNetworkDeviceType,
+  equipmentTabLabel,
+} from './utils/warehouseRouting';
+import {
+  buildComputerSpecsFromReceipt,
+  getWarehouseItemSpecs,
+  limitEquipmentTitle,
+} from './utils/equipmentFields';
 import { Copy, Check, Mail } from 'lucide-react';
+import { copyTextToClipboard } from './utils/clipboard';
 
 export default function App() {
   const { t } = useTranslation();
@@ -51,10 +63,11 @@ export default function App() {
   const [licenseStatus, setLicenseStatus] = useState(() => getLicenseStatus());
   const [licenseRevision, setLicenseRevision] = useState(0);
   const [emailCopiedLock, setEmailCopiedLock] = useState(false);
+  const [requestCodeCopied, setRequestCodeCopied] = useState(false);
 
   const copyEmailToClipboardLock = (e: React.MouseEvent) => {
     e.preventDefault();
-    navigator.clipboard.writeText("assetorbit@icloud.com");
+    navigator.clipboard.writeText("vicariustab@icloud.com");
     setEmailCopiedLock(true);
     setTimeout(() => {
       setEmailCopiedLock(false);
@@ -199,7 +212,7 @@ export default function App() {
   });
 
   const [adminEmail, setAdminEmail] = useState<string>(() => {
-    return localStorage.getItem('it_admin_email') || 'assetorbit@icloud.com';
+    return localStorage.getItem('it_admin_email') || 'vicariustab@icloud.com';
   });
 
   const [publicUrl, setPublicUrl] = useState<string>(() => {
@@ -347,7 +360,7 @@ export default function App() {
         if (cancelled || !result) return;
         if (result.updateAvailable) {
           window.dispatchEvent(
-            new CustomEvent('uvwstack-update-available', {
+            new CustomEvent('Vicariustab-update-available', {
               detail: {
                 text: buildUpdateNotificationText(result),
                 remoteVersion: result.remoteVersion,
@@ -453,7 +466,7 @@ export default function App() {
     logActivity('Изменение параметров доступа', `Обновлены данные учетной записи "${target.name}"`, 'system');
 
     if (updatedFields.password && updatedFields.password !== target.password) {
-      const event = new CustomEvent('uvwstack-password-changed', {
+      const event = new CustomEvent('Vicariustab-password-changed', {
         detail: { userName: target.name }
       });
       window.dispatchEvent(event);
@@ -652,15 +665,9 @@ export default function App() {
     logActivity('Удален объект', `Удален объект "${target.name}"`, 'delete');
   };
 
-  // Network CRUD
-  const handleAddNetwork = (device: Omit<NetworkDevice, 'id'>) => {
+  // Network CRUD — direct add disabled; use warehouse receipt + auto-routing
+  const handleAddNetwork = (_device: Omit<NetworkDevice, 'id'>) => {
     if (checkLicenseBlocked()) return;
-    const newDev: NetworkDevice = {
-      ...device,
-      id: `net-${Date.now()}`,
-    };
-    setNetworkDevices(prev => [...prev, newDev]);
-    logActivity('Добавлено сетевое оборудование', `Добавлено "${device.deviceName}" на объекте "${device.objectName}"`, 'create');
   };
 
   const handleEditNetwork = (id: string, device: Omit<NetworkDevice, 'id'>) => {
@@ -926,28 +933,8 @@ export default function App() {
     );
   };
 
-  const handleAddComputer = (comp: Omit<ComputerItem, 'id'>) => {
+  const handleAddComputer = (_comp: Omit<ComputerItem, 'id'>) => {
     if (checkLicenseBlocked()) return;
-
-    if (comp.status === 'На складе') {
-      const targetWarehouse = warehouses.find(w => w.objectName === comp.objectName)?.name || 'Основной склад ИТ';
-      returnAssetToWarehouse(
-        comp.inventoryNumber,
-        comp.deviceType || comp.category,
-        comp.category,
-        comp.model,
-        comp.cost || 0,
-        targetWarehouse
-      );
-      logActivity('Поступление на склад', `Устройство "${comp.category} ${comp.model}" (Инв. № ${comp.inventoryNumber}) добавлено прямо в склад "${targetWarehouse}"`, 'create');
-    } else {
-      const newComp: ComputerItem = {
-        ...comp,
-        id: `comp-${Date.now()}`,
-      };
-      setComputers(prev => [...prev, newComp]);
-      logActivity('Добавлен компьютер', `Добавлено устройство "${comp.category} ${comp.model}" закрепленный за "${comp.employeeName}"`, 'create');
-    }
   };
 
   const handleEditComputer = (id: string, comp: Omit<ComputerItem, 'id'>) => {
@@ -970,7 +957,7 @@ export default function App() {
         'update'
       );
     } else {
-      setComputers(prev => prev.map(c => c.id === id ? { ...c, ...comp } : c));
+      setComputers(prev => prev.map(c => c.id === id ? { ...c, ...comp, model: limitEquipmentTitle(comp.model.trim()) } : c));
       logActivity('Изменен статус ПК', `Параметры "${comp.category} ${comp.model}" изменены (Статус: ${comp.status})`, 'update');
     }
   };
@@ -1072,146 +1059,123 @@ export default function App() {
     caseModel?: string;
   }) => {
     if (checkLicenseBlocked()) return;
+
+    const normalizedItem = {
+      ...item,
+      name: limitEquipmentTitle(item.name.trim()),
+      model: limitEquipmentTitle(item.model.trim()),
+    };
+    const receiptSpecs = getWarehouseItemSpecs(normalizedItem);
     
     // 1. Add to warehouse array
-    const existingIndex = warehouseItems.findIndex(w => w.inventoryNumber === item.inventoryNumber);
+    const existingIndex = warehouseItems.findIndex(w => w.inventoryNumber === normalizedItem.inventoryNumber);
     if (existingIndex > -1) {
       setWarehouseItems(prev => prev.map((w, index) => 
         index === existingIndex 
           ? { 
               ...w, 
-              quantity: w.quantity + item.quantity,
-              invoiceInfo: item.invoiceInfo || w.invoiceInfo,
-              memoInfo: item.memoInfo || w.memoInfo,
-              warrantyInfo: item.warrantyInfo || w.warrantyInfo,
-              warehouseName: item.warehouseName || w.warehouseName,
-              pdfFiles: [...(w.pdfFiles || []), ...(item.pdfFiles || [])].filter((f, idx, self) => self.findIndex(file => file.name === f.name) === idx)
+              quantity: w.quantity + normalizedItem.quantity,
+              invoiceInfo: normalizedItem.invoiceInfo || w.invoiceInfo,
+              memoInfo: normalizedItem.memoInfo || w.memoInfo,
+              warrantyInfo: normalizedItem.warrantyInfo || w.warrantyInfo,
+              warehouseName: normalizedItem.warehouseName || w.warehouseName,
+              pdfFiles: [...(w.pdfFiles || []), ...(normalizedItem.pdfFiles || [])].filter((f, idx, self) => self.findIndex(file => file.name === f.name) === idx),
+              serialNumber: normalizedItem.serialNumber || w.serialNumber,
+              cpuModel: normalizedItem.cpuModel || w.cpuModel,
+              ramModel: normalizedItem.ramModel || w.ramModel,
+              hddModel: normalizedItem.hddModel || w.hddModel,
+              gpuModel: normalizedItem.gpuModel || w.gpuModel,
+              motherboardModel: normalizedItem.motherboardModel || w.motherboardModel,
+              powerSupplyModel: normalizedItem.powerSupplyModel || w.powerSupplyModel,
+              caseModel: normalizedItem.caseModel || w.caseModel,
             }
           : w
       ));
-      logActivity('Пополнение запасов', `Пополнение склада: добавлено +${item.quantity} шт. для "${item.name}"`, 'update');
+      logActivity('Пополнение запасов', `Пополнение склада: добавлено +${normalizedItem.quantity} шт. для "${normalizedItem.name}"`, 'update');
     } else {
       const newStock: WarehouseItem = {
-        name: item.name,
-        type: item.type,
-        model: item.model,
-        inventoryNumber: item.inventoryNumber,
-        quantity: item.quantity,
-        unit: item.unit,
-        costPerUnit: item.costPerUnit,
-        invoiceInfo: item.invoiceInfo,
-        memoInfo: item.memoInfo,
-        warrantyInfo: item.warrantyInfo,
-        warehouseName: item.warehouseName,
-        pdfFiles: item.pdfFiles,
+        name: normalizedItem.name,
+        type: normalizedItem.type,
+        model: normalizedItem.model,
+        inventoryNumber: normalizedItem.inventoryNumber,
+        quantity: normalizedItem.quantity,
+        unit: normalizedItem.unit,
+        costPerUnit: normalizedItem.costPerUnit,
+        invoiceInfo: normalizedItem.invoiceInfo,
+        memoInfo: normalizedItem.memoInfo,
+        warrantyInfo: normalizedItem.warrantyInfo,
+        warehouseName: normalizedItem.warehouseName,
+        pdfFiles: normalizedItem.pdfFiles,
         id: `wh-${Date.now()}`,
         status: 'В наличии',
-        deviceType: item.deviceType,
+        deviceType: normalizedItem.deviceType,
+        ...receiptSpecs,
       };
       setWarehouseItems(prev => [...prev, newStock]);
-      logActivity('Поступление ТМЦ', `Принят на баланс склада товар "${item.name}" в количестве ${item.quantity} ${item.unit}`, 'create');
+      logActivity('Поступление ТМЦ', `Принят на баланс склада товар "${normalizedItem.name}" в количестве ${normalizedItem.quantity} ${normalizedItem.unit}`, 'create');
     }
 
     // 2. Automatically distribute to computers or network catalogs!
-    const targetWhName = item.warehouseName;
+    const targetWhName = normalizedItem.warehouseName;
     const linkedWarehouse = warehouses.find(w => w.name === targetWhName);
     const defaultObjectName = linkedWarehouse?.objectName || objects[0]?.name || 'Главный офис';
     
-    if (item.type === 'Сетевое оборудование') {
+    if (normalizedItem.type === 'Сетевое оборудование') {
       const newNet: NetworkDevice = {
         id: `net-wh-${Date.now()}`,
-        deviceName: item.name,
-        type: item.name.toLowerCase().includes('роутер') || item.name.toLowerCase().includes('маршрутизатор') ? 'Маршрутизатор' : item.name.toLowerCase().includes('точка') ? 'Точка доступа' : 'Коммутатор',
+        deviceName: normalizedItem.name,
+        type: resolveNetworkDeviceType({ deviceType: normalizedItem.deviceType, name: normalizedItem.name }),
         objectName: defaultObjectName,
         ipAddress: '192.168.1.1',
-        quantity: item.quantity,
-        inventoryNumber: item.inventoryNumber,
+        quantity: normalizedItem.quantity,
+        inventoryNumber: normalizedItem.inventoryNumber,
         portsCount: 24,
         workingPorts: Array.from({ length: 24 }, (_, i) => i + 1),
         damagedPorts: [],
-        pdfFiles: item.pdfFiles || [],
-        invoiceInfo: item.invoiceInfo || '',
-        memoInfo: item.memoInfo || '',
-        warrantyInfo: item.warrantyInfo || '',
-        cost: item.costPerUnit,
+        pdfFiles: normalizedItem.pdfFiles || [],
+        invoiceInfo: normalizedItem.invoiceInfo || '',
+        memoInfo: normalizedItem.memoInfo || '',
+        warrantyInfo: normalizedItem.warrantyInfo || '',
+        cost: normalizedItem.costPerUnit,
       };
       setNetworkDevices(prev => [...prev, newNet]);
-      logActivity('Авто-распределение ТМЦ', `Устройство "${item.name}" автоматически распределено в Сетевое оборудование`, 'system');
+      logActivity('Авто-распределение ТМЦ', `Устройство "${normalizedItem.name}" автоматически распределено в Сетевое оборудование`, 'system');
     } else {
-      // It belongs in the Computers/Assets catalogue
-      let category: ComputerCategory = 'Другое';
-      let deviceType = item.deviceType || item.name || 'Оборудование';
+      const route = resolveWarehouseComputerRoute(normalizedItem);
+      if (!route) return;
 
-      if (item.deviceType) {
-        const dt = item.deviceType;
-        if (dt === 'Ноутбук') category = 'Ноутбук';
-        else if (dt === 'ПК' || dt === 'Сервер') category = 'ПК';
-        else if (dt === 'Монитор') category = 'Монитор';
-        else if (item.type === 'Периферия') category = 'Периферия';
-        else if (item.type === 'Оргтехника') category = 'Оргтехника';
-        else if (item.type === 'Видеонаблюдение') category = 'Видеонаблюдение';
-        else if (item.type === 'Расходные материалы') category = 'Расходники';
-        else category = 'Другое';
-      } else {
-        if (item.type === 'Компьютеры') {
-          const isLaptop = item.name.toLowerCase().includes('ноутбук') || item.model.toLowerCase().includes('ноутбук') || item.name.toLowerCase().includes('laptop');
-          category = isLaptop ? 'Ноутбук' : 'ПК';
-          deviceType = isLaptop ? 'Ноутбук' : 'ПК';
-        } else if (item.type === 'Периферия') {
-          category = 'Периферия';
-          deviceType = item.name.toLowerCase().includes('монитор') ? 'Монитор' : 'Периферия';
-        } else if (item.type === 'Оргтехника') {
-          category = 'Оргтехника';
-          deviceType = item.name.toLowerCase().includes('принтер') ? 'Принтер' : 'МФУ';
-        } else if (item.type === 'Видеонаблюдение') {
-          category = 'Видеонаблюдение';
-          deviceType = 'Видеокамера';
-        } else if (item.type === 'Расходные материалы') {
-          category = 'Расходники';
-          deviceType = 'Картридж';
-        } else if (item.type === 'Другое') {
-          category = 'Другое';
-          deviceType = 'Оборудование';
-        }
-      }
+      const { category, deviceType, equipmentTab } = route;
 
       // Since each non-network asset card is tracked as a single asset on ComputersView, we generate individual assets so they can be assigned to different employees!
       const newComputersToAppend: ComputerItem[] = [];
-      for (let i = 0; i < item.quantity; i++) {
-        const suffix = item.quantity > 1 ? `-${i + 1}` : '';
-        const invNum = `${item.inventoryNumber}${suffix}`;
+      for (let i = 0; i < normalizedItem.quantity; i++) {
+        const suffix = normalizedItem.quantity > 1 ? `-${i + 1}` : '';
+        const invNum = `${normalizedItem.inventoryNumber}${suffix}`;
+        const unitSpecs = buildComputerSpecsFromReceipt(receiptSpecs, i, normalizedItem.quantity);
         
         const newAsset: ComputerItem = {
-          id: `comp-wh-${Date.now()}-${i}`,
+          id: `comp-wh-${Date.now()}-${i}-${Math.floor(Math.random() * 10000)}`,
           category,
           deviceType,
-          model: item.model,
+          model: normalizedItem.model,
           inventoryNumber: invNum,
-          employeeName: 'Склад ИТ', // Indicates unassigned, on stock
+          employeeName: 'Склад ИТ',
           status: 'На складе',
           objectName: defaultObjectName,
-          pdfFiles: item.pdfFiles || [],
-          invoiceInfo: item.invoiceInfo || '',
-          memoInfo: item.memoInfo || '',
-          warrantyInfo: item.warrantyInfo || '',
-          cost: item.costPerUnit,
-          // Pass Specifications if provided
-          serialNumber: item.serialNumber || '',
-          cpuModel: item.cpuModel || '',
-          ramModel: item.ramModel || '',
-          hddModel: item.hddModel || '',
-          gpuModel: item.gpuModel || '',
-          motherboardModel: item.motherboardModel || '',
-          powerSupplyModel: item.powerSupplyModel || '',
-          caseModel: item.caseModel || '',
+          pdfFiles: normalizedItem.pdfFiles || [],
+          invoiceInfo: normalizedItem.invoiceInfo || '',
+          memoInfo: normalizedItem.memoInfo || '',
+          warrantyInfo: normalizedItem.warrantyInfo || '',
+          cost: normalizedItem.costPerUnit,
+          ...unitSpecs,
         };
         newComputersToAppend.push(newAsset);
       }
 
       setComputers(prev => [...prev, ...newComputersToAppend]);
       logActivity(
-        'Авто-распределение ТМЦ', 
-        `Товар "${item.name}" (${item.quantity} шт.) автоматически добавлен в реестр оборудования со статусом "На складе"`, 
+        'Авто-распределение ТМЦ',
+        `Товар "${normalizedItem.name}" (${normalizedItem.quantity} шт.) добавлен в группу «${equipmentTabLabel(equipmentTab)}» со статусом «На складе»`,
         'system'
       );
     }
@@ -1373,7 +1337,7 @@ export default function App() {
         const newNet: NetworkDevice = {
           id: `net-deploy-${Date.now()}`,
           deviceName: whItem.name,
-          type: whItem.name.toLowerCase().includes('роутер') || whItem.name.toLowerCase().includes('маршрутизатор') ? 'Маршрутизатор' : whItem.name.toLowerCase().includes('точка') ? 'Точка доступа' : 'Коммутатор',
+          type: resolveNetworkDeviceType({ deviceType: whItem.deviceType, name: whItem.name }),
           objectName: targetObjectName,
           ipAddress: '192.168.1.1',
           quantity: quantity,
@@ -1419,50 +1383,38 @@ export default function App() {
         });
 
         if (remainingToCreate > 0) {
-          let category: ComputerCategory = 'Другое';
-          let deviceType = whItem.deviceType || whItem.name || 'Оборудование';
+          const route = resolveWarehouseComputerRoute(whItem);
+          if (!route) return updated;
 
-          if (whItem.deviceType) {
-            const dt = whItem.deviceType;
-            if (dt === 'Ноутбук') category = 'Ноутбук';
-            else if (dt === 'ПК' || dt === 'Сервер') category = 'ПК';
-            else if (dt === 'Монитор') category = 'Монитор';
-            else if (whItem.type === 'Периферия') category = 'Периферия';
-            else if (whItem.type === 'Оргтехника') category = 'Оргтехника';
-            else if (whItem.type === 'Видеонаблюдение') category = 'Видеонаблюдение';
-            else if (whItem.type === 'Расходные материалы') category = 'Расходники';
-            else category = 'Другое';
-          } else {
-            if (whItem.type === 'Компьютеры') {
-              const isLaptop = whItem.name.toLowerCase().includes('ноутбук') || whItem.model.toLowerCase().includes('ноутбук') || whItem.name.toLowerCase().includes('laptop');
-              category = isLaptop ? 'Ноутбук' : 'ПК';
-              deviceType = isLaptop ? 'Ноутбук' : 'ПК';
-            } else if (whItem.type === 'Периферия') {
-              category = 'Периферия';
-              deviceType = whItem.name.toLowerCase().includes('монитор') ? 'Монитор' : 'Периферия';
-            } else if (whItem.type === 'Оргтехника') {
-              category = 'Оргтехника';
-              deviceType = whItem.name.toLowerCase().includes('принтер') ? 'Принтер' : 'МФУ';
-            } else if (whItem.type === 'Видеонаблюдение') {
-              category = 'Видеонаблюдение';
-              deviceType = 'Видеокамера';
-            } else if (whItem.type === 'Расходные материалы') {
-              category = 'Расходники';
-              deviceType = 'Картридж';
-            } else if (whItem.type === 'Другое') {
-              category = 'Другое';
-              deviceType = 'Оборудование';
-            }
-          }
+          const { category, deviceType } = route;
+          const whSpecs = getWarehouseItemSpecs(whItem);
+          const templateSpecs =
+            matchingCompsOnStock.find((c) => c.cpuModel || c.ramModel || c.serialNumber) || null;
 
           const newCompsToAppend: ComputerItem[] = [];
           for (let i = 0; i < remainingToCreate; i++) {
             const suffixesCount = prev.filter(c => c.inventoryNumber.startsWith(inventoryNumber + '-')).length;
             const suffix = (quantity > 1 || suffixesCount > 0) ? `-${suffixesCount + i + 1}` : '';
             const invNum = `${inventoryNumber}${suffix}`;
+            const unitSpecs = buildComputerSpecsFromReceipt(
+              templateSpecs
+                ? {
+                    serialNumber: templateSpecs.serialNumber,
+                    cpuModel: templateSpecs.cpuModel,
+                    ramModel: templateSpecs.ramModel,
+                    hddModel: templateSpecs.hddModel,
+                    gpuModel: templateSpecs.gpuModel,
+                    motherboardModel: templateSpecs.motherboardModel,
+                    powerSupplyModel: templateSpecs.powerSupplyModel,
+                    caseModel: templateSpecs.caseModel,
+                  }
+                : whSpecs,
+              suffixesCount + i,
+              Math.max(quantity, suffixesCount + remainingToCreate)
+            );
 
             const newAsset: ComputerItem = {
-              id: `comp-deploy-${Date.now()}-${i}`,
+              id: `comp-deploy-${Date.now()}-${i}-${Math.floor(Math.random() * 10000)}`,
               category,
               deviceType,
               model: whItem.model,
@@ -1475,6 +1427,7 @@ export default function App() {
               memoInfo: whItem.memoInfo || '',
               warrantyInfo: whItem.warrantyInfo || '',
               cost: whItem.costPerUnit,
+              ...unitSpecs,
             };
             newCompsToAppend.push(newAsset);
           }
@@ -1598,7 +1551,7 @@ export default function App() {
     setActivities(initialActivities);
     setAudits(initialAudits);
     setWorkspaceName('Инвентаризация оборудования');
-    setAdminEmail('assetorbit@icloud.com');
+    setAdminEmail('vicariustab@icloud.com');
     localStorage.removeItem('it_deleted_warranties');
     localStorage.removeItem('it_custom_warranties');
     logActivity('Сброс Базы Данных', 'База данных рабочей зоны была успешно переустановлена к заводским демонстрационным значениям', 'system');
@@ -1618,8 +1571,8 @@ export default function App() {
             softwareItems={softwareItems}
             onNavigate={(id) => setActiveTab(id)}
             onAddObject={() => { setActiveTab('objects'); }}
-            onAddNetwork={() => { setActiveTab('network'); }}
-            onAddComputer={() => { setActiveTab('computers'); }}
+            onAddNetwork={() => { setActiveTab('warehouse'); }}
+            onAddComputer={() => { setActiveTab('warehouse'); }}
             onAddEmployee={() => { setActiveTab('employees'); }}
             onWarehouseReceipt={() => { setActiveTab('warehouse'); }}
             onWarehouseWriteOff={() => { setActiveTab('warehouse'); }}
@@ -1654,7 +1607,7 @@ export default function App() {
       case 'computers':
         return (
           <ComputersView
-            computers={computers}
+            computers={filterComputersByEquipmentTab(computers, 'computers')}
             employees={employees}
             objects={objects}
             allComputers={computers}
@@ -1800,7 +1753,7 @@ export default function App() {
       case 'peripherals':
         return (
           <ComputersView
-            computers={computers.filter(c => c.category === 'Монитор' || c.category === 'Периферия')}
+            computers={filterComputersByEquipmentTab(computers, 'peripherals')}
             employees={employees}
             objects={objects}
             allComputers={computers}
@@ -1818,7 +1771,7 @@ export default function App() {
       case 'orgtech':
         return (
           <ComputersView
-            computers={computers.filter(c => c.category === 'Оргтехника')}
+            computers={filterComputersByEquipmentTab(computers, 'orgtech')}
             employees={employees}
             objects={objects}
             allComputers={computers}
@@ -1836,7 +1789,7 @@ export default function App() {
       case 'surveillance':
         return (
           <ComputersView
-            computers={computers.filter(c => c.category === 'Видеонаблюдение')}
+            computers={filterComputersByEquipmentTab(computers, 'surveillance')}
             employees={employees}
             objects={objects}
             allComputers={computers}
@@ -1854,7 +1807,7 @@ export default function App() {
       case 'consumables':
         return (
           <ComputersView
-            computers={computers.filter(c => c.category === 'Расходники')}
+            computers={filterComputersByEquipmentTab(computers, 'consumables')}
             employees={employees}
             objects={objects}
             allComputers={computers}
@@ -1872,7 +1825,7 @@ export default function App() {
       case 'other_equip':
         return (
           <ComputersView
-            computers={computers.filter(c => c.category === 'Другое')}
+            computers={filterComputersByEquipmentTab(computers, 'other_equip')}
             employees={employees}
             objects={objects}
             allComputers={computers}
@@ -1957,6 +1910,14 @@ export default function App() {
   if (licenseStatus.isExpired) {
     const isLockedOut = licenseStatus.lockoutTimeLeft > 0;
     const lockoutSecs = Math.ceil(licenseStatus.lockoutTimeLeft / 1000);
+    const licenseRequestCode = getSystemRequestCode();
+
+    const handleCopyRequestCode = async () => {
+      const ok = await copyTextToClipboard(licenseRequestCode);
+      if (!ok) return;
+      setRequestCodeCopied(true);
+      setTimeout(() => setRequestCodeCopied(false), 2000);
+    };
 
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative overflow-hidden font-sans text-slate-300">
@@ -2012,17 +1973,23 @@ export default function App() {
 
             <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 text-center space-y-2">
               <span className="text-[10px] text-slate-500 uppercase tracking-wider font-bold block">{t("Уникальный Код Запроса Лицензии")}</span>
-              <div className="bg-slate-900 border border-slate-800 p-2.5 rounded-xl font-mono text-xs font-semibold text-blue-400 break-all flex items-center justify-between gap-2 text-left">
-                <span className="select-all break-all">{getSystemRequestCode()}</span>
-                <button 
-                  type="button" 
-                  onClick={() => {
-                    navigator.clipboard.writeText(getSystemRequestCode());
-                    alert(t("Код запроса лицензии успешно скопирован в буфер обмена!"));
-                  }}
-                  className="text-[9px] bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-300 px-2.5 py-1.5 rounded-lg transition-all font-sans cursor-pointer whitespace-nowrap"
+              <div className="flex flex-col sm:flex-row gap-2">
+                <input
+                  type="text"
+                  readOnly
+                  value={licenseRequestCode}
+                  onFocus={(e) => e.currentTarget.select()}
+                  onClick={(e) => e.currentTarget.select()}
+                  aria-label={t("Уникальный Код Запроса Лицензии")}
+                  className="flex-1 min-w-0 bg-slate-900 border border-slate-800 p-2.5 rounded-xl font-mono text-xs font-semibold text-blue-400 select-all cursor-text"
+                />
+                <button
+                  type="button"
+                  onClick={handleCopyRequestCode}
+                  className="text-[9px] bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-300 px-2.5 py-1.5 rounded-lg transition-all font-sans cursor-pointer whitespace-nowrap flex items-center justify-center gap-1.5 shrink-0"
                 >
-                  {t("Копировать")}
+                  {requestCodeCopied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                  {requestCodeCopied ? t("Скопировано") : t("Копировать")}
                 </button>
               </div>
             </div>
@@ -2040,7 +2007,7 @@ export default function App() {
                   if (freshStatus.lockoutTimeLeft > 0) {
                     alert(t("Служба защиты временно заблокировала попытки ввода ключа из-за частых ошибок (перебор). Повторите попытку через:") + " " + Math.ceil(freshStatus.lockoutTimeLeft / 1000) + " " + t("сек."));
                   } else {
-                    alert(t("Введен некорректный ключ активации! Обратитесь по адресу assetorbit@icloud.com за новым ключом."));
+                    alert(t("Введен некорректный ключ активации! Обратитесь по адресу vicariustab@icloud.com за новым ключом."));
                   }
                 }
               }

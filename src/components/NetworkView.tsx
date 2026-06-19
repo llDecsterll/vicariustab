@@ -1,7 +1,7 @@
 /*
  * COPYRIGHT NOTICE | УВЕДОМЛЕНИЕ ОБ АВТОРСКИХ ПРАВАХ | 版权声明
  * © 2026 Utkin Vladislav Vyacheslavovich (Уткин Владислав Вячеславович)
- * Email: assetorbit@icloud.com | Telegram: https://t.me/Dexterll
+ * Email: vicariustab@icloud.com | Telegram: https://t.me/Dexterll
  * All rights reserved. Unauthorized copying, modification, distribution or commercial use is prohibited.
  * 保留所有权利。未经版权所有者事先书面同意，禁止复制、修改、分发或商业使用。
  * Все права защищены. Копирование, изменение, распространение и коммерческое использование без письменного согласия правообладателя запрещено.
@@ -9,6 +9,7 @@
  */
 import React, { useState } from 'react';
 import { useTranslation } from '../utils/i18n';
+import { EQUIPMENT_TITLE_MAX_LENGTH, limitEquipmentTitle } from '../utils/equipmentFields';
 import { Network, Plus, Search, Trash2, Edit2, ShieldAlert, Upload, FileText } from 'lucide-react';
 import { NetworkDevice, NetworkDeviceType, ObjectItem } from '../types';
 
@@ -20,6 +21,7 @@ interface NetworkViewProps {
   onDelete: (id: string) => void;
   onViewDetails?: (type: 'computer' | 'network' | 'employee' | 'object' | 'warehouse', id: string) => void;
   currentUser?: { role: 'Viewer' | 'Editor' | 'Admin' };
+  allowDirectAdd?: boolean;
 }
 
 export default function NetworkView({
@@ -30,6 +32,7 @@ export default function NetworkView({
   onDelete,
   onViewDetails,
   currentUser,
+  allowDirectAdd = false,
 }: NetworkViewProps) {
   const { t } = useTranslation();
   const [search, setSearch] = useState('');
@@ -123,10 +126,10 @@ export default function NetworkView({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!deviceName.trim() || !ipAddress.trim() || quantity < 1) return;
+    if (!limitEquipmentTitle(deviceName.trim()) || !ipAddress.trim() || quantity < 1) return;
 
     const payload = {
-      deviceName,
+      deviceName: limitEquipmentTitle(deviceName.trim()),
       type,
       objectName,
       ipAddress,
@@ -174,12 +177,17 @@ export default function NetworkView({
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           </div>
           
-          {!isViewer && (
+          {!isViewer && allowDirectAdd && (
             <button
               onClick={handleOpenAdd}
               className="bg-blue-600 hover:bg-blue-700 text-white font-medium text-sm py-2 px-4 rounded-lg flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer"
             >
               <Plus size={16} />{t("Добавить сетевое оборудование")}</button>
+          )}
+          {!isViewer && !allowDirectAdd && (
+            <p className="text-[11px] text-slate-500 max-w-xs text-right leading-snug">
+              {t('Оборудование добавляется через «Склад ИТ» → Поступление. После приёмки оно автоматически попадает в нужную группу.')}
+            </p>
           )}
         </div>
 
@@ -306,11 +314,13 @@ export default function NetworkView({
                 <input
                   type="text"
                   required
+                  maxLength={EQUIPMENT_TITLE_MAX_LENGTH}
                   placeholder={t("Например, HPE Aruba 2930F")}
                   value={deviceName}
-                  onChange={(e) => setDeviceName(e.target.value)}
+                  onChange={(e) => setDeviceName(limitEquipmentTitle(e.target.value))}
                   className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-700 font-semibold"
                 />
+                <span className="text-[10px] text-slate-400">{deviceName.length}/{EQUIPMENT_TITLE_MAX_LENGTH}</span>
               </div>
 
               <div className="grid grid-cols-2 gap-4">

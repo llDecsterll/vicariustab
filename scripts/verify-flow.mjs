@@ -103,13 +103,13 @@ function testBackupWhitelist() {
 }
 
 async function testUpdateApi() {
-  const res = await fetch(`${BASE}/api/update/check?repo=https://github.com/llDecsterll/uvwstack.git`);
+  const res = await fetch(`${BASE}/api/update/check?repo=https://github.com/llDecsterll/vicariustab.git`);
   if (!res.ok) {
     const body = await res.text();
     throw new Error(`Update API ${res.status}: ${body}`);
   }
   const data = await res.json();
-  if (!data.repository?.includes('uvwstack')) {
+  if (!data.repository?.includes('Vicariustab')) {
     throw new Error(`Unexpected repository in response: ${JSON.stringify(data)}`);
   }
   return { repository: data.repository, latestTag: data.latestTag, updateSource: data.updateSource };

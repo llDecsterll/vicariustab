@@ -1,7 +1,7 @@
 /*
  * COPYRIGHT NOTICE | УВЕДОМЛЕНИЕ ОБ АВТОРСКИХ ПРАВАХ | 版权声明
  * © 2026 Utkin Vladislav Vyacheslavovich (Уткин Владислав Вячеславович)
- * Email: assetorbit@icloud.com | Telegram: https://t.me/Dexterll
+ * Email: vicariustab@icloud.com | Telegram: https://t.me/Dexterll
  * All rights reserved. Unauthorized copying, modification, distribution or commercial use is prohibited.
  * 保留所有权利。未经版权所有者事先书面同意，禁止复制、修改、分发或商业使用。
  * Все права защищены. Копирование, изменение, распространение и коммерческое использование без письменного согласия правообладателя запрещено.
@@ -12,7 +12,7 @@ import React, { createContext, useContext, useState, useEffect } from "react";
 
 export type Language = 'en' | 'ru' | 'zh';
 
-// Comprehensive translation catalog for Uvwstack IT Asset Management platform
+// Comprehensive translation catalog for Vicariustab IT Asset Management platform
 const dictionary: Record<string, Record<Language, string>> = {
   // Navigation & Tabs
   "Дашборд": {
@@ -250,10 +250,10 @@ const dictionary: Record<string, Record<Language, string>> = {
     en: "Open software and licenses",
     zh: "打开软件和许可证"
   },
-  "Отправить письмо (assetorbit@icloud.com)": {
-    ru: "Отправить письмо (assetorbit@icloud.com)",
-    en: "Send email (assetorbit@icloud.com)",
-    zh: "发送电子邮件 (assetorbit@icloud.com)"
+  "Отправить письмо (vicariustab@icloud.com)": {
+    ru: "Отправить письмо (vicariustab@icloud.com)",
+    en: "Send email (vicariustab@icloud.com)",
+    zh: "发送电子邮件 (vicariustab@icloud.com)"
   },
   "Отчеты": {
     ru: "Отчеты",
@@ -1136,10 +1136,10 @@ const dictionary: Record<string, Record<Language, string>> = {
     en: "Platform Backup Engine & Database Portability",
     zh: "平台级备份恢复与数据转移引擎"
   },
-  "Центр управления обновлениями Uvwstack": {
-    ru: "Центр управления обновлениями Uvwstack",
-    en: "Uvwstack Platform Core Updater",
-    zh: "Uvwstack系统内核更新管理器"
+  "Центр управления обновлениями Vicariustab": {
+    ru: "Центр управления обновлениями Vicariustab",
+    en: "Vicariustab Platform Core Updater",
+    zh: "Vicariustab系统内核更新管理器"
   },
   "Экспортировать данные платформы (без ключа активации)": {
     ru: "Экспортировать данные платформы (без ключа активации)",
@@ -1206,15 +1206,20 @@ const dictionary: Record<string, Record<Language, string>> = {
     en: "Copy Request Code",
     zh: "点击复制"
   },
+  "Скопировано": {
+    ru: "Скопировано",
+    en: "Copied",
+    zh: "已复制"
+  },
   "Код запроса лицензии успешно скопирован в буфер обмена!": {
     ru: "Код запроса лицензии успешно скопирован в буфер обмена!",
     en: "Machine request code has been copied to clipboard!",
     zh: "硬终端激活请求码已顺利复制到系统剪切板！"
   },
-  "Введен некорректный ключ активации! Обратитесь по адресу assetorbit@icloud.com за новым ключом.": {
-    ru: "Введен некорректный ключ активации! Обратитесь по адресу assetorbit@icloud.com за новым ключом.",
-    en: "Invalid activation key entered! Please contact support at assetorbit@icloud.com.",
-    zh: "您键入的密匙字符不合规，如有疑问请联络 assetorbit@icloud.com。"
+  "Введен некорректный ключ активации! Обратитесь по адресу vicariustab@icloud.com за новым ключом.": {
+    ru: "Введен некорректный ключ активации! Обратитесь по адресу vicariustab@icloud.com за новым ключом.",
+    en: "Invalid activation key entered! Please contact support at vicariustab@icloud.com.",
+    zh: "您键入的密匙字符不合规，如有疑问请联络 vicariustab@icloud.com。"
   },
   "Ознакомительный период (30 дней)": {
     ru: "Ознакомительный период (30 дней)",
@@ -1243,7 +1248,7 @@ const dictionary: Record<string, Record<Language, string>> = {
   },
   "Активировать": {
     ru: "Активировать",
-    en: "Activate Uvwstack Code",
+    en: "Activate Vicariustab Code",
     zh: "确认激活"
   },
   "ОБНАРУЖЕНО ВМЕШАТЕЛЬСТВО В СИСТЕМУ": {
@@ -1950,8 +1955,8 @@ const dictionary: Record<string, Record<Language, string>> = {
   },
   "База данных: ИТ-Орбита СУБД": {
     ru: "База данных: ИТ-Орбита СУБД",
-    en: "Database: IT-Uvwstacka DBMS",
-    zh: "数据库：IT-Uvwstacka 数据库安全层"
+    en: "Database: IT-Vicariustab DBMS",
+    zh: "数据库：IT-Vicariustab 数据库安全层"
   },
   "Система PDF-просмотра • Лист 1 из 1": {
     ru: "Система PDF-просмотра • Лист 1 из 1",
@@ -2053,10 +2058,10 @@ const dictionary: Record<string, Record<Language, string>> = {
     en: "Database Backup (Download JSON)",
     zh: "备份数据存储 (下载 JSON)"
   },
-  "Создайте полную резервную копию всех сущностей Вашей платформы Uvwstack (компьютеры, сотрудники, серверы, оргтехника, журналы изменений, аудит). При этом сам лицензионный ключ активации исключается из файла. Это позволяет переносить базу данных на любые другие независимые серверы Uvwstack без дублирования или компрометации Вашей лицензии.": {
-    ru: "Создайте полную резервную копию всех сущностей Вашей платформы Uvwstack (компьютеры, сотрудники, серверы, оргтехника, журналы изменений, аудит). При этом сам лицензионный ключ активации исключается из файла. Это позволяет переносить базу данных на любые другие независимые серверы Uvwstack без дублирования или компрометации Вашей лицензии.",
-    en: "Create a full backup of all entities of your Uvwstack platform (computers, employees, servers, peripherals, logs, audits). The license key is automatically excluded, allowing database migration to other Uvwstack instances without duplicate key conflicts.",
-    zh: "创建 Uvwstack 平台所有实体（计算机、雇员、服务器、办公设备、日志、审计）的完整备份。备份自动排除许可证密钥，可在新实例部署。"
+  "Создайте полную резервную копию всех сущностей Вашей платформы Vicariustab (компьютеры, сотрудники, серверы, оргтехника, журналы изменений, аудит). При этом сам лицензионный ключ активации исключается из файла. Это позволяет переносить базу данных на любые другие независимые серверы Vicariustab без дублирования или компрометации Вашей лицензии.": {
+    ru: "Создайте полную резервную копию всех сущностей Вашей платформы Vicariustab (компьютеры, сотрудники, серверы, оргтехника, журналы изменений, аудит). При этом сам лицензионный ключ активации исключается из файла. Это позволяет переносить базу данных на любые другие независимые серверы Vicariustab без дублирования или компрометации Вашей лицензии.",
+    en: "Create a full backup of all entities of your Vicariustab platform (computers, employees, servers, peripherals, logs, audits). The license key is automatically excluded, allowing database migration to other Vicariustab instances without duplicate key conflicts.",
+    zh: "创建 Vicariustab 平台所有实体（计算机、雇员、服务器、办公设备、日志、审计）的完整备份。备份自动排除许可证密钥，可在新实例部署。"
   },
   "Резервная копия полностью автономна и сохраняется на Вашем устройстве в формате JSON.": {
     ru: "Резервная копия полностью автономна и сохраняется на Вашем устройстве в формате JSON.",
@@ -2128,6 +2133,11 @@ const dictionary: Record<string, Record<Language, string>> = {
     en: "Official project repository",
     zh: "项目官方仓库地址"
   },
+  "Официальный репозиторий обновлений Vicariustab": {
+    ru: "Официальный репозиторий обновлений Vicariustab",
+    en: "Official Vicariustab update repository",
+    zh: "Vicariustab 官方更新仓库"
+  },
   "Выберите ZIP-архив релиза c GitHub": {
     ru: "Выберите ZIP-архив релиза c GitHub",
     en: "Select release ZIP archive from GitHub",
@@ -2143,15 +2153,15 @@ const dictionary: Record<string, Record<Language, string>> = {
     en: "ZIP files supported (*.zip)",
     zh: "支持 *.zip 统一规范文件"
   },
-  "Внимание: Обновление ядра Uvwstack перезаписывает только программную часть приложения. Ваши локально сохраненные данные, сотрудники, схемы сети и журналы аудита останутся целыми и невредимыми!": {
-    ru: "Внимание: Обновление ядра Uvwstack перезаписывает только программную часть приложения. Ваши локально сохраненные данные, сотрудники, схемы сети и журналы аудита останутся целыми и невредимыми!",
+  "Внимание: Обновление ядра Vicariustab перезаписывает только программную часть приложения. Ваши локально сохраненные данные, сотрудники, схемы сети и журналы аудита останутся целыми и невредимыми!": {
+    ru: "Внимание: Обновление ядра Vicariustab перезаписывает только программную часть приложения. Ваши локально сохраненные данные, сотрудники, схемы сети и журналы аудита останутся целыми и невредимыми!",
     en: "Attention: Core update only overwrites application files. Your locally saved entries, employees, schemas, and audit logs will remain intact!",
     zh: "注意事项：平台升级仅重新构建和覆盖软件的系统程序代码。您的本地数据、关联雇员、网络架构图等一切静态资源都将完整保留！"
   },
-  "Выполняется компиляция кода ядра Uvwstack...": {
-    ru: "Выполняется компиляция кода ядра Uvwstack...",
-    en: "Compiling Uvwstack core code...",
-    zh: "正在重新编译 Uvwstack 核心系统代码..."
+  "Выполняется компиляция кода ядра Vicariustab...": {
+    ru: "Выполняется компиляция кода ядра Vicariustab...",
+    en: "Compiling Vicariustab core code...",
+    zh: "正在重新编译 Vicariustab 核心系统代码..."
   },
   "Запустить обновление ядра системы": {
     ru: "Запустить обновление ядра системы",
@@ -2273,20 +2283,20 @@ const dictionary: Record<string, Record<Language, string>> = {
     en: "Manage license status of local (on-premises) installation. Developer: Coordinator Utkin V.V.",
     zh: "企业本地化独立私有化服务器许可状态管理。负责人：Utkin V.V."
   },
-  "Управление лицензионным статусом локальной (on-premises) инсталляции Stack.": {
-    ru: "Управление лицензионным статусом локальной (on-premises) инсталляции Stack.",
-    en: "Manage the license status of your local (on-premises) Stack installation.",
-    zh: "管理本地（私有化部署）Stack 实例的许可证状态。"
+  "Управление лицензионным статусом локальной (on-premises) инсталляции Vicariustab.": {
+    ru: "Управление лицензионным статусом локальной (on-premises) инсталляции Vicariustab.",
+    en: "Manage the license status of your local (on-premises) Vicariustab installation.",
+    zh: "管理本地（私有化部署）Vicariustab 实例的许可证状态。"
   },
   "Публичный URL и домен (HTTPS)": {
     ru: "Публичный URL и домен (HTTPS)",
     en: "Public URL and domain (HTTPS)",
     zh: "公共 URL 与域名 (HTTPS)"
   },
-  "Укажите адрес, по которому пользователи открывают Stack из интернета (например https://stack.company.com).": {
-    ru: "Укажите адрес, по которому пользователи открывают Stack из интернета (например https://stack.company.com).",
-    en: "Enter the address users use to access Stack from the internet (e.g. https://stack.company.com).",
-    zh: "填写用户从互联网访问 Stack 的地址（例如 https://stack.company.com）。"
+  "Укажите адрес, по которому пользователи открывают Vicariustab из интернета (например https://vicariustab.company.com).": {
+    ru: "Укажите адрес, по которому пользователи открывают Vicariustab из интернета (например https://vicariustab.company.com).",
+    en: "Enter the address users use to access Vicariustab from the internet (e.g. https://vicariustab.company.com).",
+    zh: "填写用户从互联网访问 Vicariustab 的地址（例如 https://vicariustab.company.com）。"
   },
   "Обнаружен доступ:": {
     ru: "Обнаружен доступ:",
@@ -2297,6 +2307,16 @@ const dictionary: Record<string, Record<Language, string>> = {
     ru: "Docker: задайте STACK_DOMAIN в .env и запустите docker compose -f docker-compose.yml -f docker-compose.caddy.yml up -d. Без Docker: см. deploy/nginx-https.example.conf",
     en: "Docker: set STACK_DOMAIN in .env and run docker compose -f docker-compose.yml -f docker-compose.caddy.yml up -d. Without Docker: see deploy/nginx-https.example.conf",
     zh: "Docker：在 .env 中设置 STACK_DOMAIN，然后运行 docker compose -f docker-compose.yml -f docker-compose.caddy.yml up -d。非 Docker：见 deploy/nginx-https.example.conf"
+  },
+  "Оборудование добавляется через «Склад ИТ» → Поступление. После приёмки оно автоматически попадает в нужную группу.": {
+    ru: "Оборудование добавляется через «Склад ИТ» → Поступление. После приёмки оно автоматически попадает в нужную группу.",
+    en: "Add equipment via IT Warehouse → Receipt. After intake it is automatically routed to the correct equipment group.",
+    zh: "请通过「IT 仓库」→「入库」添加设备。入库后将自动分配到对应设备分组。"
+  },
+  "На склад": {
+    ru: "На склад",
+    en: "To warehouse",
+    zh: "入库"
   },
   "Текущий Лицензионный Статус": {
     ru: "Текущий Лицензионный Статус",
@@ -2498,10 +2518,10 @@ const dictionary: Record<string, Record<Language, string>> = {
     en: "Register Account Entry",
     zh: "生成全新准入授权登录条目"
   },
-  "Перезапуск ядра Uvwstack": {
-    ru: "Перезапуск ядра Uvwstack",
-    en: "Hot Rebooting Uvwstack Core",
-    zh: "Uvwstack 安全组件热重启"
+  "Перезапуск ядра Vicariustab": {
+    ru: "Перезапуск ядра Vicariustab",
+    en: "Hot Rebooting Vicariustab Core",
+    zh: "Vicariustab 安全组件热重启"
   },
   "Пожалуйста, не закрывайте вкладку. Обновленные файлы, базы данных и параметры сессии применяются автоматически прямо сейчас.": {
     ru: "Пожалуйста, не закрывайте вкладку. Обновленные файлы, базы данных и параметры сессии применяются автоматически прямо сейчас.",
@@ -4394,20 +4414,20 @@ const dictionary: Record<string, Record<Language, string>> = {
     en: "© 2026 Utkin Vladislav Vyacheslavovich. All rights reserved.",
     zh: "© 2026 乌金·弗拉迪斯拉夫·维亚切斯拉维奇。保留所有权利。"
   },
-  "Программный код Uvwstack защищён авторским правом. Запрещено копирование и модификация без согласия автора.": {
-    ru: "Программный код Uvwstack защищён авторским правом. Запрещено копирование и модификация без согласия автора.",
-    en: "Uvwstack source code is protected by copyright. Copying or modification without the author's consent is prohibited.",
-    zh: "Uvwstack 源代码受版权保护。未经作者同意，禁止复制或修改。"
+  "Программный код Vicariustab защищён авторским правом. Запрещено копирование и модификация без согласия автора.": {
+    ru: "Программный код Vicariustab защищён авторским правом. Запрещено копирование и модификация без согласия автора.",
+    en: "Vicariustab source code is protected by copyright. Copying or modification without the author's consent is prohibited.",
+    zh: "Vicariustab 源代码受版权保护。未经作者同意，禁止复制或修改。"
   },
   "Связаться с правообладателем для покупки лицензии": {
     ru: "Связаться с правообладателем для покупки лицензии",
     en: "Contact the rights holder to purchase a license",
     zh: "联系版权所有者购买许可证"
   },
-  "Для приобретения коммерческой лицензии Uvwstack отправьте запрос правообладателю по электронной почте или в Telegram. Укажите код запроса лицензии и данные организации.": {
-    ru: "Для приобретения коммерческой лицензии Uvwstack отправьте запрос правообладателю по электронной почте или в Telegram. Укажите код запроса лицензии и данные организации.",
-    en: "To purchase a commercial Uvwstack license, contact the rights holder by email or Telegram. Include your license request code and organization details.",
-    zh: "如需购买 Uvwstack 商业许可证，请通过电子邮件或 Telegram 联系版权所有者，并提供许可证请求码及组织信息。"
+  "Для приобретения коммерческой лицензии Vicariustab отправьте запрос правообладателю по электронной почте или в Telegram. Укажите код запроса лицензии и данные организации.": {
+    ru: "Для приобретения коммерческой лицензии Vicariustab отправьте запрос правообладателю по электронной почте или в Telegram. Укажите код запроса лицензии и данные организации.",
+    en: "To purchase a commercial Vicariustab license, contact the rights holder by email or Telegram. Include your license request code and organization details.",
+    zh: "如需购买 Vicariustab 商业许可证，请通过电子邮件或 Telegram 联系版权所有者，并提供许可证请求码及组织信息。"
   },
   "Авторское право и правообладатель": {
     ru: "Авторское право и правообладатель",
@@ -5444,10 +5464,10 @@ const dictionary: Record<string, Record<Language, string>> = {
     en: "Linked Object: Main Office",
     zh: "关联对象：主办公室"
   },
-  "Инициализация проверки обновлений Uvwstack...": {
-    ru: "Инициализация проверки обновлений Uvwstack...",
-    en: "Initializing Uvwstack update check...",
-    zh: "正在初始化 Uvwstack 更新检查..."
+  "Инициализация проверки обновлений Vicariustab...": {
+    ru: "Инициализация проверки обновлений Vicariustab...",
+    en: "Initializing Vicariustab update check...",
+    zh: "正在初始化 Vicariustab 更新检查..."
   },
   "Проверка GitHub": {
     ru: "Проверка GitHub",
@@ -5464,10 +5484,10 @@ const dictionary: Record<string, Record<Language, string>> = {
     en: "Selected file:",
     zh: "已选文件："
   },
-  "Распакуйте архив на сервере и выполните: npm install && npm run build && pm2 restart uvwstack-system": {
-    ru: "Распакуйте архив на сервере и выполните: npm install && npm run build && pm2 restart uvwstack-system",
-    en: "Extract the archive on the server and run: npm install && npm run build && pm2 restart uvwstack-system",
-    zh: "在服务器解压归档并执行：npm install && npm run build && pm2 restart uvwstack-system"
+  "Распакуйте архив на сервере и выполните: npm install && npm run build && pm2 restart vicariustab-system": {
+    ru: "Распакуйте архив на сервере и выполните: npm install && npm run build && pm2 restart vicariustab-system",
+    en: "Extract the archive on the server and run: npm install && npm run build && pm2 restart vicariustab-system",
+    zh: "在服务器解压归档并执行：npm install && npm run build && pm2 restart vicariustab-system"
   },
   "Не удалось проверить обновления на GitHub": {
     ru: "Не удалось проверить обновления на GitHub",
@@ -5499,20 +5519,20 @@ const dictionary: Record<string, Record<Language, string>> = {
     en: "A new version is available. In-app auto-install is disabled for security reasons.",
     zh: "有新版本可用。出于安全考虑，界面内自动安装已禁用。"
   },
-  "На сервере выполните: git pull && npm install && npm run build && pm2 restart uvwstack-system": {
-    ru: "На сервере выполните: git pull && npm install && npm run build && pm2 restart uvwstack-system",
-    en: "On the server run: git pull && npm install && npm run build && pm2 restart uvwstack-system",
-    zh: "在服务器执行：git pull && npm install && npm run build && pm2 restart uvwstack-system"
+  "На сервере выполните: git pull && npm install && npm run build && pm2 restart vicariustab-system": {
+    ru: "На сервере выполните: git pull && npm install && npm run build && pm2 restart vicariustab-system",
+    en: "On the server run: git pull && npm install && npm run build && pm2 restart vicariustab-system",
+    zh: "在服务器执行：git pull && npm install && npm run build && pm2 restart vicariustab-system"
   },
   "Установлена актуальная или более новая версия ядра.": {
     ru: "Установлена актуальная или более новая версия ядра.",
     en: "Core version is up to date or newer.",
     zh: "核心版本已是最新或更高。"
   },
-  "Проверка обновлений Uvwstack": {
-    ru: "Проверка обновлений Uvwstack",
-    en: "Uvwstack update check",
-    zh: "Uvwstack 更新检查"
+  "Проверка обновлений Vicariustab": {
+    ru: "Проверка обновлений Vicariustab",
+    en: "Vicariustab update check",
+    zh: "Vicariustab 更新检查"
   },
   "Проверка GitHub завершена. Релиз:": {
     ru: "Проверка GitHub завершена. Релиз:",

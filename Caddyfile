@@ -1,13 +1,13 @@
-# Stack / Uvwstack — HTTPS reverse proxy (Let's Encrypt)
+# Vicariustab — HTTPS reverse proxy (Let's Encrypt)
 # Set STACK_DOMAIN and ACME_EMAIL in docker-compose.caddy.yml / .env
 {
-	email {$ACME_EMAIL:assetorbit@icloud.com}
+	email {$ACME_EMAIL:vicariustab@icloud.com}
 }
 
 {$STACK_DOMAIN:localhost} {
 	encode gzip zstd
 
-	reverse_proxy uvwstack-app:8080 {
+	reverse_proxy vicariustab-app:8080 {
 		header_up Host {host}
 		header_up X-Real-IP {remote_host}
 		header_up X-Forwarded-For {remote_host}

@@ -1,7 +1,7 @@
 /*
  * COPYRIGHT NOTICE | УВЕДОМЛЕНИЕ ОБ АВТОРСКИХ ПРАВАХ | 版权声明
  * © 2026 Utkin Vladislav Vyacheslavovich (Уткин Владислав Вячеславович)
- * Email: assetorbit@icloud.com | Telegram: https://t.me/Dexterll
+ * Email: vicariustab@icloud.com | Telegram: https://t.me/Dexterll
  * All rights reserved. Unauthorized copying, modification, distribution or commercial use is prohibited.
  * 保留所有权利。未经版权所有者事先书面同意，禁止复制、修改、分发或商业使用。
  * Все права защищены. Копирование, изменение, распространение и коммерческое использование без письменного согласия правообладателя запрещено.
@@ -89,7 +89,7 @@ export default function SecurityView({
 
   const copyEmailToClipboardSec = (e: React.MouseEvent) => {
     e.preventDefault();
-    navigator.clipboard.writeText("assetorbit@icloud.com");
+    navigator.clipboard.writeText("vicariustab@icloud.com");
     setEmailCopiedSec(true);
     setTimeout(() => {
       setEmailCopiedSec(false);
@@ -310,7 +310,7 @@ export default function SecurityView({
     } else if (vulnId === 'no-recent-backup') {
       // Simulate download backup file JSON
       const fullPayload = {
-        meta: { timestamp: new Date().toISOString(), exportedBy: currentUser.name, app: "Stack - IT Security Audit Portal" },
+        meta: { timestamp: new Date().toISOString(), exportedBy: currentUser.name, app: "Vicariustab - IT Security Audit Portal" },
         objects,
         networkDevices,
         computers,
@@ -321,7 +321,7 @@ export default function SecurityView({
       const fileData = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(fullPayload, null, 2));
       const anchor = document.createElement('a');
       anchor.setAttribute("href", fileData);
-      anchor.setAttribute("download", `assetorbit_secured_backup_${new Date().toISOString().slice(0, 10)}.json`);
+      anchor.setAttribute("download", `vicariustab_secured_backup_${new Date().toISOString().slice(0, 10)}.json`);
       anchor.click();
 
       setVulns(prev => prev.map(v => v.id === vulnId ? { ...v, status: 'patched' } : v));
@@ -744,12 +744,12 @@ export default function SecurityView({
             <p className="text-[11px] text-slate-400 leading-relaxed">{t("Всегда выгружайте бэкапы инвентарных реестров в формате JSON (раздел Настройки или Терминал ИБ) и отправляйте их на защищенный почтовый адрес администратора:")}</p>
             <div className="flex flex-col gap-1.5 pt-1">
               <a 
-                href="mailto:assetorbit@icloud.com" 
+                href="mailto:vicariustab@icloud.com" 
                 className="text-[13px] text-blue-400 hover:text-blue-300 transition-colors font-bold font-mono hover:underline flex items-center gap-1.5"
-                title={t("Отправить письмо (assetorbit@icloud.com)")}
+                title={t("Отправить письмо (vicariustab@icloud.com)")}
               >
                 <Mail size={13} className="text-blue-400" />
-                <span>assetorbit@icloud.com</span>
+                <span>vicariustab@icloud.com</span>
               </a>
 
             </div>
