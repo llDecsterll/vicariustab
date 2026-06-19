@@ -23,6 +23,7 @@ import {
   getCategoryFilterLabel,
 } from '../utils/warehouseRouting';
 import EquipmentGroupFilters, { HARDWARE_STATUS_FILTER_OPTIONS } from './EquipmentGroupFilters';
+import ModalCloseButton from './ModalCloseButton';
 
 interface ComputersViewProps {
   computers: ComputerItem[];
@@ -564,9 +565,12 @@ export default function ComputersView({
       {showModal && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4 font-sans">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-xl max-h-[92vh] overflow-y-auto transform transition-all p-6 space-y-4 border border-slate-100">
-            <h3 className="font-bold text-lg text-slate-800 border-b border-slate-100 pb-2">
-              {editingId ? t('Редактировать параметры устройства') : t(addModalTitle)}
-            </h3>
+            <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-2">
+              <h3 className="font-bold text-lg text-slate-800">
+                {editingId ? t('Редактировать параметры устройства') : t(addModalTitle)}
+              </h3>
+              <ModalCloseButton onClick={() => setShowModal(false)} />
+            </div>
 
             <form onSubmit={handleSubmit} className="space-y-5">
               {/* SECTION 1: Base Information */}

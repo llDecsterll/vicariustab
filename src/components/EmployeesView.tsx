@@ -11,6 +11,7 @@ import React, { useState } from 'react';
 import { useTranslation } from '../utils/i18n';
 import { Users, Plus, Search, Trash2, Edit2, ShieldAlert, Laptop, Briefcase, Mail, Phone, ArrowLeftRight, Check, X, MapPin, Building2 } from 'lucide-react';
 import { EmployeeItem, ComputerItem, EmployeeStatus, ObjectItem } from '../types';
+import ModalCloseButton from './ModalCloseButton';
 
 interface EmployeesViewProps {
   employees: EmployeeItem[];
@@ -421,9 +422,12 @@ export default function EmployeesView({
       {showModal && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden transform transition-all p-6 space-y-4 border border-slate-100">
-            <h3 className="font-bold text-lg text-slate-800">
-              {editingId ? t('Редактировать сотрудника') : t('Добавить сотрудника')}
-            </h3>
+            <div className="flex items-start justify-between gap-3">
+              <h3 className="font-bold text-lg text-slate-800">
+                {editingId ? t('Редактировать сотрудника') : t('Добавить сотрудника')}
+              </h3>
+              <ModalCloseButton onClick={() => setShowModal(false)} />
+            </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>

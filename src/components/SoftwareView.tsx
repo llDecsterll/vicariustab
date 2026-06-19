@@ -11,8 +11,9 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Search, Plus, Key, Edit2, RotateCcw, Copy, Check, Eye, EyeOff, 
-  Layers, User, MapPin, Calendar, Clock, Sparkles, Database, Code, RefreshCw, Monitor
+  Layers, User, MapPin, Calendar, Clock, Sparkles, Database, Code, RefreshCw, Monitor, Trash2
 } from 'lucide-react';
+import ModalCloseButton from './ModalCloseButton';
 import { useTranslation } from '../utils/i18n';
 import { EQUIPMENT_TITLE_MAX_LENGTH, limitEquipmentTitle } from '../utils/equipmentFields';
 import EquipmentGroupFilters, { SOFTWARE_STATUS_FILTER_OPTIONS } from './EquipmentGroupFilters';
@@ -25,6 +26,7 @@ interface SoftwareViewProps {
   computers: ComputerItem[];
   onAdd: (item: Omit<SoftwareItem, 'id'>) => void;
   onEdit: (id: string, item: Omit<SoftwareItem, 'id'>) => void;
+  onDelete?: (id: string) => void;
   onReturnToWarehouse?: (id: string) => void;
   currentUser?: { role: 'Viewer' | 'Editor' | 'Admin' };
   warehouses?: { name: string }[];
@@ -37,6 +39,7 @@ export default function SoftwareView({
   computers,
   onAdd,
   onEdit,
+  onDelete,
   onReturnToWarehouse,
   currentUser,
   warehouses = [],
@@ -64,6 +67,13 @@ export default function SoftwareView({
       )
     ) {
       onReturnToWarehouse(item.id);
+    }
+  };
+
+  const handleDeleteSoftware = (item: SoftwareItem) => {
+    if (!onDelete) return;
+    if (window.confirm(`${t('Удалить')} «${item.name}»? ${t('Это действие необратимо.')}`)) {
+      onDelete(item.id);
     }
   };
 
@@ -428,6 +438,15 @@ export default function SoftwareView({
                               <RotateCcw size={13} />
                             </button>
                           )}
+                          {onDelete && (
+                            <button
+                              onClick={() => handleDeleteSoftware(item)}
+                              className="p-1.5 bg-slate-50 text-slate-500 hover:text-rose-600 hover:bg-rose-50 border border-slate-100 hover:border-rose-100 rounded-lg transition-all"
+                              title={t("Удалить")}
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          )}
                         </td>
                       )}
                     </tr>
@@ -459,13 +478,7 @@ export default function SoftwareView({
                     {editingId ? t('Редактировать ПО') : t('Зарегистрировать новое ПО')}
                   </h3>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setShowModal(false)}
-                  className="text-slate-400 hover:text-slate-600 text-sm font-semibold transition-all p-1 hover:bg-slate-100 rounded"
-                >
-                  ✕
-                </button>
+                <ModalCloseButton onClick={() => setShowModal(false)} />
               </div>
 
               {/* Form body */}

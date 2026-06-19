@@ -15,7 +15,8 @@ import {
   NETWORK_CATEGORY_FILTER_OPTIONS,
 } from '../utils/warehouseRouting';
 import EquipmentGroupFilters, { HARDWARE_STATUS_FILTER_OPTIONS } from './EquipmentGroupFilters';
-import { Network, Plus, Search, Edit2, ShieldAlert, Upload, FileText, RotateCcw } from 'lucide-react';
+import { Network, Plus, Search, Edit2, ShieldAlert, Upload, FileText, RotateCcw, Trash2 } from 'lucide-react';
+import ModalCloseButton from './ModalCloseButton';
 import { CustomWarehouse, NetworkDevice, NetworkDeviceType, ObjectItem, WarehouseItem } from '../types';
 
 interface NetworkViewProps {
@@ -25,6 +26,7 @@ interface NetworkViewProps {
   warehouses?: CustomWarehouse[];
   onAdd: (device: Omit<NetworkDevice, 'id'>) => void;
   onEdit: (id: string, device: Omit<NetworkDevice, 'id'>) => void;
+  onDelete?: (id: string) => void;
   onReturnToWarehouse?: (id: string) => void;
   onViewDetails?: (type: 'computer' | 'network' | 'employee' | 'object' | 'warehouse', id: string) => void;
   currentUser?: { role: 'Viewer' | 'Editor' | 'Admin' };
@@ -38,6 +40,7 @@ export default function NetworkView({
   warehouses = [],
   onAdd,
   onEdit,
+  onDelete,
   onReturnToWarehouse,
   onViewDetails,
   currentUser,
@@ -64,6 +67,14 @@ export default function NetworkView({
       onReturnToWarehouse(dev.id);
     }
   };
+
+  const handleDeleteDevice = (dev: NetworkDevice) => {
+    if (!onDelete) return;
+    if (window.confirm(`${t('Удалить')} «${dev.deviceName}»? ${t('Это действие необратимо.')}`)) {
+      onDelete(dev.id);
+    }
+  };
+
   // Form states
   const [deviceName, setDeviceName] = useState('');
   const [type, setType] = useState<NetworkDeviceType>('Коммутатор');
@@ -294,6 +305,15 @@ export default function NetworkView({
                           <RotateCcw size={14} />
                         </button>
                       )}
+                      {!isViewer && onDelete && (
+                        <button
+                          onClick={() => handleDeleteDevice(dev)}
+                          className="p-1 hover:bg-rose-50 rounded text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
+                          title={t("Удалить")}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -312,10 +332,11 @@ export default function NetworkView({
       {showModal && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg border border-slate-100 flex flex-col max-h-[85vh] transform transition-all overflow-hidden">
-            <div className="p-6 pb-2 border-b border-slate-100 shrink-0">
+            <div className="p-6 pb-2 border-b border-slate-100 shrink-0 flex items-start justify-between gap-3">
               <h3 className="font-bold text-lg text-slate-800">
                 {editingId ? t("Редактировать сетевое оборудование") : t("Добавить сетевое оборудование")}
               </h3>
+              <ModalCloseButton onClick={() => setShowModal(false)} />
             </div>
 
             <form onSubmit={handleSubmit} className="p-6 pt-2 overflow-y-auto space-y-4 flex-1">

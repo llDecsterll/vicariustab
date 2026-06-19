@@ -16,6 +16,7 @@ import {
   limitEquipmentTitle,
   supportsComputerSpecifications,
 } from '../utils/equipmentFields';
+import ModalCloseButton from './ModalCloseButton';
 
 interface WarehouseViewProps {
   warehouseItems: WarehouseItem[];
@@ -1209,10 +1210,13 @@ export default function WarehouseView({
       {showReceiptModal && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden transform transition-all border border-slate-100 flex flex-col max-h-[90vh]">
-            <div className="p-6 border-b border-slate-100 shrink-0">
-              <h3 className="font-bold text-lg text-slate-850 flex items-center gap-2 animate-fade-in">
-                <Warehouse className="text-blue-600" />{t("Новое поступление на Склад")}</h3>
-              <p className="text-[11px] text-slate-400 mt-1">{t("Автоматически распределяется в ИТ-отдел со статусом 'На складе'.")}</p>
+            <div className="p-6 border-b border-slate-100 shrink-0 flex items-start justify-between gap-3">
+              <div>
+                <h3 className="font-bold text-lg text-slate-850 flex items-center gap-2 animate-fade-in">
+                  <Warehouse className="text-blue-600" />{t("Новое поступление на Склад")}</h3>
+                <p className="text-[11px] text-slate-400 mt-1">{t("Автоматически распределяется в ИТ-отдел со статусом 'На складе'.")}</p>
+              </div>
+              <ModalCloseButton onClick={() => setShowReceiptModal(false)} />
             </div>
 
             <form onSubmit={handleReceiptSubmit} className="flex-1 overflow-y-auto p-6 space-y-4">
@@ -1629,10 +1633,13 @@ export default function WarehouseView({
       {showWriteOffModal && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden transform transition-all p-6 space-y-4 border border-slate-100 flex flex-col max-h-[90vh]">
-            <div className="shrink-0">
-              <h3 className="font-bold text-lg text-rose-600 flex items-center gap-2">
-                <AlertTriangle size={20} />{t("Списание ТМЦ со склада")}</h3>
-              <p className="text-[11px] text-slate-400 mt-1">{t("Укажите техническое заключение и причину списания устройства с баланса.")}</p>
+            <div className="shrink-0 flex items-start justify-between gap-3">
+              <div>
+                <h3 className="font-bold text-lg text-rose-600 flex items-center gap-2">
+                  <AlertTriangle size={20} />{t("Списание ТМЦ со склада")}</h3>
+                <p className="text-[11px] text-slate-400 mt-1">{t("Укажите техническое заключение и причину списания устройства с баланса.")}</p>
+              </div>
+              <ModalCloseButton onClick={() => setShowWriteOffModal(false)} />
             </div>
 
             {writeOffError && (
@@ -1741,9 +1748,12 @@ export default function WarehouseView({
       {showDeployModal && deployItem && (
         <div className="fixed inset-0 bg-slate-900/45 backdrop-blur-xs flex items-center justify-center z-50 p-4 font-sans">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[92vh] overflow-y-auto transform transition-all p-6 space-y-4 border border-slate-100">
-            <h3 className="font-bold text-lg text-slate-800 border-b border-slate-100 pb-2">
-              {t("Выдать ТМЦ со склада")}
-            </h3>
+            <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-2">
+              <h3 className="font-bold text-lg text-slate-800">
+                {t("Выдать ТМЦ со склада")}
+              </h3>
+              <ModalCloseButton onClick={() => setShowDeployModal(false)} />
+            </div>
             
             <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl text-xs space-y-1">
               <div><strong>{t("Артикул:")}</strong> {deployItem.name}</div>
@@ -1828,9 +1838,12 @@ export default function WarehouseView({
       {showActiveAssetTransitionModal && transitionAssetItem && (
         <div className="fixed inset-0 bg-slate-900/45 backdrop-blur-xs flex items-center justify-center z-50 p-4 font-sans">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[92vh] overflow-y-auto transform transition-all p-6 space-y-4 border border-slate-100">
-            <h3 className="font-bold text-lg text-slate-800 border-b border-slate-100 pb-2">
-              {t("Управление выданным оборудованием")}
-            </h3>
+            <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-2">
+              <h3 className="font-bold text-lg text-slate-800">
+                {t("Управление выданным оборудованием")}
+              </h3>
+              <ModalCloseButton onClick={() => setShowActiveAssetTransitionModal(false)} />
+            </div>
 
             <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl text-xs space-y-1">
               <div><strong>{t("Оборудование:")}</strong> {transitionAssetItem.name} ({transitionAssetItem.model})</div>
@@ -1944,9 +1957,12 @@ export default function WarehouseView({
       {showStockTransferModal && transferStockItem && (
         <div className="fixed inset-0 bg-slate-900/45 backdrop-blur-xs flex items-center justify-center z-50 p-4 font-sans">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[92vh] overflow-y-auto transform transition-all p-6 space-y-4 border border-slate-100">
-            <h3 className="font-bold text-lg text-slate-800 border-b border-slate-100 pb-2">
-              {t("Переместить ТМЦ на другой склад")}
-            </h3>
+            <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-2">
+              <h3 className="font-bold text-lg text-slate-800">
+                {t("Переместить ТМЦ на другой склад")}
+              </h3>
+              <ModalCloseButton onClick={() => setShowStockTransferModal(false)} />
+            </div>
 
             <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl text-xs space-y-1">
               <div><strong>{t("ТМЦ:")}</strong> {transferStockItem.name} ({transferStockItem.model})</div>

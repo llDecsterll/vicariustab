@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import { ObjectItem, NetworkDevice, ComputerItem, SystemUser } from '../types';
 import { useTranslation } from '../utils/i18n';
+import ModalCloseButton from './ModalCloseButton';
 
 interface ObjectsViewProps {
   objects: ObjectItem[];
@@ -281,10 +282,13 @@ export default function ObjectsView({
       {/* Modal Add/Edit Object */}
       {showModal && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden transform transition-all p-6 space-y-4 border border-slate-100">
-            <h3 className="font-bold text-lg text-slate-800">
-              {editingId ? t('Редактировать локацию/объект') : t('Добавить объект')}
-            </h3>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden transform transition-all p-6 space-y-4 border border-slate-100 relative">
+            <div className="flex items-start justify-between gap-3">
+              <h3 className="font-bold text-lg text-slate-800">
+                {editingId ? t('Редактировать локацию/объект') : t('Добавить объект')}
+              </h3>
+              <ModalCloseButton onClick={() => setShowModal(false)} />
+            </div>
             
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>

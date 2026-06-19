@@ -49,6 +49,7 @@ import {
   hasAnyComputerSpecs,
   matchesBaseInventoryNumber,
 } from '../utils/equipmentFields';
+import ModalCloseButton from './ModalCloseButton';
 
 interface DetailModalProps {
   isOpen: boolean;
@@ -261,7 +262,10 @@ export default function DetailModal({
   if (!item) {
     return (
       <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-        <div className="bg-white rounded-2xl p-6 max-w-sm w-full text-center space-y-4">
+        <div className="bg-white rounded-2xl p-6 max-w-sm w-full text-center space-y-4 relative">
+          <div className="absolute top-3 right-3">
+            <ModalCloseButton onClick={onClose} />
+          </div>
           <p className="text-slate-500 font-medium">{t("Элемент не найден")}</p>
           <button onClick={onClose} className="bg-slate-100 hover:bg-slate-200 text-slate-700 py-1.5 px-4 rounded-lg text-xs font-bold">{t("Закрыть")}</button>
         </div>

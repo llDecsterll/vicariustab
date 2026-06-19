@@ -12,6 +12,7 @@ import { useTranslation } from '../utils/i18n';
 import { Search, Bell, User, Check, Laptop, Network, Users, Building2, HelpCircle, Shield, Edit, Eye, LogIn, Trash2, X } from 'lucide-react';
 import { ComputerItem, NetworkDevice, EmployeeItem, ObjectItem, SystemUser, SoftwareItem, InventoryAudit } from '../types';
 import BrandLogo from './BrandLogo';
+import ModalCloseButton from './ModalCloseButton';
 
 interface HeaderProps {
   searchQuery: string;
@@ -771,7 +772,16 @@ export default function Header({
       {/* Account Password Authorization Dialog overlay modal */}
       {pendingUser && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-3xl p-6 max-w-sm w-full border border-slate-100 shadow-2xl space-y-4 animate-fade-in text-xs">
+          <div className="bg-white rounded-3xl p-6 max-w-sm w-full border border-slate-100 shadow-2xl space-y-4 animate-fade-in text-xs relative">
+            <div className="absolute top-4 right-4">
+              <ModalCloseButton
+                onClick={() => {
+                  setPendingUser(null);
+                  setPasswordInput('');
+                  setPasswordError('');
+                }}
+              />
+            </div>
             <div className="text-center space-y-2">
               {pendingUser.avatarUrl ? (
                 <img src={pendingUser.avatarUrl} alt={pendingUser.name} className="w-14 h-14 rounded-full mx-auto object-cover border-2 border-blue-500" />

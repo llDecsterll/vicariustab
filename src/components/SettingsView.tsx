@@ -1593,7 +1593,8 @@ export default function SettingsView({
           </h3>
 
           <div className="space-y-4 text-xs text-slate-500">
-            {/* Real encrypted backup portion */}
+            {/* Real encrypted backup portion — Admin only */}
+            {isAdmin ? (
             <div className="space-y-3 p-3 bg-slate-50/80 rounded-xl border border-slate-100">
               <h4 className="font-bold text-slate-700 text-[11px] uppercase tracking-wider flex items-center gap-1">
                 <ShieldCheck size={13} className="text-emerald-500" />
@@ -1640,6 +1641,11 @@ export default function SettingsView({
                 </label>
               </div>
             </div>
+            ) : (
+              <p className="text-[10px] text-slate-500 p-3 bg-slate-50 rounded-xl border border-slate-100">
+                {t("Резервное копирование и восстановление доступны только администратору.")}
+              </p>
+            )}
 
             <p className="leading-relaxed pt-1">{t("Если Вы вносили изменения или случайно удалили элементы, можно восстановить исходные демонстрационные данные (соответствующие Вашему скриншоту) в один клик.")}</p>
 

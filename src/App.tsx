@@ -788,9 +788,14 @@ export default function App() {
     logActivity('Удален объект', `Удален объект "${target.name}"`, 'delete');
   };
 
-  // Network CRUD — direct add disabled; use warehouse receipt + auto-routing
-  const handleAddNetwork = (_device: Omit<NetworkDevice, 'id'>) => {
+  const handleAddNetwork = (device: Omit<NetworkDevice, 'id'>) => {
     if (checkLicenseBlocked()) return;
+    const newDevice: NetworkDevice = {
+      ...device,
+      id: `net-${Date.now()}`,
+    };
+    setNetworkDevices(prev => [...prev, newDevice]);
+    logActivity('Добавлено сетевое оборудование', `Добавлено устройство "${device.deviceName}"`, 'create');
   };
 
   const handleEditNetwork = (id: string, device: Omit<NetworkDevice, 'id'>) => {
@@ -1061,8 +1066,18 @@ export default function App() {
     );
   };
 
-  const handleAddComputer = (_comp: Omit<ComputerItem, 'id'>) => {
+  const handleAddComputer = (comp: Omit<ComputerItem, 'id'>) => {
     if (checkLicenseBlocked()) return;
+    const newComputer: ComputerItem = {
+      ...comp,
+      id: `comp-${Date.now()}`,
+    };
+    setComputers(prev => [...prev, newComputer]);
+    logActivity(
+      'Добавлен компьютер',
+      `Добавлено устройство "${comp.category} ${comp.model}" (инв. № ${comp.inventoryNumber})`,
+      'create'
+    );
   };
 
   const handleEditComputer = (id: string, comp: Omit<ComputerItem, 'id'>) => {
@@ -1803,9 +1818,11 @@ export default function App() {
             warehouses={warehouses}
             onAdd={handleAddNetwork}
             onEdit={handleEditNetwork}
+            onDelete={handleDeleteNetwork}
             onReturnToWarehouse={(id) => handleReturnToWarehouse('network', id)}
             onViewDetails={handleNavigateDetail}
             currentUser={currentUser}
+            allowDirectAdd
           />
         );
       case 'computers':
@@ -2059,6 +2076,7 @@ export default function App() {
             computers={computers}
             onAdd={handleAddSoftware}
             onEdit={handleEditSoftware}
+            onDelete={handleDeleteSoftware}
             onReturnToWarehouse={handleReturnSoftwareToWarehouse}
             currentUser={currentUser}
             warehouses={warehouses}
