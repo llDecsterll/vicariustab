@@ -1,0 +1,43 @@
+---
+description: Backend Vicariustab — Express API, auth, хранилище, purge, обновления
+globs: server.ts,server/**
+alwaysApply: false
+---
+
+# Server backend
+
+Entry: `server.ts` → `dist/server.cjs`
+
+## Модули (server/)
+
+| Файл | Назначение |
+|------|------------|
+| dataStore.ts | load/save, revision, JSON/SQL |
+| purgeWorkspace.ts | empty inventory payload (keep users/license) |
+| apiAuth.ts | requireAuth, requireAdminRole, license write gate |
+| sessionEngine.ts | sessions, heartbeat, revoke |
+| userCredentials.ts | setup, password hash, seed via `defaultWorkspaceSeed.ts` |
+| licenseCore.ts | server license snapshot |
+| updateEngine.ts | GitHub update check/apply |
+
+## API (основное)
+
+| Method | Path | Auth | Назначение |
+|--------|------|------|------------|
+| GET | `/api/health` | — | version |
+| GET/POST | `/api/auth/setup-status`, `/setup` | — | first run |
+| POST | `/api/auth/authenticate` | — | login |
+| GET/POST | `/api/data` | session | workspace CRUD + revision |
+| POST | `/api/data/purge-workspace` | Admin | полная очистка инвентаризации |
+| GET/POST | `/api/backup/export\|import` | Admin | backup |
+| GET/POST | `/api/update/check\|apply` | Admin | auto-update |
+
+## Env
+
+`PORT` · `DB_ENCRYPTION_KEY` · `STACK_DATA_DIR` · `SKIP_OBFUSCATION`
+
+## Build
+
+`npm run build` = Vite client + esbuild server
+
+При изменении API — синхронно: `apiClient.ts`, `workspaceSync.ts`, `sessionAuth.ts`.

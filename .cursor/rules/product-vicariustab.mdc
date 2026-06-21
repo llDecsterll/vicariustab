@@ -1,0 +1,71 @@
+---
+description: Полный индекс Vicariustab — структура, модули, разделы UI
+globs: src/**,server/**,server.ts
+alwaysApply: false
+---
+
+# Vicariustab — IT-инвентаризация
+
+Версия: **2.0.12** (`package.json`, `src/config/appConfig.ts`)
+
+## Архитектура
+
+```
+├── server.ts                 # Express: API, static, SPA fallback
+├── server/
+│   ├── dataStore.ts          # JSON/SQL + revision
+│   ├── purgeWorkspace.ts     # POST /api/data/purge-workspace
+│   ├── userCredentials.ts    # setup, users, seed
+│   ├── sessionEngine.ts      # sessions, audit
+│   ├── updateEngine.ts       # GitHub update
+│   └── workspaceSeed.json    # demo seed on first setup
+├── src/
+│   ├── App.tsx               # State, CRUD, equipment lifecycle
+│   ├── emptyWorkspace.ts     # purge client helpers
+│   ├── types.ts
+│   ├── components/           # Views + модалки
+│   └── utils/                # license, equipment, sync, i18n
+└── docker-compose*.yml
+```
+
+## Persistence
+
+1. Клиент: `localStorage` (`it_*`) + POST `/api/data` (revision header)
+2. `workspaceSync.ts` — persist + `purgeWorkspaceOnServer`
+3. Сервер: `dataStore.ts` — encrypted `db.json` или SQL
+
+## Роли
+
+Viewer (read) · Editor (CRUD) · Admin (backup, purge, users, update)
+
+## Разделы UI (`activeTab`)
+
+| Tab | Компонент |
+|-----|-----------|
+| dashboard | DashboardView |
+| objects | ObjectsView |
+| computers / peripherals / orgtech / surveillance / consumables / other_equip | ComputersView |
+| network | NetworkView |
+| employees | EmployeesView |
+| warehouse | WarehouseView |
+| software | SoftwareView |
+| inventory | AuditsView |
+| settings | SettingsView (+ backup, purge, update) |
+
+## Утилиты оборудования
+
+| Файл | Назначение |
+|------|------------|
+| equipmentFields.ts | `inventoryNumbersMatch`, `allocateBatchInventoryNumbers`, `exactInventoryNumberTaken` |
+| equipmentDelete.ts | каскадное удаление, preview, software links, `findLinkedStockComputerIds` |
+| warehouseRouting.ts | склад→группа, фильтры view, `isStockRegistryDuplicateOfWarehouseBatch` |
+
+## Unified list склада (WarehouseView)
+
+- `whUnified` — позиции warehouseItems
+- `stockCompsUnified` — computers «На складе» **только orphans** (без дубля whUnified)
+- `compsUnified` / `netUnified` / `softUnified` — выданное оборудование
+
+## npm scripts
+
+dev · build · start · lint · verify · verify:install · check:i18n

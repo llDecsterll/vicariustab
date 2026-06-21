@@ -57,6 +57,7 @@ import {
   limitEquipmentTitle,
   matchesBaseInventoryNumber,
   allocateBatchInventoryNumbers,
+  exactInventoryNumberTaken,
 } from './utils/equipmentFields';
 import { Copy, Check, Mail } from 'lucide-react';
 import { copyTextToClipboard } from './utils/clipboard';
@@ -1011,6 +1012,19 @@ export default function App() {
   ]);
 
   // 2. Data Action handlers (CRUD)
+
+  const checkInventoryExists = (invNum: string, excludeId?: string) =>
+    exactInventoryNumberTaken(
+      invNum,
+      {
+        warehouseItems,
+        computers,
+        networkDevices,
+        softwareItems,
+        softwareWarehouseInv: getSoftwareWarehouseInv,
+      },
+      excludeId
+    );
   
   // Objects CRUD
   const handleAddObject = (name: string, address: string, iconName?: string) => {
@@ -1039,20 +1053,30 @@ export default function App() {
     logActivity('Удален объект', `Удален объект "${target.name}"`, 'delete');
   };
 
-  const handleAddNetwork = (device: Omit<NetworkDevice, 'id'>) => {
-    if (checkLicenseBlocked()) return;
+  const handleAddNetwork = (device: Omit<NetworkDevice, 'id'>): boolean | void => {
+    if (checkLicenseBlocked()) return false;
+    if (checkInventoryExists(device.inventoryNumber)) {
+      alert(`Оборудование с инвентарным номером ${device.inventoryNumber} уже существует!`);
+      return false;
+    }
     const newDevice: NetworkDevice = {
       ...device,
       id: `net-${Date.now()}`,
     };
     setNetworkDevices(prev => [...prev, newDevice]);
     logActivity('Добавлено сетевое оборудование', `Добавлено устройство "${device.deviceName}"`, 'create');
+    return true;
   };
 
-  const handleEditNetwork = (id: string, device: Omit<NetworkDevice, 'id'>) => {
-    if (checkLicenseBlocked()) return;
+  const handleEditNetwork = (id: string, device: Omit<NetworkDevice, 'id'>): boolean | void => {
+    if (checkLicenseBlocked()) return false;
+    if (checkInventoryExists(device.inventoryNumber, id)) {
+      alert(`Оборудование с инвентарным номером ${device.inventoryNumber} уже существует!`);
+      return false;
+    }
     setNetworkDevices(prev => prev.map(dev => dev.id === id ? { ...dev, ...device } : dev));
     logActivity('Изменено сетевое оборудование', `Параметры оборудования "${device.deviceName}" изменены`, 'update');
+    return true;
   };
 
   // Computers CRUD
@@ -1320,8 +1344,12 @@ export default function App() {
     );
   };
 
-  const handleAddComputer = (comp: Omit<ComputerItem, 'id'>) => {
-    if (checkLicenseBlocked()) return;
+  const handleAddComputer = (comp: Omit<ComputerItem, 'id'>): boolean | void => {
+    if (checkLicenseBlocked()) return false;
+    if (checkInventoryExists(comp.inventoryNumber)) {
+      alert(`Оборудование с инвентарным номером ${comp.inventoryNumber} уже существует!`);
+      return false;
+    }
     const newComputer: ComputerItem = {
       ...comp,
       id: `comp-${Date.now()}`,
@@ -1332,11 +1360,15 @@ export default function App() {
       `Добавлено устройство "${comp.category} ${comp.model}" (инв. № ${comp.inventoryNumber})`,
       'create'
     );
+    return true;
   };
 
-  const handleEditComputer = (id: string, comp: Omit<ComputerItem, 'id'>) => {
-    if (checkLicenseBlocked()) return;
-
+  const handleEditComputer = (id: string, comp: Omit<ComputerItem, 'id'>): boolean | void => {
+    if (checkLicenseBlocked()) return false;
+    if (checkInventoryExists(comp.inventoryNumber, id)) {
+      alert(`Оборудование с инвентарным номером ${comp.inventoryNumber} уже существует!`);
+      return false;
+    }
     if (comp.status === 'На складе') {
       const targetWarehouse = warehouses.find(w => w.objectName === comp.objectName)?.name || 'Основной склад ИТ';
       returnAssetToWarehouse(
@@ -1353,27 +1385,39 @@ export default function App() {
         `Оборудование "${comp.category} ${comp.model}" (Инв. № ${comp.inventoryNumber}) возвращено на склад "${targetWarehouse}" через смену статуса`, 
         'update'
       );
+      return true;
     } else {
       setComputers(prev => prev.map(c => c.id === id ? { ...c, ...comp, model: limitEquipmentTitle(comp.model.trim()) } : c));
       logActivity('Изменен статус ПК', `Параметры "${comp.category} ${comp.model}" изменены (Статус: ${comp.status})`, 'update');
+      return true;
     }
   };
 
   // Software CRUD
-  const handleAddSoftware = (soft: Omit<SoftwareItem, 'id'>) => {
-    if (checkLicenseBlocked()) return;
+  const handleAddSoftware = (soft: Omit<SoftwareItem, 'id'>): boolean | void => {
+    if (checkLicenseBlocked()) return false;
+    if (soft.licenseKey && checkInventoryExists(soft.licenseKey)) {
+      alert(`Лицензия с ключом ${soft.licenseKey} уже существует!`);
+      return false;
+    }
     const newSoft: SoftwareItem = {
       ...soft,
       id: `soft-${Date.now()}`,
     };
     setSoftwareItems(prev => [...prev, newSoft]);
     logActivity('Добавлено ПО', `Добавлена программа "${soft.name} (v${soft.version})" [${soft.category}]`, 'create');
+    return true;
   };
 
-  const handleEditSoftware = (id: string, soft: Omit<SoftwareItem, 'id'>) => {
-    if (checkLicenseBlocked()) return;
+  const handleEditSoftware = (id: string, soft: Omit<SoftwareItem, 'id'>): boolean | void => {
+    if (checkLicenseBlocked()) return false;
+    if (soft.licenseKey && checkInventoryExists(soft.licenseKey, id)) {
+      alert(`Лицензия с ключом ${soft.licenseKey} уже существует!`);
+      return false;
+    }
     setSoftwareItems(prev => prev.map(s => s.id === id ? { ...s, ...soft } : s));
     logActivity('Изменено ПО', `Параметры ПО "${soft.name}" обновлены`, 'update');
+    return true;
   };
 
   const handleReturnSoftwareToWarehouse = (id: string, targetWarehouseName?: string) => {
@@ -1515,8 +1559,8 @@ export default function App() {
     motherboardModel?: string;
     powerSupplyModel?: string;
     caseModel?: string;
-  }) => {
-    if (checkLicenseBlocked()) return;
+  }): boolean | void => {
+    if (checkLicenseBlocked()) return false;
 
     const normalizedItem = {
       ...item,
@@ -1528,6 +1572,13 @@ export default function App() {
     // 1. Add to warehouse array
     const existingIndex = warehouseItems.findIndex(w => w.inventoryNumber === normalizedItem.inventoryNumber);
     if (existingIndex > -1) {
+      const existingItem = warehouseItems[existingIndex];
+      if (existingItem.name !== normalizedItem.name || existingItem.type !== normalizedItem.type) {
+        alert(
+          `Инвентарный номер ${normalizedItem.inventoryNumber} уже занят другим оборудованием («${existingItem.name}»). Используйте уникальный номер.`
+        );
+        return false;
+      }
       setWarehouseItems(prev => prev.map((w, index) => 
         index === existingIndex 
           ? { 
@@ -1551,6 +1602,10 @@ export default function App() {
       ));
       logActivity('Пополнение запасов', `Пополнение склада: добавлено +${normalizedItem.quantity} шт. для "${normalizedItem.name}"`, 'update');
     } else {
+      if (checkInventoryExists(normalizedItem.inventoryNumber)) {
+        alert(`Оборудование с инвентарным номером ${normalizedItem.inventoryNumber} уже существует в системе!`);
+        return false;
+      }
       const newStock: WarehouseItem = {
         name: normalizedItem.name,
         type: normalizedItem.type,
@@ -1638,7 +1693,7 @@ export default function App() {
       );
     } else {
       const route = resolveWarehouseComputerRoute(normalizedItem);
-      if (!route) return;
+      if (!route) return false;
 
       const { category, deviceType, equipmentTab } = route;
       const invNumbers = allocateBatchInventoryNumbers(
@@ -1678,6 +1733,7 @@ export default function App() {
         'system'
       );
     }
+    return true;
   };
 
   const handleWarehouseWriteOff = (

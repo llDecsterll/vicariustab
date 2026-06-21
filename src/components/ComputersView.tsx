@@ -30,8 +30,8 @@ interface ComputersViewProps {
   employees: EmployeeItem[];
   objects: ObjectItem[];
   allComputers?: ComputerItem[];
-  onAdd: (comp: Omit<ComputerItem, 'id'>) => void;
-  onEdit: (id: string, comp: Omit<ComputerItem, 'id'>) => void;
+  onAdd: (comp: Omit<ComputerItem, 'id'>) => boolean | void;
+  onEdit: (id: string, comp: Omit<ComputerItem, 'id'>) => boolean | void;
   onDelete?: (id: string) => void;
   onReturnToWarehouse?: (id: string) => void;
   onViewDetails?: (type: 'computer' | 'network' | 'employee' | 'object' | 'warehouse', id: string) => void;
@@ -313,12 +313,10 @@ export default function ComputersView({
       cost: Number(cost) || 0,
     };
 
-    if (editingId) {
-      onEdit(editingId, payload);
-    } else {
-      onAdd(payload);
+    const ok = editingId ? onEdit(editingId, payload) : onAdd(payload);
+    if (ok !== false) {
+      setShowModal(false);
     }
-    setShowModal(false);
   };
 
   const handleReturnToWarehouse = (comp: ComputerItem) => {

@@ -25,8 +25,8 @@ interface SoftwareViewProps {
   employees: EmployeeItem[];
   objects: ObjectItem[];
   computers: ComputerItem[];
-  onAdd: (item: Omit<SoftwareItem, 'id'>) => void;
-  onEdit: (id: string, item: Omit<SoftwareItem, 'id'>) => void;
+  onAdd: (item: Omit<SoftwareItem, 'id'>) => boolean | void;
+  onEdit: (id: string, item: Omit<SoftwareItem, 'id'>) => boolean | void;
   onDelete?: (id: string) => void;
   onReturnToWarehouse?: (id: string) => void;
   currentUser?: { role: 'Viewer' | 'Editor' | 'Admin' };
@@ -178,12 +178,10 @@ export default function SoftwareView({
       notes
     };
 
-    if (editingId) {
-      onEdit(editingId, payload);
-    } else {
-      onAdd(payload);
+    const ok = editingId ? onEdit(editingId, payload) : onAdd(payload);
+    if (ok !== false) {
+      setShowModal(false);
     }
-    setShowModal(false);
   };
 
   const filtered = softwareItems.filter(item => {

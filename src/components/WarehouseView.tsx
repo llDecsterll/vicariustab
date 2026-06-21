@@ -31,7 +31,7 @@ interface WarehouseViewProps {
     motherboardModel?: string;
     powerSupplyModel?: string;
     caseModel?: string;
-  }) => void;
+  }) => boolean | void;
   onWriteOff: (
     inventoryNumber: string, 
     quantityToWriteOff: number, 
@@ -376,7 +376,7 @@ export default function WarehouseView({
     const trimmedModel = limitEquipmentTitle(model.trim());
     if (!trimmedName || !trimmedModel || !inventoryNumber.trim() || quantity < 1 || costPerUnit < 0) return;
 
-    onReceipt({
+    const success = onReceipt({
       name: trimmedName,
       type,
       model: trimmedModel,
@@ -400,7 +400,9 @@ export default function WarehouseView({
       deviceType,
     });
 
-    setShowReceiptModal(false);
+    if (success !== false) {
+      setShowReceiptModal(false);
+    }
   };
 
   const handleWriteOffSubmit = (e: React.FormEvent) => {

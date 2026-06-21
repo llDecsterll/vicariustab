@@ -24,8 +24,8 @@ interface NetworkViewProps {
   objects: ObjectItem[];
   warehouseItems?: WarehouseItem[];
   warehouses?: CustomWarehouse[];
-  onAdd: (device: Omit<NetworkDevice, 'id'>) => void;
-  onEdit: (id: string, device: Omit<NetworkDevice, 'id'>) => void;
+  onAdd: (device: Omit<NetworkDevice, 'id'>) => boolean | void;
+  onEdit: (id: string, device: Omit<NetworkDevice, 'id'>) => boolean | void;
   onDelete?: (id: string) => void;
   onReturnToWarehouse?: (id: string) => void;
   onViewDetails?: (type: 'computer' | 'network' | 'employee' | 'object' | 'warehouse', id: string) => void;
@@ -179,12 +179,10 @@ export default function NetworkView({
       cost: Number(cost) || 0,
     };
 
-    if (editingId) {
-      onEdit(editingId, payload);
-    } else {
-      onAdd(payload);
+    const ok = editingId ? onEdit(editingId, payload) : onAdd(payload);
+    if (ok !== false) {
+      setShowModal(false);
     }
-    setShowModal(false);
   };
 
   const filtered = networkDevices.filter(dev => {

@@ -109,6 +109,37 @@ export function allocateBatchInventoryNumbers(
   return result;
 }
 
+/** Exact inv. number collision across warehouse, equipment groups, and software keys. */
+export function exactInventoryNumberTaken(
+  invNum: string,
+  ctx: {
+    warehouseItems: { id?: string; inventoryNumber?: string }[];
+    computers: { id?: string; inventoryNumber?: string }[];
+    networkDevices: { id?: string; inventoryNumber?: string }[];
+    softwareItems: { id?: string; licenseKey?: string }[];
+    softwareWarehouseInv: (softwareId: string) => string;
+  },
+  excludeId?: string
+): boolean {
+  const inv = (invNum || '').trim().toLowerCase();
+  if (!inv) return false;
+  const match = (val?: string) => (val || '').trim().toLowerCase() === inv;
+
+  if (ctx.warehouseItems.some((w) => w.id !== excludeId && match(w.inventoryNumber))) return true;
+  if (ctx.computers.some((c) => c.id !== excludeId && match(c.inventoryNumber))) return true;
+  if (ctx.networkDevices.some((n) => n.id !== excludeId && match(n.inventoryNumber))) return true;
+  if (
+    ctx.softwareItems.some(
+      (s) =>
+        s.id !== excludeId &&
+        (match(s.licenseKey) || match(ctx.softwareWarehouseInv(s.id)))
+    )
+  ) {
+    return true;
+  }
+  return false;
+}
+
 export function isNotLinkedToInventoryBase(
   itemInventoryNumber: string | undefined | null,
   baseInventoryNumber: string | undefined | null

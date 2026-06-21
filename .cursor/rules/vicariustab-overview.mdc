@@ -1,0 +1,33 @@
+---
+description: Vicariustab — обзор репозитория, версия, команды
+alwaysApply: true
+---
+
+# Vicariustab (product/)
+
+**Версия:** 2.0.12 · **Git:** https://github.com/llDecsterll/vicariustab (`main`)
+
+IT-инвентаризация: React 19 + TypeScript + Vite 6 + Express.
+
+## Команды
+
+```bash
+npm install && npm run dev      # :3000
+npm run build && npm start      # production
+npm run lint                    # tsc --noEmit
+npm run verify http://127.0.0.1:8080
+npm run verify:install http://127.0.0.1:8080
+```
+
+## Индекс
+
+| Файл | Назначение |
+|------|------------|
+| `AGENTS.md` | Краткий справочник |
+| `.cursor/rules/product-vicariustab.mdc` | Структура и модули |
+| `.cursor/rules/equipment-lifecycle.mdc` | Склад, удаление, возврат |
+| `.cursor/rules/server-backend.mdc` | API и сервер |
+
+## Лицензия
+
+`src/utils/license.ts` + `server/licenseCore.ts` · формат `UTKIN-{base64}-{hash}`

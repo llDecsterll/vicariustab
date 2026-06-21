@@ -1,0 +1,44 @@
+---
+description: Жизненный цикл оборудования — поступление, возврат, удаление, дедупликация
+globs: src/**/{App.tsx,equipment*.ts,warehouseRouting.ts,*View.tsx,Confirm*.tsx,emptyWorkspace.ts}
+alwaysApply: false
+---
+
+# Equipment lifecycle
+
+## Поступление (`handleWarehouseReceipt`)
+
+1. Warehouse line (+qty если тот же inv и тот же тип/название)
+2. Авто-распределение:
+   - **Сеть:** merge qty на объекте склада
+   - **ПО:** softwareItems «Не активирована»
+   - **Компьютеры/периферия:** cards «На складе» с `allocateBatchInventoryNumbers`
+3. Валидация: `exactInventoryNumberTaken` — блок повторного inv
+
+## Дедупликация в UI склада
+
+`isStockRegistryDuplicateOfWarehouseBatch` — если есть warehouse qty>0 с тем же inv на объекте склада, карточка computer/network не показывается второй строкой.
+
+## Удаление (`executeEquipmentDelete`)
+
+- warehouse (не ПО): invKey + `findLinkedStockComputerIds` (batch + model orphan)
+- software: `warehouseItemLinksSoftware`
+- computer «На складе»: полное удаление warehouse по invKey
+
+## Возврат
+
+- computer → status «На складе», +warehouse qty
+- network → decrement/split, NET-EQ normalize
+- software → «Не активирована», +warehouse, скрыт из SoftwareView
+
+## Очистка БД (Admin)
+
+`POST /api/data/purge-workspace` · `buildPurgedWorkspacePayload` · сохраняет users/license/UI
+
+## Модалки
+
+ConfirmDeleteModal · ConfirmReturnModal
+
+## При изменениях
+
+Синхронно: `equipmentDelete.ts`, `equipmentFields.ts`, `warehouseRouting.ts`, `App.tsx`, `WarehouseView.tsx` (unified lists).
