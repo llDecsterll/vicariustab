@@ -8,7 +8,7 @@
 # 🚀 Vicariustab
 
 <p align="center">
-  <img src="https://img.shields.io/badge/版本-2.0.1-blue?style=for-the-badge" alt="Version">
+  <img src="https://img.shields.io/badge/版本-2.0.7-blue?style=for-the-badge" alt="Version">
   <img src="https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&style=for-the-badge" alt="Docker Ready">
   <img src="https://img.shields.io/badge/Node.js-20+-339933?logo=node.js&style=for-the-badge" alt="Node.js 20">
   <img src="https://img.shields.io/badge/PM2-Supported-blue?style=for-the-badge" alt="PM2">
@@ -462,6 +462,25 @@ rm -f db.json store_meta.json sessions_store.enc db_config.json
 
 若浏览器仍显示旧登录页，请清除 `localhost` 站点数据（或使用隐私/无痕窗口）。
 
+### 安装验证（冒烟测试）
+
+构建后启动服务器并检查 API：
+
+```bash
+npm run build
+PORT=8080 DB_ENCRYPTION_KEY="your-long-random-secret" npm start
+```
+
+另开终端：
+
+```bash
+npm run verify http://127.0.0.1:8080
+npm run verify:install http://127.0.0.1:8080
+npm run lint
+```
+
+预期输出：`ALL TESTS PASSED` 与 `INSTALL CHECKS PASSED`。
+
 ---
 
 # 🗄 数据库配置
@@ -614,7 +633,12 @@ vicariustab/
 │   ├── utils/                    # 许可证、i18n、更新
 │   └── config/                   # 版本、更新仓库
 ├── server/                       # API、密码哈希、种子数据
-│   └── workspaceSeed.json          # 首次启动时的默认数据
+│   ├── apiAuth.ts                # 认证中间件 + 许可证校验
+│   ├── dataStore.ts              # JSON/SQL 持久化
+│   ├── sessionEngine.ts          # 会话与通知
+│   ├── updateEngine.ts           # GitHub 自动更新
+│   ├── licenseCore.ts            # 服务端许可证
+│   └── workspaceSeed.json        # 首次启动时的默认数据
 ├── server.ts                     # Express API、数据库、加密
 ├── Dockerfile
 ├── docker-compose.yml            # 仅应用
@@ -625,7 +649,9 @@ vicariustab/
 ├── docker-compose.caddy.yml      # Caddy（可选）
 ├── nginx.conf
 ├── scripts/
-│   ├── verify-flow.mjs           # 冒烟测试
+│   ├── dev-server.mjs            # npm run dev
+│   ├── verify-flow.mjs           # npm run verify
+│   ├── verify-install.mjs        # npm run verify:install
 │   └── capture-screenshots.mjs   # README 截图
 ├── docs/screenshots/
 │   ├── ru/                       # README.ru.md
@@ -724,7 +750,8 @@ pm2 restart vicariustab-system
 
 | 问题 | 解决方案 |
 |------|----------|
-| **未出现初始配置向导** | 删除 `STACK_DATA_DIR` 中的 `db.json` / `store_meta.json`；清除浏览器站点数据 |
+| **未出现初始配置向导** | 删除 `STACK_DATA_DIR` 中的 `db.json`、`store_meta.json`、`sessions_store.enc`；清除浏览器站点数据 |
+| **Sessions 错误 / bad decrypt** | 更改 `DB_ENCRYPTION_KEY` 后，删除 `sessions_store.enc` 并重启 |
 | **「登录名或密码错误」** | 使用初始配置时的凭据；无默认 `admin`/`admin` 账户 |
 | **Docker 内连接数据库被拒绝** | 主机 `172.17.0.1`；MySQL：`bind-address=0.0.0.0`；或 `docker-compose.host.yml` |
 | **连接测试失败** | 重新输入密码；若已保存可留空或再次输入 |

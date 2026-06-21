@@ -103,6 +103,19 @@ function loadStore() {
     }
   } catch (err) {
     console.error("[Sessions] Failed to load store:", err);
+    try {
+      if (fs.existsSync(storePath)) {
+        fs.renameSync(storePath, `${storePath}.corrupt-${Date.now()}`);
+      }
+    } catch {
+      /* ignore quarantine errors */
+    }
+    store = {
+      sessions: {},
+      userIndex: {},
+      notifications: [],
+      auditEvents: [],
+    };
   }
 }
 

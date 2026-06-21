@@ -8,7 +8,7 @@
 # 🚀 Vicariustab
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.0.1-blue?style=for-the-badge" alt="Version">
+  <img src="https://img.shields.io/badge/version-2.0.7-blue?style=for-the-badge" alt="Version">
   <img src="https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&style=for-the-badge" alt="Docker Ready">
   <img src="https://img.shields.io/badge/Node.js-20+-339933?logo=node.js&style=for-the-badge" alt="Node.js 20">
   <img src="https://img.shields.io/badge/PM2-Supported-blue?style=for-the-badge" alt="PM2">
@@ -459,6 +459,25 @@ rm -f db.json store_meta.json sessions_store.enc db_config.json
 
 If the browser still shows an old login screen, clear site data for `localhost` (or use a private/incognito window).
 
+### Verify installation (smoke tests)
+
+After build, start the server and check the API:
+
+```bash
+npm run build
+PORT=8080 DB_ENCRYPTION_KEY="your-long-random-secret" npm start
+```
+
+In another terminal:
+
+```bash
+npm run verify http://127.0.0.1:8080
+npm run verify:install http://127.0.0.1:8080
+npm run lint
+```
+
+Expected: `ALL TESTS PASSED` and `INSTALL CHECKS PASSED`.
+
 ---
 
 # 🗄 Database setup
@@ -611,7 +630,12 @@ vicariustab/
 │   ├── utils/                    # License, i18n, updates
 │   └── config/                   # Version, update repo
 ├── server/                       # API helpers, password hash, seed data
-│   └── workspaceSeed.json          # Default data on first-run setup
+│   ├── apiAuth.ts                # Auth middleware + license gate
+│   ├── dataStore.ts              # JSON/SQL persistence
+│   ├── sessionEngine.ts          # Sessions and notifications
+│   ├── updateEngine.ts           # GitHub auto-update
+│   ├── licenseCore.ts            # Server-side license check
+│   └── workspaceSeed.json        # Default data on first-run setup
 ├── server.ts                     # Express API, DB, encryption
 ├── Dockerfile
 ├── docker-compose.yml            # App only
@@ -622,7 +646,9 @@ vicariustab/
 ├── docker-compose.caddy.yml      # Caddy (optional)
 ├── nginx.conf
 ├── scripts/
-│   ├── verify-flow.mjs           # Smoke tests
+│   ├── dev-server.mjs            # npm run dev
+│   ├── verify-flow.mjs           # npm run verify — license, auth, update
+│   ├── verify-install.mjs        # npm run verify:install — health/setup
 │   └── capture-screenshots.mjs   # README screenshots
 ├── docs/screenshots/
 │   ├── ru/                       # README.ru.md
@@ -721,7 +747,8 @@ pm2 restart vicariustab-system
 
 | Issue | Solution |
 |-------|----------|
-| **Setup wizard does not appear** | Delete `db.json` / `store_meta.json` in `STACK_DATA_DIR`; clear browser site data |
+| **Setup wizard does not appear** | Delete `db.json`, `store_meta.json`, `sessions_store.enc` in `STACK_DATA_DIR`; clear browser site data |
+| **Sessions error / bad decrypt** | After changing `DB_ENCRYPTION_KEY`, delete `sessions_store.enc` and restart |
 | **“Invalid login or password”** | Use credentials from initial setup; no default `admin`/`admin` accounts |
 | **Connection refused to DB from Docker** | Host `172.17.0.1`; MySQL: `bind-address=0.0.0.0`; or `docker-compose.host.yml` |
 | **Connection test fails** | Re-enter password; if saved, leave field empty or type again |

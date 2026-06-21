@@ -8,7 +8,7 @@
 # 🚀 Vicariustab
 
 <p align="center">
-  <img src="https://img.shields.io/badge/версия-2.0.1-blue?style=for-the-badge" alt="Version">
+  <img src="https://img.shields.io/badge/версия-2.0.7-blue?style=for-the-badge" alt="Version">
   <img src="https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&style=for-the-badge" alt="Docker Ready">
   <img src="https://img.shields.io/badge/Node.js-20+-339933?logo=node.js&style=for-the-badge" alt="Node.js 20">
   <img src="https://img.shields.io/badge/PM2-Supported-blue?style=for-the-badge" alt="PM2">
@@ -462,6 +462,25 @@ rm -f db.json store_meta.json sessions_store.enc db_config.json
 
 Если браузер показывает старый экран входа — очистите данные сайта для `localhost` (или откройте в режиме инкognito).
 
+### Проверка установки (smoke-тесты)
+
+После сборки запустите сервер и проверьте API:
+
+```bash
+npm run build
+PORT=8080 DB_ENCRYPTION_KEY="your-long-random-secret" npm start
+```
+
+В другом терминале:
+
+```bash
+npm run verify http://127.0.0.1:8080
+npm run verify:install http://127.0.0.1:8080
+npm run lint
+```
+
+Ожидается: `ALL TESTS PASSED` и `INSTALL CHECKS PASSED`.
+
 ---
 
 # 🗄 Настройка базы данных
@@ -614,7 +633,12 @@ vicariustab/
 │   ├── utils/                    # Лицензия, i18n, обновления
 │   └── config/                   # Версия, репозиторий обновлений
 ├── server/                       # API, хеширование паролей, seed-данные
-│   └── workspaceSeed.json          # Стартовые данные при первом запуске
+│   ├── apiAuth.ts                # Middleware auth + license gate
+│   ├── dataStore.ts              # JSON/SQL persistence
+│   ├── sessionEngine.ts          # Сессии и уведомления
+│   ├── updateEngine.ts           # GitHub auto-update
+│   ├── licenseCore.ts            # Серверная проверка лицензии
+│   └── workspaceSeed.json        # Стартовые данные при первом запуске
 ├── server.ts                     # Express API, СУБД, шифрование
 ├── Dockerfile
 ├── docker-compose.yml            # Только приложение
@@ -625,7 +649,9 @@ vicariustab/
 ├── docker-compose.caddy.yml      # Caddy (опционально)
 ├── nginx.conf
 ├── scripts/
-│   ├── verify-flow.mjs           # Smoke-тесты
+│   ├── dev-server.mjs            # npm run dev
+│   ├── verify-flow.mjs           # npm run verify — лицензия, auth, update
+│   ├── verify-install.mjs        # npm run verify:install — health/setup
 │   └── capture-screenshots.mjs   # Скриншоты для README
 ├── docs/screenshots/
 │   ├── ru/                       # Скриншоты (README.ru.md)
@@ -724,7 +750,8 @@ pm2 restart vicariustab-system
 
 | Проблема | Решение |
 |----------|---------|
-| **Не появляется мастер настройки** | Удалите `db.json` / `store_meta.json` в `STACK_DATA_DIR`; очистите данные сайта в браузере |
+| **Не появляется мастер настройки** | Удалите `db.json`, `store_meta.json`, `sessions_store.enc` в `STACK_DATA_DIR`; очистите данные сайта в браузере |
+| **Ошибка Sessions / bad decrypt** | Сменили `DB_ENCRYPTION_KEY` — удалите `sessions_store.enc` и перезапустите сервер |
 | **«Неверный логин или пароль»** | Используйте данные из первоначальной настройки; учётных записей `admin`/`admin` нет |
 | **Connection refused к СУБД из Docker** | Хост `172.17.0.1`; MySQL: `bind-address=0.0.0.0`; или `docker-compose.host.yml` |
 | **Тест подключения не проходит** | Проверьте пароль; если сохранён — оставьте поле пустым или введите заново |
