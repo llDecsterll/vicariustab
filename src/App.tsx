@@ -56,6 +56,7 @@ import {
   getWarehouseItemSpecs,
   limitEquipmentTitle,
   matchesBaseInventoryNumber,
+  allocateBatchInventoryNumbers,
 } from './utils/equipmentFields';
 import { Copy, Check, Mail } from 'lucide-react';
 import { copyTextToClipboard } from './utils/clipboard';
@@ -1578,36 +1579,77 @@ export default function App() {
     const defaultObjectName = linkedWarehouse?.objectName || objects[0]?.name || 'Главный офис';
     
     if (normalizedItem.type === 'Сетевое оборудование') {
-      const newNet: NetworkDevice = {
-        id: `net-wh-${Date.now()}`,
-        deviceName: normalizedItem.name,
-        type: resolveNetworkDeviceType({ deviceType: normalizedItem.deviceType, name: normalizedItem.name }),
-        objectName: defaultObjectName,
-        ipAddress: '192.168.1.1',
-        quantity: normalizedItem.quantity,
-        inventoryNumber: normalizedItem.inventoryNumber,
-        portsCount: 24,
-        workingPorts: Array.from({ length: 24 }, (_, i) => i + 1),
-        damagedPorts: [],
-        pdfFiles: normalizedItem.pdfFiles || [],
-        invoiceInfo: normalizedItem.invoiceInfo || '',
-        memoInfo: normalizedItem.memoInfo || '',
-        warrantyInfo: normalizedItem.warrantyInfo || '',
-        cost: normalizedItem.costPerUnit,
-      };
-      setNetworkDevices(prev => [...prev, newNet]);
+      setNetworkDevices(prev => {
+        const existing = prev.find(
+          (n) =>
+            inventoryNumbersMatch(n.inventoryNumber, normalizedItem.inventoryNumber) &&
+            n.objectName === defaultObjectName
+        );
+        if (existing) {
+          return prev.map((n) =>
+            n.id === existing.id
+              ? { ...n, quantity: (n.quantity || 1) + normalizedItem.quantity }
+              : n
+          );
+        }
+        const newNet: NetworkDevice = {
+          id: `net-wh-${Date.now()}`,
+          deviceName: normalizedItem.name,
+          type: resolveNetworkDeviceType({ deviceType: normalizedItem.deviceType, name: normalizedItem.name }),
+          objectName: defaultObjectName,
+          ipAddress: '192.168.1.1',
+          quantity: normalizedItem.quantity,
+          inventoryNumber: normalizedItem.inventoryNumber,
+          portsCount: 24,
+          workingPorts: Array.from({ length: 24 }, (_, i) => i + 1),
+          damagedPorts: [],
+          pdfFiles: normalizedItem.pdfFiles || [],
+          invoiceInfo: normalizedItem.invoiceInfo || '',
+          memoInfo: normalizedItem.memoInfo || '',
+          warrantyInfo: normalizedItem.warrantyInfo || '',
+          cost: normalizedItem.costPerUnit,
+        };
+        return [...prev, newNet];
+      });
       logActivity('Авто-распределение ТМЦ', `Устройство "${normalizedItem.name}" автоматически распределено в Сетевое оборудование`, 'system');
+    } else if (normalizedItem.type === 'Лицензии ПО') {
+      const newSoftItems: SoftwareItem[] = [];
+      for (let i = 0; i < normalizedItem.quantity; i++) {
+        const softId = `soft-wh-${Date.now()}-${i}-${Math.floor(Math.random() * 10000)}`;
+        newSoftItems.push({
+          id: softId,
+          name: normalizedItem.name,
+          category: 'Иное ПО',
+          licenseKey: normalizedItem.inventoryNumber.startsWith('SW-') ? '' : normalizedItem.inventoryNumber,
+          version: normalizedItem.model || '',
+          developer: '',
+          quantity: 1,
+          assignedEmployeeName: 'Свободная лицензия',
+          objectName: defaultObjectName,
+          status: 'Не активирована',
+          purchaseDate: new Date().toISOString().split('T')[0],
+        });
+      }
+      setSoftwareItems((prev) => [...prev, ...newSoftItems]);
+      logActivity(
+        'Авто-распределение ТМЦ',
+        `Лицензии «${normalizedItem.name}» (${normalizedItem.quantity} шт.) добавлены в реестр ПО со статусом «Не активирована»`,
+        'system'
+      );
     } else {
       const route = resolveWarehouseComputerRoute(normalizedItem);
       if (!route) return;
 
       const { category, deviceType, equipmentTab } = route;
+      const invNumbers = allocateBatchInventoryNumbers(
+        normalizedItem.inventoryNumber,
+        computers.map((c) => c.inventoryNumber),
+        normalizedItem.quantity
+      );
 
-      // Since each non-network asset card is tracked as a single asset on ComputersView, we generate individual assets so they can be assigned to different employees!
       const newComputersToAppend: ComputerItem[] = [];
-      for (let i = 0; i < normalizedItem.quantity; i++) {
-        const suffix = normalizedItem.quantity > 1 ? `-${i + 1}` : '';
-        const invNum = `${normalizedItem.inventoryNumber}${suffix}`;
+      for (let i = 0; i < invNumbers.length; i++) {
+        const invNum = invNumbers[i];
         const unitSpecs = buildComputerSpecsFromReceipt(receiptSpecs, i, normalizedItem.quantity);
         
         const newAsset: ComputerItem = {
@@ -1904,12 +1946,13 @@ export default function App() {
             matchingCompsOnStock.find((c) => c.cpuModel || c.ramModel || c.serialNumber) || null;
 
           const newCompsToAppend: ComputerItem[] = [];
-          for (let i = 0; i < remainingToCreate; i++) {
-            const suffixesCount = prev.filter(c =>
-              c.inventoryNumber?.startsWith(`${inventoryNumber}-`)
-            ).length;
-            const suffix = (quantity > 1 || suffixesCount > 0) ? `-${suffixesCount + i + 1}` : '';
-            const invNum = `${inventoryNumber}${suffix}`;
+          const batchInvNumbers = allocateBatchInventoryNumbers(
+            inventoryNumber,
+            prev.map((c) => c.inventoryNumber),
+            remainingToCreate
+          );
+          for (let i = 0; i < batchInvNumbers.length; i++) {
+            const invNum = batchInvNumbers[i];
             const unitSpecs = buildComputerSpecsFromReceipt(
               templateSpecs
                 ? {
@@ -1923,8 +1966,8 @@ export default function App() {
                     caseModel: templateSpecs.caseModel,
                   }
                 : whSpecs,
-              suffixesCount + i,
-              Math.max(quantity, suffixesCount + remainingToCreate)
+              i,
+              Math.max(quantity, remainingToCreate)
             );
 
             const newAsset: ComputerItem = {

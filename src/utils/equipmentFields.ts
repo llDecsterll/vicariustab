@@ -76,6 +76,39 @@ export function inventoryNumbersMatch(
   return matchesBaseInventoryNumber(a, b) || matchesBaseInventoryNumber(b, a);
 }
 
+/** Allocate unique inv. numbers for a warehouse batch (base, base-1, base-2, …). */
+export function allocateBatchInventoryNumbers(
+  baseInventoryNumber: string,
+  existingInventoryNumbers: (string | undefined | null)[],
+  count: number
+): string[] {
+  const base = baseInventoryNumber.trim();
+  if (!base || count <= 0) return [];
+
+  const taken = new Set(
+    existingInventoryNumbers
+      .filter((inv): inv is string => Boolean(inv?.trim()))
+      .filter((inv) => matchesBaseInventoryNumber(inv, base))
+      .map((inv) => inv.trim())
+  );
+
+  if (count === 1 && !taken.has(base)) {
+    return [base];
+  }
+
+  const result: string[] = [];
+  let n = 1;
+  while (result.length < count) {
+    const candidate = `${base}-${n}`;
+    if (!taken.has(candidate)) {
+      result.push(candidate);
+      taken.add(candidate);
+    }
+    n++;
+  }
+  return result;
+}
+
 export function isNotLinkedToInventoryBase(
   itemInventoryNumber: string | undefined | null,
   baseInventoryNumber: string | undefined | null

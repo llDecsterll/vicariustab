@@ -158,6 +158,23 @@ async function testUpdateApi(token) {
   return { repository: data.repository, latestTag: data.latestTag, updateSource: data.updateSource };
 }
 
+async function testAllocateBatchInventoryNumbers() {
+  const { allocateBatchInventoryNumbers } = await import('../src/utils/equipmentFields.ts');
+  const first = allocateBatchInventoryNumbers('ST-0061', [], 1);
+  if (JSON.stringify(first) !== '["ST-0061"]') {
+    throw new Error(`Expected [ST-0061], got ${JSON.stringify(first)}`);
+  }
+  const second = allocateBatchInventoryNumbers('ST-0061', ['ST-0061'], 1);
+  if (JSON.stringify(second) !== '["ST-0061-1"]') {
+    throw new Error(`Expected [ST-0061-1], got ${JSON.stringify(second)}`);
+  }
+  const multi = allocateBatchInventoryNumbers('ST-0061', [], 3);
+  if (JSON.stringify(multi) !== '["ST-0061-1","ST-0061-2","ST-0061-3"]') {
+    throw new Error(`Expected batch -1,-2,-3, got ${JSON.stringify(multi)}`);
+  }
+  return { ok: true };
+}
+
 async function testStripLicenseOnServer(token) {
   const sample = {
     it_computers: '[]',
@@ -183,6 +200,7 @@ async function testStripLicenseOnServer(token) {
 const results = [];
 try {
   results.push(['license', await testLicenseModule()]);
+  results.push(['batch-inv', await testAllocateBatchInventoryNumbers()]);
   results.push(['backup-whitelist', testBackupWhitelist()]);
   const token = await ensureSession();
   results.push(['auth', { ok: true }]);

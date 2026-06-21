@@ -15,8 +15,8 @@ import {
   EQUIPMENT_TITLE_MAX_LENGTH,
   limitEquipmentTitle,
   supportsComputerSpecifications,
-  inventoryNumbersMatch,
 } from '../utils/equipmentFields';
+import { isStockRegistryDuplicateOfWarehouseBatch } from '../utils/warehouseRouting';
 import { getSoftwareWarehouseInv, isSoftwareStoredOnWarehouse } from '../utils/equipmentDelete';
 import ModalCloseButton from './ModalCloseButton';
 
@@ -476,9 +476,13 @@ export default function WarehouseView({
       };
     });
 
-  // 2b. Stock registry computers (status "На складе") — visible for delete/deploy from warehouse tab
+  // 2b. Stock registry computers (status "На складе") — only orphans not already in whUnified
   const stockCompsUnified = (computers || [])
-    .filter(c => c.status === 'На складе')
+    .filter(
+      (c) =>
+        c.status === 'На складе' &&
+        !isStockRegistryDuplicateOfWarehouseBatch(c, warehouseItems || [], warehouses)
+    )
     .map(c => {
       const linkedWhName = warehouses.find(w => w.objectName === c.objectName)?.name || 'Основной склад ИТ';
       return {
@@ -505,22 +509,10 @@ export default function WarehouseView({
 
   // 3. Active Network Devices linked to objects
   const netUnified = (networkDevices || [])
-    .filter(n => {
-      // If there is an active warehouse item with this inventory number and positive quantity,
-      // and the network device is located at that warehouse's objectName,
-      // it is a stock item that is already shown as part of whUnified. We filter those out to avoid duplication.
-      const matchingWhItem = (warehouseItems || []).find(
-        item => inventoryNumbersMatch(item.inventoryNumber, n.inventoryNumber) && item.quantity > 0
-      );
-      if (matchingWhItem) {
-        const linkedWh = warehouses.find(w => w.name === matchingWhItem.warehouseName);
-        const whObjectName = linkedWh?.objectName || warehouses[0]?.objectName || 'Главный офис';
-        if (n.objectName === whObjectName) {
-          return false;
-        }
-      }
-      return true;
-    })
+    .filter(
+      (n) =>
+        !isStockRegistryDuplicateOfWarehouseBatch(n, warehouseItems || [], warehouses)
+    )
     .map(n => {
       const linkedWhName = warehouses.find(w => w.objectName === n.objectName)?.name || 'Основной склад ИТ';
       return {

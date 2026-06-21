@@ -270,6 +270,21 @@ export function filterNetworkDevicesForEquipmentView(
   );
 }
 
+/** Stock registry row already represented by an active warehouse batch line. */
+export function isStockRegistryDuplicateOfWarehouseBatch(
+  item: { inventoryNumber?: string | null; objectName?: string },
+  warehouseItems: WarehouseItem[],
+  warehouses: CustomWarehouse[]
+): boolean {
+  const matchingWhItem = warehouseItems.find(
+    (w) => inventoryNumbersMatch(w.inventoryNumber, item.inventoryNumber) && w.quantity > 0
+  );
+  if (!matchingWhItem) return false;
+  const linkedWh = warehouses.find((w) => w.name === matchingWhItem.warehouseName);
+  const whObjectName = linkedWh?.objectName || warehouses[0]?.objectName || 'Главный офис';
+  return item.objectName === whObjectName;
+}
+
 export const NETWORK_CATEGORY_FILTER_OPTIONS: { value: NetworkDeviceType | 'Все'; label: string }[] = [
   { value: 'Все', label: 'Все категории' },
   { value: 'Коммутатор', label: 'Коммутаторы' },
