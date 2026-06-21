@@ -58,6 +58,9 @@ import {
   matchesBaseInventoryNumber,
   allocateBatchInventoryNumbers,
   exactInventoryNumberTaken,
+  inventoryBaseFamilyTaken,
+  inventoryNumbersMatch,
+  normalizeInventoryNumber,
 } from './utils/equipmentFields';
 import { Copy, Check, Mail } from 'lucide-react';
 import { copyTextToClipboard } from './utils/clipboard';
@@ -84,7 +87,6 @@ import {
   warehouseItemLinksSoftware,
   type EquipmentDeleteSource,
 } from './utils/equipmentDelete';
-import { inventoryNumbersMatch, normalizeInventoryNumber } from './utils/equipmentFields';
 
 export default function App() {
   const { t } = useTranslation();
@@ -479,6 +481,15 @@ export default function App() {
 
   const handleAddUser = (u: Omit<SystemUser, 'id'>) => {
     if (checkLicenseBlocked()) return;
+    const login = (u.login || '').trim();
+    if (!login) {
+      alert('Укажите логин пользователя.');
+      return;
+    }
+    if (users.some(existing => (existing.login || '').trim().toLowerCase() === login.toLowerCase())) {
+      alert(`Пользователь с логином «${login}» уже существует.`);
+      return;
+    }
     const newUser: SystemUser = {
       ...u,
       id: `user-${Date.now()}`
@@ -491,6 +502,11 @@ export default function App() {
     if (checkLicenseBlocked()) return;
     const target = users.find(u => u.id === id);
     if (!target) return;
+    const activeAdmins = users.filter(u => u.role === 'Admin' && !u.isBlocked);
+    if (target.role === 'Admin' && activeAdmins.length <= 1) {
+      alert('Нельзя удалить последнего активного администратора системы.');
+      return;
+    }
     setUsers(prev => prev.filter(u => u.id !== id));
     logActivity('Отозван доступ', `Отозван доступ к панели у сотрудника "${target.name}"`, 'system');
   };
@@ -1049,7 +1065,23 @@ export default function App() {
     if (checkLicenseBlocked()) return;
     const target = objects.find(o => o.id === id);
     if (!target) return;
+    const fallbackName = objects.find(o => o.id !== id)?.name || 'Главный офис';
     setObjects(prev => prev.filter(obj => obj.id !== id));
+    setComputers(prev =>
+      prev.map(c => (c.objectName === target.name ? { ...c, objectName: fallbackName } : c))
+    );
+    setNetworkDevices(prev =>
+      prev.map(n => (n.objectName === target.name ? { ...n, objectName: fallbackName } : n))
+    );
+    setSoftwareItems(prev =>
+      prev.map(s => (s.objectName === target.name ? { ...s, objectName: fallbackName } : s))
+    );
+    setEmployees(prev =>
+      prev.map(e => (e.objectName === target.name ? { ...e, objectName: fallbackName } : e))
+    );
+    setWarehouses(prev =>
+      prev.map(w => (w.objectName === target.name ? { ...w, objectName: fallbackName } : w))
+    );
     logActivity('Удален объект', `Удален объект "${target.name}"`, 'delete');
   };
 
@@ -1545,6 +1577,20 @@ export default function App() {
     if (checkLicenseBlocked()) return;
     const target = employees.find(e => e.id === id);
     if (!target) return;
+    setComputers(prev =>
+      prev.map(c =>
+        c.employeeName === target.name
+          ? { ...c, employeeName: 'Склад ИТ', status: 'На складе' as const }
+          : c
+      )
+    );
+    setSoftwareItems(prev =>
+      prev.map(s =>
+        s.assignedEmployeeName === target.name
+          ? { ...s, assignedEmployeeName: 'Свободная лицензия' }
+          : s
+      )
+    );
     setEmployees(prev => prev.filter(e => e.id !== id));
     logActivity('Удален сотрудник', `Удален сотрудник "${target.name}" из штата`, 'delete');
   };
@@ -1567,18 +1613,99 @@ export default function App() {
       name: limitEquipmentTitle(item.name.trim()),
       model: limitEquipmentTitle(item.model.trim()),
     };
+    const baseInv = normalizedItem.inventoryNumber.trim();
+    if (!baseInv) {
+      alert('Укажите инвентарный номер.');
+      return false;
+    }
+
     const receiptSpecs = getWarehouseItemSpecs(normalizedItem);
-    
-    // 1. Add to warehouse array
-    const existingIndex = warehouseItems.findIndex(w => w.inventoryNumber === normalizedItem.inventoryNumber);
+    const invCtx = {
+      warehouseItems,
+      computers,
+      networkDevices,
+      softwareItems,
+      softwareWarehouseInv: getSoftwareWarehouseInv,
+    };
+
+    const existingIndex = warehouseItems.findIndex((w) =>
+      inventoryNumbersMatch(w.inventoryNumber, baseInv)
+    );
+
+    let preallocatedComputerInv: string[] | null = null;
+    let preallocatedSoftwareKeys: string[] | null = null;
+    let computerRoute: ReturnType<typeof resolveWarehouseComputerRoute> | null = null;
+
+    if (normalizedItem.type === 'Лицензии ПО') {
+      if (existingIndex === -1 && inventoryBaseFamilyTaken(baseInv, invCtx)) {
+        alert(`Инвентарный номер ${baseInv} уже используется в системе.`);
+        return false;
+      }
+      const keySource = baseInv.startsWith('SW-') ? baseInv : baseInv;
+      preallocatedSoftwareKeys = baseInv.startsWith('SW-')
+        ? allocateBatchInventoryNumbers(
+            keySource,
+            softwareItems.map((s) => s.licenseKey),
+            normalizedItem.quantity
+          )
+        : allocateBatchInventoryNumbers(
+            keySource,
+            [
+              ...softwareItems.map((s) => s.licenseKey),
+              ...computers.map((c) => c.inventoryNumber),
+              ...warehouseItems.map((w) => w.inventoryNumber),
+            ],
+            normalizedItem.quantity
+          );
+      if (preallocatedSoftwareKeys.length < normalizedItem.quantity) {
+        alert('Не удалось выделить уникальные ключи для партии лицензий.');
+        return false;
+      }
+    } else if (normalizedItem.type === 'Сетевое оборудование') {
+      if (existingIndex === -1 && inventoryBaseFamilyTaken(baseInv, invCtx)) {
+        alert(`Инвентарный номер ${baseInv} уже используется в системе.`);
+        return false;
+      }
+    } else {
+      computerRoute = resolveWarehouseComputerRoute(normalizedItem);
+      if (!computerRoute) return false;
+
+      preallocatedComputerInv = allocateBatchInventoryNumbers(
+        baseInv,
+        computers.map((c) => c.inventoryNumber),
+        normalizedItem.quantity
+      );
+      if (preallocatedComputerInv.length < normalizedItem.quantity) {
+        alert('Не удалось выделить уникальные инвентарные номера для партии.');
+        return false;
+      }
+      for (const inv of preallocatedComputerInv) {
+        if (exactInventoryNumberTaken(inv, invCtx)) {
+          alert(`Инвентарный номер ${inv} уже занят в системе.`);
+          return false;
+        }
+      }
+      if (existingIndex === -1 && inventoryBaseFamilyTaken(baseInv, invCtx)) {
+        alert(`Инвентарная серия ${baseInv} уже зарегистрирована в оборудовании.`);
+        return false;
+      }
+    }
+
     if (existingIndex > -1) {
       const existingItem = warehouseItems[existingIndex];
       if (existingItem.name !== normalizedItem.name || existingItem.type !== normalizedItem.type) {
         alert(
-          `Инвентарный номер ${normalizedItem.inventoryNumber} уже занят другим оборудованием («${existingItem.name}»). Используйте уникальный номер.`
+          `Инвентарный номер ${baseInv} уже занят другим оборудованием («${existingItem.name}»). Используйте уникальный номер.`
         );
         return false;
       }
+    } else if (inventoryBaseFamilyTaken(baseInv, invCtx)) {
+      alert(`Оборудование с инвентарным номером ${baseInv} уже существует в системе!`);
+      return false;
+    }
+
+    // 1. Add to warehouse array
+    if (existingIndex > -1) {
       setWarehouseItems(prev => prev.map((w, index) => 
         index === existingIndex 
           ? { 
@@ -1602,15 +1729,11 @@ export default function App() {
       ));
       logActivity('Пополнение запасов', `Пополнение склада: добавлено +${normalizedItem.quantity} шт. для "${normalizedItem.name}"`, 'update');
     } else {
-      if (checkInventoryExists(normalizedItem.inventoryNumber)) {
-        alert(`Оборудование с инвентарным номером ${normalizedItem.inventoryNumber} уже существует в системе!`);
-        return false;
-      }
       const newStock: WarehouseItem = {
         name: normalizedItem.name,
         type: normalizedItem.type,
         model: normalizedItem.model,
-        inventoryNumber: normalizedItem.inventoryNumber,
+        inventoryNumber: baseInv,
         quantity: normalizedItem.quantity,
         unit: normalizedItem.unit,
         costPerUnit: normalizedItem.costPerUnit,
@@ -1637,7 +1760,7 @@ export default function App() {
       setNetworkDevices(prev => {
         const existing = prev.find(
           (n) =>
-            inventoryNumbersMatch(n.inventoryNumber, normalizedItem.inventoryNumber) &&
+            inventoryNumbersMatch(n.inventoryNumber, baseInv) &&
             n.objectName === defaultObjectName
         );
         if (existing) {
@@ -1654,7 +1777,7 @@ export default function App() {
           objectName: defaultObjectName,
           ipAddress: '192.168.1.1',
           quantity: normalizedItem.quantity,
-          inventoryNumber: normalizedItem.inventoryNumber,
+          inventoryNumber: baseInv,
           portsCount: 24,
           workingPorts: Array.from({ length: 24 }, (_, i) => i + 1),
           damagedPorts: [],
@@ -1668,14 +1791,16 @@ export default function App() {
       });
       logActivity('Авто-распределение ТМЦ', `Устройство "${normalizedItem.name}" автоматически распределено в Сетевое оборудование`, 'system');
     } else if (normalizedItem.type === 'Лицензии ПО') {
+      const licenseKeys = preallocatedSoftwareKeys || [baseInv];
       const newSoftItems: SoftwareItem[] = [];
       for (let i = 0; i < normalizedItem.quantity; i++) {
         const softId = `soft-wh-${Date.now()}-${i}-${Math.floor(Math.random() * 10000)}`;
+        const allocatedKey = licenseKeys[i] || `${baseInv}-${i + 1}`;
         newSoftItems.push({
           id: softId,
           name: normalizedItem.name,
           category: 'Иное ПО',
-          licenseKey: normalizedItem.inventoryNumber.startsWith('SW-') ? '' : normalizedItem.inventoryNumber,
+          licenseKey: baseInv.startsWith('SW-') ? '' : allocatedKey,
           version: normalizedItem.model || '',
           developer: '',
           quantity: 1,
@@ -1692,15 +1817,9 @@ export default function App() {
         'system'
       );
     } else {
-      const route = resolveWarehouseComputerRoute(normalizedItem);
-      if (!route) return false;
-
+      const route = computerRoute!;
       const { category, deviceType, equipmentTab } = route;
-      const invNumbers = allocateBatchInventoryNumbers(
-        normalizedItem.inventoryNumber,
-        computers.map((c) => c.inventoryNumber),
-        normalizedItem.quantity
-      );
+      const invNumbers = preallocatedComputerInv!;
 
       const newComputersToAppend: ComputerItem[] = [];
       for (let i = 0; i < invNumbers.length; i++) {

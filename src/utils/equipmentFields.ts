@@ -98,7 +98,8 @@ export function allocateBatchInventoryNumbers(
 
   const result: string[] = [];
   let n = 1;
-  while (result.length < count) {
+  const maxAttempts = Math.max(count * 2, taken.size + count + 512);
+  while (result.length < count && n <= maxAttempts) {
     const candidate = `${base}-${n}`;
     if (!taken.has(candidate)) {
       result.push(candidate);
@@ -107,6 +108,37 @@ export function allocateBatchInventoryNumbers(
     n++;
   }
   return result;
+}
+
+/** True if base inv. or any batch suffix (base-1, base-2, …) is already used anywhere. */
+export function inventoryBaseFamilyTaken(
+  baseInv: string,
+  ctx: {
+    warehouseItems: { id?: string; inventoryNumber?: string }[];
+    computers: { id?: string; inventoryNumber?: string }[];
+    networkDevices: { id?: string; inventoryNumber?: string }[];
+    softwareItems: { id?: string; licenseKey?: string }[];
+    softwareWarehouseInv: (softwareId: string) => string;
+  },
+  excludeId?: string
+): boolean {
+  const base = (baseInv || '').trim();
+  if (!base) return false;
+  const familyMatch = (val?: string | null) => inventoryNumbersMatch(val, base);
+
+  if (ctx.warehouseItems.some((w) => w.id !== excludeId && familyMatch(w.inventoryNumber))) return true;
+  if (ctx.computers.some((c) => c.id !== excludeId && familyMatch(c.inventoryNumber))) return true;
+  if (ctx.networkDevices.some((n) => n.id !== excludeId && familyMatch(n.inventoryNumber))) return true;
+  if (
+    ctx.softwareItems.some(
+      (s) =>
+        s.id !== excludeId &&
+        (familyMatch(s.licenseKey) || familyMatch(ctx.softwareWarehouseInv(s.id)))
+    )
+  ) {
+    return true;
+  }
+  return false;
 }
 
 /** Exact inv. number collision across warehouse, equipment groups, and software keys. */

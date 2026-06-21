@@ -4,6 +4,7 @@
 import { loadApplicationData, saveApplicationData, type StoredUser } from "./dataStore.ts";
 import { hashPassword, validateEmailField, validateLoginField, validatePasswordField } from "./passwordHash.ts";
 import { buildDefaultWorkspacePayload } from "./defaultWorkspaceSeed.ts";
+import { validateWorkspacePayload } from "./workspaceValidation.ts";
 
 export type { StoredUser };
 
@@ -64,6 +65,9 @@ export function processUsersForStorage(
 export async function preparePayloadForSave(
   payload: Record<string, unknown>
 ): Promise<Record<string, unknown>> {
+  const validationError = validateWorkspacePayload(payload);
+  if (validationError) throw new Error(validationError);
+
   if (!Array.isArray(payload.users)) return payload;
   const { data } = await loadApplicationData();
   const previous = Array.isArray(data?.users) ? (data!.users as StoredUser[]) : [];

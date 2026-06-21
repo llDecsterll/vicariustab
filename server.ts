@@ -832,7 +832,14 @@ async function startServer() {
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : "Failed to save data";
         console.error("Error writing database:", error);
-        if (message.includes("пароль") || message.includes("Логин") || message.includes("email")) {
+        if (
+          message.includes("пароль") ||
+          message.includes("Логин") ||
+          message.includes("email") ||
+          message.includes("инвентар") ||
+          message.includes("Дублирующ") ||
+          message.includes("администратор")
+        ) {
           return res.status(400).json({ error: message });
         }
         return res.status(500).json({ error: "Failed to save data" });

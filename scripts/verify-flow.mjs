@@ -158,6 +158,39 @@ async function testUpdateApi(token) {
   return { repository: data.repository, latestTag: data.latestTag, updateSource: data.updateSource };
 }
 
+async function testInventoryValidation() {
+  const { exactInventoryNumberTaken, inventoryBaseFamilyTaken } = await import(
+    '../src/utils/equipmentFields.ts'
+  );
+  const ctx = {
+    warehouseItems: [{ id: 'wh-1', inventoryNumber: 'ST-0061' }],
+    computers: [{ id: 'c-1', inventoryNumber: 'ST-0061-1' }],
+    networkDevices: [],
+    softwareItems: [],
+    softwareWarehouseInv: (id) => `SWH-${id}`,
+  };
+  if (!inventoryBaseFamilyTaken('ST-0061', ctx)) {
+    throw new Error('inventoryBaseFamilyTaken should detect batch family');
+  }
+  if (!exactInventoryNumberTaken('ST-0061', ctx)) {
+    throw new Error('exactInventoryNumberTaken should find exact warehouse match ST-0061');
+  }
+  if (!exactInventoryNumberTaken('ST-0061-1', ctx)) {
+    throw new Error('exactInventoryNumberTaken should find ST-0061-1 on computer');
+  }
+  const { validateWorkspaceInventory } = await import('../server/workspaceValidation.ts');
+  const dupErr = validateWorkspaceInventory({
+    warehouseItems: [{ id: 'w1', inventoryNumber: 'PC-1' }],
+    computers: [{ id: 'c1', inventoryNumber: 'PC-1' }],
+    networkDevices: [],
+    softwareItems: [],
+  });
+  if (!dupErr || !dupErr.includes('Дублирующ')) {
+    throw new Error(`Expected duplicate error, got: ${dupErr}`);
+  }
+  return { ok: true };
+}
+
 async function testAllocateBatchInventoryNumbers() {
   const { allocateBatchInventoryNumbers } = await import('../src/utils/equipmentFields.ts');
   const first = allocateBatchInventoryNumbers('ST-0061', [], 1);
@@ -201,6 +234,7 @@ const results = [];
 try {
   results.push(['license', await testLicenseModule()]);
   results.push(['batch-inv', await testAllocateBatchInventoryNumbers()]);
+  results.push(['inv-validation', await testInventoryValidation()]);
   results.push(['backup-whitelist', testBackupWhitelist()]);
   const token = await ensureSession();
   results.push(['auth', { ok: true }]);
