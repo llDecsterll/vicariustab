@@ -1,0 +1,31 @@
+---
+description: Жизненный цикл оборудования — возврат, удаление, каскад склад↔группы
+globs: "src/**/{App.tsx,equipment*.ts,warehouseRouting.ts,*View.tsx,Confirm*.tsx}"
+alwaysApply: false
+---
+
+# Equipment lifecycle
+
+## Точки входа (App.tsx)
+
+| Действие | Функция |
+|----------|---------|
+| Запрос удаления | `requestDeleteEquipment(source, id)` → ConfirmDeleteModal |
+| Выполнение удаления | `executeEquipmentDelete()` |
+| Запрос возврата | `requestReturnEquipment('computer'|'network'|'software', id)` |
+| Выполнение возврата | `executeEquipmentReturn()` |
+| Возврат со склада | `handleReturnActiveAssetToWarehouse` (+ software) |
+| Выдача со склада | `handleDeployWarehouseAsset` |
+| Списание | `handleWriteOffWarehouseItem` (каскад в группы) |
+
+Sources: `'warehouse' | 'network' | 'software' | 'computer'`
+
+## Утилиты
+
+- `equipmentFields.ts` — `normalizeInventoryNumber`, `inventoryNumbersMatch`
+- `equipmentDelete.ts` — preview, `warehouseItemLinksSoftware`, cascade delete
+- `warehouseRouting.ts` — фильтры view, скрытие «на складе» из групп
+
+## При изменениях
+
+Менять синхронно: `equipmentDelete.ts`, `equipmentFields.ts`, `App.tsx`, `warehouseRouting.ts`, `WarehouseView.tsx`.

@@ -1,0 +1,61 @@
+---
+description: Полный индекс Vicariustab — структура, модули, разделы UI
+globs: "**/*"
+alwaysApply: false
+---
+
+# Vicariustab — IT-инвентаризация
+
+Версия: **2.0.7** (`package.json`, `src/config/appConfig.ts`)
+
+## Архитектура
+
+```
+├── server.ts                 # Express: API, static, SPA fallback
+├── server/                   # Модули бэкенда (auth, data, update, sessions)
+├── src/
+│   ├── App.tsx               # State, sync, CRUD, equipment lifecycle
+│   ├── types.ts              # Доменные типы
+│   ├── initialData.ts        # Seed из server/workspaceSeed.json
+│   ├── config/appConfig.ts   # APP_VERSION, update repo
+│   ├── components/           # Views + модалки
+│   └── utils/                # license, i18n, equipment, sync, auth
+├── db.json                   # Runtime JSON-store (шифрование AES)
+└── docker-compose*.yml       # Docker / MySQL / Postgres / Caddy
+```
+
+## Persistence
+
+1. Клиент: `localStorage` (`it_*` keys) + POST `/api/data` с revision header
+2. Sync: `src/utils/workspaceSync.ts` — retry при конфликте revision
+3. Сервер: `server/dataStore.ts` — JSON или SQL (`orbit_secure_store`)
+
+## Роли (SystemUser)
+
+| Роль | Права |
+|------|-------|
+| Viewer | Только просмотр |
+| Editor | CRUD оборудования, без backup/update/users |
+| Admin | Полный доступ |
+
+## Разделы UI (`activeTab`)
+
+dashboard, objects, computers, network, peripherals, orgtech, surveillance, consumables, other_equip, employees, warehouse, software, inventory, warranties, reports, activity_log, security, settings
+
+Sidebar: `src/components/Sidebar.tsx`. Детали: `DetailModal.tsx`.
+
+## npm scripts
+
+| Script | Назначение |
+|--------|------------|
+| `dev` | Vite + Express dev (port 3000) |
+| `build` | Vite + esbuild → `dist/` |
+| `start` | `node dist/server.cjs` |
+| `lint` | `tsc --noEmit` |
+| `verify` | License, auth, backup whitelist, update API |
+| `verify:install` | Health, setup-status, auth gates |
+
+## Склад ↔ группы
+
+`warehouseRouting.ts` — маршрут типа склада в группу UI.  
+`equipmentDelete.ts` + `App.tsx` — каскадное удаление и возврат.
