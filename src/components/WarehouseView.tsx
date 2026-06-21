@@ -36,7 +36,7 @@ interface WarehouseViewProps {
     reason?: string, 
     technicalPdf?: { name: string; size?: string; content?: string }
   ) => boolean;
-  onDelete: (id: string) => void;
+  onDeleteEquipment?: (source: 'warehouse' | 'network' | 'software' | 'computer', id: string) => void;
   onDeleteWriteOff?: (id: string) => void;
   onViewDetails?: (type: 'computer' | 'network' | 'employee' | 'object' | 'warehouse', id: string) => void;
   currentUser?: { role: 'Viewer' | 'Editor' | 'Admin' };
@@ -84,7 +84,7 @@ export default function WarehouseView({
   warehouseItems,
   onReceipt,
   onWriteOff,
-  onDelete,
+  onDeleteEquipment,
   onViewDetails,
   currentUser,
   warehouses = [],
@@ -934,26 +934,36 @@ export default function WarehouseView({
                                   <ArrowLeftRight size={14} />
                                 </button>
                               )}
-                              {isAdmin && (
+                              {!isViewer && onDeleteEquipment && (
                                 <button
-                                  onClick={() => {
-                                    if (window.confirm(t('Удалить позицию со склада? Связанное оборудование будет удалено из реестра.'))) {
-                                      onDelete(item.id);
-                                    }
-                                  }}
+                                  onClick={() => onDeleteEquipment('warehouse', item.id)}
                                   className="p-1.5 hover:bg-red-50 rounded-lg text-slate-400 hover:text-red-500 transition-colors cursor-pointer"
-                                  title={t("Удалить позицию")}
+                                  title={t("Удалить везде")}
                                 >
                                   <Trash2 size={14} />
                                 </button>
                               )}
                             </>
-                          ) : item.itemSource === 'software' ? (
-                            <span className="text-[11px] text-slate-400 italic font-semibold">
-                              {t("Управляется в ПО")}
-                            </span>
                           ) : (
                             <div className="flex flex-col items-center gap-1.5">
+                              {!isViewer && onDeleteEquipment && (
+                                <button
+                                  onClick={() =>
+                                    onDeleteEquipment(
+                                      item.itemSource === 'network'
+                                        ? 'network'
+                                        : item.itemSource === 'software'
+                                          ? 'software'
+                                          : 'computer',
+                                      item.id
+                                    )
+                                  }
+                                  className="p-1.5 hover:bg-red-50 rounded-lg text-slate-400 hover:text-red-500 transition-colors cursor-pointer"
+                                  title={t("Удалить везде")}
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              )}
                               <span className="text-[10px] text-slate-400 italic font-medium">
                                 {item.status === 'На ремонте' ? t("На ремонте") : item.employeeName && item.employeeName !== '—' ? t("Выдан коллеге") : t("В работе")}
                               </span>

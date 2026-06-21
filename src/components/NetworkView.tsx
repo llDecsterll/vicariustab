@@ -70,9 +70,7 @@ export default function NetworkView({
 
   const handleDeleteDevice = (dev: NetworkDevice) => {
     if (!onDelete) return;
-    if (window.confirm(`${t('Удалить')} «${dev.deviceName}»? ${t('Это действие необратимо.')}`)) {
-      onDelete(dev.id);
-    }
+    onDelete(dev.id);
   };
 
   // Form states

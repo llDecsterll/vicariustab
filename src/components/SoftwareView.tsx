@@ -72,9 +72,7 @@ export default function SoftwareView({
 
   const handleDeleteSoftware = (item: SoftwareItem) => {
     if (!onDelete) return;
-    if (window.confirm(`${t('Удалить')} «${item.name}»? ${t('Это действие необратимо.')}`)) {
-      onDelete(item.id);
-    }
+    onDelete(item.id);
   };
 
   // Form states
