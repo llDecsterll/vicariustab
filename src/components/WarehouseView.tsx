@@ -18,6 +18,7 @@ import {
   inventoryNumbersMatch,
 } from '../utils/equipmentFields';
 import { getSoftwareWarehouseInv, isSoftwareStoredOnWarehouse } from '../utils/equipmentDelete';
+import ModalCloseButton from './ModalCloseButton';
 
 interface WarehouseViewProps {
   warehouseItems: WarehouseItem[];
@@ -715,12 +716,12 @@ export default function WarehouseView({
                 onClick={handleOpenReceipt}
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer text-white border border-blue-500"
               >
-                <Plus size={13} />{t("+ Поступление")}</button>
+                <Plus size={13} />{t("Поступление")}</button>
               <button
                 onClick={() => handleOpenWriteOff()}
                 className="px-4 py-2 bg-rose-600 hover:bg-rose-500 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer text-white border border-rose-500"
               >
-                <Minus size={13} />{t("- Списание")}</button>
+                <Minus size={13} />{t("Списание")}</button>
             </>
           )}
         </div>
