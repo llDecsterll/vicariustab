@@ -2,43 +2,50 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
-import { defineConfig } from 'vite';
-import obfuscator from 'rollup-plugin-obfuscator';
+import { createRequire } from 'module';
+import { defineConfig, type PluginOption } from 'vite';
+
+const require = createRequire(import.meta.url);
+
+function loadObfuscatorPlugins(isProduction: boolean, skipObfuscation: boolean): PluginOption[] {
+  if (!isProduction || skipObfuscation) return [];
+  try {
+    const obfuscator = require('rollup-plugin-obfuscator').default;
+    return [
+      obfuscator({
+        global: false,
+        include: ['src/**/*.ts', 'src/**/*.tsx'],
+        exclude: [/node_modules/, /[\\/]i18n\.tsx$/],
+        options: {
+          compact: true,
+          controlFlowFlattening: true,
+          controlFlowFlatteningThreshold: 0.4,
+          deadCodeInjection: false,
+          debugProtection: false,
+          disableConsoleOutput: true,
+          identifierNamesGenerator: 'hexadecimal',
+          renameGlobals: false,
+          selfDefending: false,
+          stringArray: true,
+          stringArrayEncoding: [],
+          stringArrayThreshold: 0.6,
+          transformObjectKeys: true,
+          unicodeEscapeSequence: false,
+        },
+      }),
+    ];
+  } catch {
+    console.warn('[vite] rollup-plugin-obfuscator not found — building without obfuscation');
+    return [];
+  }
+}
 
 export default defineConfig(({ mode }) => {
   const isProduction = mode === 'production';
   const skipObfuscation = process.env.SKIP_OBFUSCATION === 'true';
 
   return {
-    plugins: [
-      react(),
-      tailwindcss(),
-      ...(isProduction && !skipObfuscation
-        ? [
-            obfuscator({
-              global: false,
-              include: ['src/**/*.ts', 'src/**/*.tsx'],
-              exclude: [/node_modules/, /[\\/]i18n\.tsx$/],
-              options: {
-                compact: true,
-                controlFlowFlattening: true,
-                controlFlowFlatteningThreshold: 0.4,
-                deadCodeInjection: false,
-                debugProtection: false,
-                disableConsoleOutput: true,
-                identifierNamesGenerator: 'hexadecimal',
-                renameGlobals: false,
-                selfDefending: false,
-                stringArray: true,
-                stringArrayEncoding: [],
-                stringArrayThreshold: 0.6,
-                transformObjectKeys: true,
-                unicodeEscapeSequence: false,
-              },
-            }),
-          ]
-        : []),
-    ],
+    plugins: [react(), tailwindcss(), ...loadObfuscatorPlugins(isProduction, skipObfuscation)],
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),

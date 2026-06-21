@@ -146,11 +146,27 @@ async function createPreUpdateBackup(cfg: UpdateEngineConfig): Promise<string> {
   return backupRoot;
 }
 
-async function runCommand(cwd: string, command: string, args: string[]): Promise<void> {
+async function runCommand(
+  cwd: string,
+  command: string,
+  args: string[],
+  phase: "install" | "build" = "build"
+): Promise<void> {
   pushLog(`> ${command} ${args.join(" ")}`);
+  const env: NodeJS.ProcessEnv = {
+    ...process.env,
+    SKIP_OBFUSCATION: "true",
+  };
+  if (phase === "install") {
+    // npm ci must install devDependencies (esbuild, typescript, tailwind, etc.)
+    env.NPM_CONFIG_PRODUCTION = "false";
+    delete env.NODE_ENV;
+  } else {
+    env.NODE_ENV = "production";
+  }
   await execFileAsync(command, args, {
     cwd,
-    env: { ...process.env, NODE_ENV: "production", SKIP_OBFUSCATION: "true" },
+    env,
     maxBuffer: 20 * 1024 * 1024,
   });
 }
@@ -248,12 +264,12 @@ export async function startPlatformUpdate(cfg: UpdateEngineConfig): Promise<void
     await copyTree(extractedRoot, cfg.appRoot, cfg.dataDir);
 
     setStep("install", 60);
-    pushLog("Installing dependencies (npm ci)...");
-    await runCommand(cfg.appRoot, process.platform === "win32" ? "npm.cmd" : "npm", ["ci"]);
+    pushLog("Installing dependencies (npm ci --include=dev)...");
+    await runCommand(cfg.appRoot, process.platform === "win32" ? "npm.cmd" : "npm", ["ci", "--include=dev"], "install");
 
     setStep("build", 80);
     pushLog("Building production bundle...");
-    await runCommand(cfg.appRoot, process.platform === "win32" ? "npm.cmd" : "npm", ["run", "build"]);
+    await runCommand(cfg.appRoot, process.platform === "win32" ? "npm.cmd" : "npm", ["run", "build"], "build");
 
     setStep("finalize", 95);
     pushLog(`Update applied: v${cfg.appVersion} → v${check.remoteVersion}`);
