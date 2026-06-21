@@ -66,7 +66,7 @@ import ConfirmDeleteModal from './ConfirmDeleteModal';
 import { authHeaders } from '../utils/deviceFingerprint';
 
 interface SettingsViewProps {
-  onResetData: () => void;
+  onPurgeWorkspace: () => Promise<boolean>;
   workspaceName: string;
   setWorkspaceName: (name: string) => void;
   adminEmail: string;
@@ -126,7 +126,7 @@ interface SettingsViewProps {
 }
 
 export default function SettingsView({
-  onResetData,
+  onPurgeWorkspace,
   workspaceName,
   setWorkspaceName,
   adminEmail,
@@ -569,6 +569,7 @@ export default function SettingsView({
   const [deleteTarget, setDeleteTarget] = useState<SystemUser | null>(null);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [resetSuccess, setResetSuccess] = useState(false);
+  const [purgeLoading, setPurgeLoading] = useState(false);
 
   // SQL / DBMS settings state
   const [dbType, setDbType] = useState<'json' | 'mysql' | 'postgres'>('json');
@@ -1648,10 +1649,16 @@ export default function SettingsView({
               </p>
             )}
 
-            <p className="leading-relaxed pt-1">{t("Если Вы вносили изменения или случайно удалили элементы, можно восстановить исходные демонстрационные данные (соответствующие Вашему скриншоту) в один клик.")}</p>
+            <p className="leading-relaxed pt-1">
+              {t(
+                'Полностью удалить все данные инвентаризации: объекты, сотрудников, оборудование, склад, ПО и аудиты. Учётные записи, лицензия и настройки интерфейса сохранятся.'
+              )}
+            </p>
 
             {resetSuccess && (
-              <div className="p-2.5 bg-emerald-50 text-emerald-800 border border-emerald-150 rounded-xl text-center font-bold">{t("База данных успешно сброшена!")}</div>
+              <div className="p-2.5 bg-emerald-50 text-emerald-800 border border-emerald-150 rounded-xl text-center font-bold">
+                {t('База данных полностью очищена!')}
+              </div>
             )}
 
             {!showResetConfirm ? (
@@ -1663,30 +1670,44 @@ export default function SettingsView({
                   setResetSuccess(false);
                 }}
                 disabled={!isAdmin}
-                className="w-full py-2.5 bg-amber-55/70 hover:bg-amber-100 border border-amber-250 font-bold rounded-xl text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full py-2.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 font-bold rounded-xl text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50 disabled:cursor-not-allowed text-rose-800"
               >
-                <RefreshCw size={14} />
-                {t("Переустановить / Сбросить БД")} {!isAdmin && t("(Только Админ)")}
+                <Trash2 size={14} />
+                {t('Полностью очистить базу данных')} {!isAdmin && t('(Только Админ)')}
               </button>
             ) : (
-              <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 space-y-2">
-                <p className="font-bold text-amber-900 text-[11px] leading-tight">{t("Вы уверены? Все текущие изменения (добавленные объекты, оборудование, сотрудники) будут сброшены к демо-данным.")}</p>
+              <div className="p-3 bg-rose-50 rounded-xl border border-rose-200 space-y-2">
+                <p className="font-bold text-rose-900 text-[11px] leading-tight">
+                  {t(
+                    'Вы уверены? Будут безвозвратно удалены все объекты, сотрудники, оборудование, склад, ПО и инвентаризации. Учётные записи, лицензия и настройки системы сохранятся.'
+                  )}
+                </p>
                 <div className="flex gap-2">
                   <button
                     type="button"
-                    onClick={() => {
-                      onResetData();
-                      setShowResetConfirm(false);
-                      setResetSuccess(true);
-                      setTimeout(() => setResetSuccess(false), 4000);
+                    disabled={purgeLoading}
+                    onClick={async () => {
+                      setPurgeLoading(true);
+                      const ok = await onPurgeWorkspace();
+                      setPurgeLoading(false);
+                      if (ok) {
+                        setShowResetConfirm(false);
+                        setResetSuccess(true);
+                        setTimeout(() => setResetSuccess(false), 4000);
+                      }
                     }}
-                    className="flex-1 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg text-[10px] cursor-pointer text-center"
-                  >{t("Да, Сбросить Все")}</button>
+                    className="flex-1 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-lg text-[10px] cursor-pointer text-center disabled:opacity-50"
+                  >
+                    {purgeLoading ? t('Очистка…') : t('Да, очистить всё')}
+                  </button>
                   <button
                     type="button"
+                    disabled={purgeLoading}
                     onClick={() => setShowResetConfirm(false)}
-                    className="flex-1 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-[10px] cursor-pointer text-center"
-                  >{t("Отмена")}</button>
+                    className="flex-1 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-[10px] cursor-pointer text-center disabled:opacity-50"
+                  >
+                    {t('Отмена')}
+                  </button>
                 </div>
               </div>
             )}

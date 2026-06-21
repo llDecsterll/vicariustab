@@ -476,6 +476,33 @@ export default function WarehouseView({
       };
     });
 
+  // 2b. Stock registry computers (status "На складе") — visible for delete/deploy from warehouse tab
+  const stockCompsUnified = (computers || [])
+    .filter(c => c.status === 'На складе')
+    .map(c => {
+      const linkedWhName = warehouses.find(w => w.objectName === c.objectName)?.name || 'Основной склад ИТ';
+      return {
+        id: c.id,
+        name: t(c.deviceType || c.category),
+        type: c.category === 'Ноутбук' || c.category === 'ПК' ? 'Компьютеры' :
+              c.category === 'Периферия' || c.category === 'Монитор' ? 'Периферия' :
+              c.category === 'Оргтехника' ? 'Оргтехника' :
+              c.category === 'Видеонаблюдение' ? 'Видеонаблюдение' :
+              c.category === 'Расходники' ? 'Расходные материалы' : 'Другое',
+        model: c.model,
+        inventoryNumber: c.inventoryNumber,
+        quantity: 1,
+        unit: 'шт.',
+        costPerUnit: c.cost || 0,
+        status: 'На складе' as const,
+        location: c.objectName,
+        employeeName: '—',
+        itemSource: 'computer' as const,
+        warehouseName: linkedWhName,
+        isStockRegistry: true as const,
+      };
+    });
+
   // 3. Active Network Devices linked to objects
   const netUnified = (networkDevices || [])
     .filter(n => {
@@ -536,7 +563,7 @@ export default function WarehouseView({
   });
 
   // Combine lists of overall company-wide TMZ assets
-  const totalUnifiedList = [...whUnified, ...compsUnified, ...netUnified, ...softUnified];
+  const totalUnifiedList = [...whUnified, ...stockCompsUnified, ...compsUnified, ...netUnified, ...softUnified];
 
   // Apply filters on the unified assets list
   const filtered = totalUnifiedList.filter(item => {
@@ -559,9 +586,15 @@ export default function WarehouseView({
     // Placement status filter
     let matchesPlacement = true;
     if (placementFilter === 'stock') {
-      matchesPlacement = item.itemSource === 'warehouse' || (item.itemSource === 'software' && item.status === 'На складе');
+      matchesPlacement =
+        item.itemSource === 'warehouse' ||
+        (item.itemSource === 'software' && item.status === 'На складе') ||
+        (item.itemSource === 'computer' && item.status === 'На складе');
     } else if (placementFilter === 'issued') {
-      matchesPlacement = item.itemSource === 'computer' || item.itemSource === 'network' || (item.itemSource === 'software' && item.status === 'В работе');
+      matchesPlacement =
+        (item.itemSource === 'computer' && item.status !== 'На складе') ||
+        item.itemSource === 'network' ||
+        (item.itemSource === 'software' && item.status === 'В работе');
     }
 
     return matchesSearch && matchesTab && matchesWarehouse && matchesPlacement;
@@ -782,7 +815,7 @@ export default function WarehouseView({
                     : 'text-slate-500 hover:bg-slate-50/50 hover:text-slate-800'
                 }`}
               >
-                {t("На складе")} ({whUnified.length + softUnified.filter(s => s.status === 'На складе').length})
+                {t("На складе")} ({whUnified.length + stockCompsUnified.length + softUnified.filter(s => s.status === 'На складе').length})
               </button>
               <button
                 type="button"
@@ -875,7 +908,8 @@ export default function WarehouseView({
                       <td className="py-3.5 px-5 text-right font-mono text-slate-650 font-medium">{formatCurrency(item.costPerUnit)}</td>
                       <td className="py-3.5 px-5 text-right font-mono font-extrabold text-slate-900">{formatCurrency(item.costPerUnit * item.quantity)}</td>
                       <td className="py-3.5 px-5 text-center">
-                        {item.itemSource === 'warehouse' ? (
+                        {item.itemSource === 'warehouse' ||
+                        (item.itemSource === 'computer' && item.status === 'На складе') ? (
                           item.status === 'Заказано' ? (
                             <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
                               <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
@@ -948,6 +982,16 @@ export default function WarehouseView({
                                 </button>
                               )}
                             </>
+                          ) : item.itemSource === 'computer' && item.status === 'На складе' ? (
+                            !isViewer && onDeleteEquipment && (
+                              <button
+                                onClick={() => onDeleteEquipment('computer', item.id)}
+                                className="p-1.5 hover:bg-red-50 rounded-lg text-slate-400 hover:text-red-500 transition-colors cursor-pointer"
+                                title={t("Удалить везде")}
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            )
                           ) : (
                             <div className="flex flex-col items-center gap-1.5">
                               {!isViewer && onDeleteEquipment && (

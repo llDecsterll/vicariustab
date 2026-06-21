@@ -56,3 +56,30 @@ export async function persistWorkspaceState(
     code: 'REVISION_CONFLICT',
   };
 }
+
+export async function purgeWorkspaceOnServer(
+  revision: number | null
+): Promise<
+  | { ok: true; data: Record<string, unknown>; revision: number }
+  | { ok: false; error: string; status: number }
+> {
+  const result = await apiFetch<{ success?: boolean; revision?: number; data?: Record<string, unknown> }>(
+    '/api/data/purge-workspace',
+    {
+      method: 'POST',
+      headers: setDataRevisionHeader(revision),
+    }
+  );
+
+  if (result.ok === false) {
+    return { ok: false as const, error: result.error, status: result.status };
+  }
+
+  const data = result.data?.data;
+  const revisionOut = result.data?.revision;
+  if (!data || typeof data !== 'object' || typeof revisionOut !== 'number') {
+    return { ok: false, error: 'Invalid purge response', status: 500 };
+  }
+
+  return { ok: true, data, revision: revisionOut };
+}

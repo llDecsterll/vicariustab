@@ -246,7 +246,12 @@ export default function EmployeesView({
       {/* Grid of employees cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filtered.map((emp) => {
-          const empHardware = computers.filter(c => c.employeeName === emp.name);
+          const empHardware = computers.filter(
+            c =>
+              c.employeeName === emp.name &&
+              c.status !== 'На складе' &&
+              c.status !== 'Списано'
+          );
 
           const getStatusBadge = (status: EmployeeStatus | undefined) => {
             const currentStatus = status || 'Работает';
@@ -600,7 +605,7 @@ export default function EmployeesView({
               <div className="p-3 bg-blue-50 rounded-xl text-xs text-blue-800 space-y-1 border border-blue-100">
                 <p>
                   {transferTargetId === 'warehouse' ? (
-                    <span>Все закрепленные устройства ({computers.filter(c => c.employeeName === transferSourceEmp.name).length} шт.) сотрудника <strong className="text-blue-900">"{transferSourceEmp.name}"</strong>{t("будут перенесены на")}<strong>{t("Склад ИТ")}</strong>{t(", а статус устройств изменится на")}<strong>"На складе"</strong>.</span>
+                    <span>Все закрепленные устройства ({computers.filter(c => c.employeeName === transferSourceEmp.name && c.status !== 'На складе' && c.status !== 'Списано').length} шт.) сотрудника <strong className="text-blue-900">"{transferSourceEmp.name}"</strong>{t("будут перенесены на")}<strong>{t("Склад ИТ")}</strong>{t(", а статус устройств изменится на")}<strong>"На складе"</strong>.</span>
                   ) : (
                     <span>Все закрепленные устройства ({computers.filter(c => c.employeeName === transferSourceEmp.name).length} шт.) сотрудника <strong className="text-blue-900">"{transferSourceEmp.name}"</strong>{t("будут перемещены на выбранного сотрудника.")}</span>
                   )}

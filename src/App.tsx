@@ -67,13 +67,15 @@ import {
 } from './utils/sessionAuth';
 import { getStoredSessionToken, clearSessionCredentials, authHeaders } from './utils/deviceFingerprint';
 import { apiFetch } from './utils/apiClient';
-import { persistWorkspaceState } from './utils/workspaceSync';
+import { persistWorkspaceState, purgeWorkspaceOnServer } from './utils/workspaceSync';
+import { clearInventoryLocalStorage } from './emptyWorkspace';
 import { fetchSetupStatus } from './utils/setupAuth';
 import ConfirmDeleteModal from './components/ConfirmDeleteModal';
 import ConfirmReturnModal from './components/ConfirmReturnModal';
 import {
   buildDeletePreview,
   filterSoftwareForEquipmentView,
+  findLinkedStockComputerIds,
   findSoftwareIdsForWarehouseItem,
   getSoftwareWarehouseInv,
   isNotLinkedToInventoryKey,
@@ -786,8 +788,8 @@ export default function App() {
   };
 
   const equipmentDeleteContext = useMemo(
-    () => ({ warehouseItems, networkDevices, softwareItems, computers }),
-    [warehouseItems, networkDevices, softwareItems, computers]
+    () => ({ warehouseItems, networkDevices, softwareItems, computers, warehouses }),
+    [warehouseItems, networkDevices, softwareItems, computers, warehouses]
   );
 
   const equipmentDeletePreview = useMemo(() => {
@@ -930,8 +932,17 @@ export default function App() {
         logDetail = `Удалена позиция «${target.name}» (склад) и связанные лицензии ПО`;
       } else {
         const invKey = normalizeInventoryNumber(target.inventoryNumber);
+        const linkedStockIds = new Set(
+          findLinkedStockComputerIds(target, computers, warehouses)
+        );
         setWarehouseItems((prev) => prev.filter((w) => isNotLinkedToInventoryKey(w.inventoryNumber, invKey)));
-        setComputers((prev) => prev.filter((c) => isNotLinkedToInventoryKey(c.inventoryNumber, invKey)));
+        setComputers((prev) =>
+          prev.filter(
+            (c) =>
+              !linkedStockIds.has(c.id) &&
+              isNotLinkedToInventoryKey(c.inventoryNumber, invKey)
+          )
+        );
         setNetworkDevices((prev) => prev.filter((nd) => isNotLinkedToInventoryKey(nd.inventoryNumber, invKey)));
         logDetail = `Удалена позиция «${target.name}» (склад) и все связанные карточки`;
         clearDetailIfDeleted(source, id, invKey);
@@ -994,6 +1005,7 @@ export default function App() {
     networkDevices,
     softwareItems,
     computers,
+    warehouses,
     clearDetailIfDeleted,
   ]);
 
@@ -2028,21 +2040,30 @@ export default function App() {
     localStorage.removeItem('it_activities');
   };
 
-  // Data Resetter
-  const handleResetAllData = () => {
-    setObjects(initialObjects);
-    setNetworkDevices(initialNetworkDevices);
-    setComputers(initialComputers);
-    setEmployees(initialEmployees);
-    setWarehouseItems(initialWarehouseItems);
-    setActivities(initialActivities);
-    setAudits(initialAudits);
-    setWorkspaceName('Инвентаризация оборудования');
-    setAdminEmail('vicariustab@icloud.com');
-    localStorage.removeItem('it_deleted_warranties');
-    localStorage.removeItem('it_custom_warranties');
-    logActivity('Сброс Базы Данных', 'База данных рабочей зоны была успешно переустановлена к заводским демонстрационным значениям', 'system');
-  };
+  // Full inventory purge (keeps users, license, UI settings)
+  const handlePurgeWorkspace = useCallback(async (): Promise<boolean> => {
+    if (checkLicenseBlocked()) return false;
+
+    const result = await purgeWorkspaceOnServer(dataRevisionRef.current);
+    if (result.ok === false) {
+      const msg =
+        result.status === 403
+          ? t('Очистка доступна только администратору.')
+          : result.status === 402
+            ? t('Очистка отклонена: лицензия истекла или недействительна.')
+            : `${t('Не удалось очистить базу данных')}: ${result.error}`;
+      setSaveError(msg);
+      return false;
+    }
+
+    applyServerPayload(result.data);
+    setDataRevision(result.revision);
+    dataRevisionRef.current = result.revision;
+    clearInventoryLocalStorage();
+    setSelectedDetail(null);
+    setSaveError('');
+    return true;
+  }, [applyServerPayload, t]);
 
   // 3. Rendering correct active views based on Tab ID
   const renderActiveView = () => {
@@ -2208,7 +2229,7 @@ export default function App() {
       case 'settings':
         return (
           <SettingsView
-            onResetData={handleResetAllData}
+            onPurgeWorkspace={handlePurgeWorkspace}
             workspaceName={workspaceName}
             setWorkspaceName={setWorkspaceName}
             adminEmail={adminEmail}

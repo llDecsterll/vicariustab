@@ -1,8 +1,24 @@
-import type { ComputerItem, NetworkDevice, SoftwareItem, WarehouseItem } from '../types';
+import type {
+  ComputerItem,
+  CustomWarehouse,
+  NetworkDevice,
+  SoftwareItem,
+  WarehouseItem,
+  WarehouseItemType,
+} from '../types';
 import {
   inventoryNumbersMatch,
   normalizeInventoryNumber,
 } from './equipmentFields';
+
+const WAREHOUSE_COMPUTER_TYPES: WarehouseItemType[] = [
+  'Компьютеры',
+  'Периферия',
+  'Оргтехника',
+  'Видеонаблюдение',
+  'Расходные материалы',
+  'Другое',
+];
 
 export type EquipmentDeleteSource = 'warehouse' | 'network' | 'software' | 'computer';
 
@@ -11,6 +27,46 @@ export interface EquipmentDeleteContext {
   networkDevices: NetworkDevice[];
   softwareItems: SoftwareItem[];
   computers: ComputerItem[];
+  warehouses?: CustomWarehouse[];
+}
+
+/** Stock registry cards linked to a warehouse line (by inv. batch or same model at stock object). */
+export function findLinkedStockComputerIds(
+  item: WarehouseItem,
+  computers: ComputerItem[],
+  warehouses: CustomWarehouse[] = []
+): string[] {
+  if (!WAREHOUSE_COMPUTER_TYPES.includes(item.type)) return [];
+
+  const ids: string[] = [];
+  const baseInv = item.inventoryNumber;
+
+  for (const c of computers) {
+    if (c.status !== 'На складе') continue;
+    if (inventoryNumbersMatch(c.inventoryNumber, baseInv)) {
+      ids.push(c.id);
+    }
+  }
+
+  let remaining = item.quantity - ids.length;
+  if (remaining <= 0) return ids;
+
+  const wh = warehouses.find(
+    (w) => w.name === (item.warehouseName || 'Основной склад ИТ')
+  );
+  const stockObject = wh?.objectName;
+
+  for (const c of computers) {
+    if (remaining <= 0) break;
+    if (c.status !== 'На складе') continue;
+    if (ids.includes(c.id)) continue;
+    if (c.model !== item.model) continue;
+    if (stockObject && c.objectName !== stockObject) continue;
+    ids.push(c.id);
+    remaining--;
+  }
+
+  return ids;
 }
 
 export interface EquipmentDeletePreview {
@@ -118,11 +174,16 @@ export function buildDeletePreview(
     if (!item) return null;
     const softIds = findSoftwareIdsForWarehouseItem(item, ctx.softwareItems);
     const invCounts = countByInventory(item.inventoryNumber, ctx);
+    const stockComputerIds = findLinkedStockComputerIds(
+      item,
+      ctx.computers,
+      ctx.warehouses ?? []
+    );
     const cascadeLines = buildCascadeLines(
       {
         warehouse: 1,
         network: invCounts.network,
-        computer: invCounts.computer,
+        computer: stockComputerIds.length,
         software: softIds.length,
       },
       { warehouse: true, network: true, computer: true, software: true }

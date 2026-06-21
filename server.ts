@@ -55,6 +55,7 @@ import {
   sanitizePayloadForClient,
   preparePayloadForSave,
 } from "./server/userCredentials.ts";
+import { buildPurgedWorkspacePayload } from "./server/purgeWorkspace.ts";
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
@@ -835,6 +836,43 @@ async function startServer() {
           return res.status(400).json({ error: message });
         }
         return res.status(500).json({ error: "Failed to save data" });
+      }
+    }
+  );
+
+  app.post(
+    "/api/data/purge-workspace",
+    requireAdminRole,
+    requireValidLicenseForWrite,
+    async (req: AuthedRequest, res) => {
+      try {
+        const { data } = await loadApplicationData();
+        const current = data && typeof data === "object" ? data : {};
+        const purged = buildPurgedWorkspacePayload(
+          current as Record<string, unknown>,
+          req.authSession?.userName
+        );
+        const prepared = await preparePayloadForSave(purged);
+        const expectedRevision = parseExpectedRevision(req);
+        const result = await saveApplicationData(prepared, expectedRevision);
+        if ("conflict" in result && result.conflict) {
+          return res.status(409).json({
+            error: "Data conflict — another session saved changes first",
+            code: "REVISION_CONFLICT",
+            revision: result.revision,
+            data: result.data,
+          });
+        }
+        const safe = sanitizePayloadForClient(purged);
+        return res.json({
+          success: true,
+          revision: result.revision,
+          data: { ...(safe || purged), _revision: result.revision },
+        });
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : "Failed to purge workspace";
+        console.error("Error purging workspace:", error);
+        return res.status(500).json({ error: message });
       }
     }
   );
