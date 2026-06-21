@@ -9,6 +9,7 @@ import type {
 import {
   inventoryNumbersMatch,
   normalizeInventoryNumber,
+  getSoftwareWarehouseInv,
 } from './equipmentFields';
 
 const WAREHOUSE_COMPUTER_TYPES: WarehouseItemType[] = [
@@ -77,9 +78,7 @@ export interface EquipmentDeletePreview {
   cascadeLines: string[];
 }
 
-export function getSoftwareWarehouseInv(softwareId: string): string {
-  return `SW-${softwareId.slice(-8).toUpperCase()}`;
-}
+export { getSoftwareWarehouseInv } from './equipmentFields';
 
 export function findSoftwareIdsForWarehouseItem(
   item: WarehouseItem,

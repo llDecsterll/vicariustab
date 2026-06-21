@@ -3,12 +3,9 @@
  */
 import {
   exactInventoryNumberTaken,
+  getSoftwareWarehouseInv,
   inventoryNumbersMatch,
 } from "../src/utils/equipmentFields.ts";
-
-function softwareWarehouseInv(softwareId: string): string {
-  return `SWH-${softwareId}`;
-}
 
 type InvCtx = {
   warehouseItems: { id?: string; inventoryNumber?: string }[];
@@ -32,7 +29,7 @@ function buildInvCtx(payload: Record<string, unknown>): InvCtx {
     softwareItems: Array.isArray(payload.softwareItems)
       ? (payload.softwareItems as { id?: string; licenseKey?: string }[])
       : [],
-    softwareWarehouseInv: softwareWarehouseInv,
+    softwareWarehouseInv: getSoftwareWarehouseInv,
   };
 }
 
@@ -58,7 +55,13 @@ export function validateWorkspaceInventory(payload: Record<string, unknown>): st
   }
   for (const s of ctx.softwareItems) {
     pushExact(s.licenseKey, `ПО:${s.id || "?"}`);
-    pushExact(softwareWarehouseInv(s.id || ""), `ПО-склад:${s.id || "?"}`);
+    const syntheticWhInv = getSoftwareWarehouseInv(s.id || "");
+    const whLineForSoftware = ctx.warehouseItems.some(
+      (w) => (w.inventoryNumber || "").trim().toLowerCase() === syntheticWhInv.toLowerCase()
+    );
+    if (!whLineForSoftware) {
+      pushExact(syntheticWhInv, `ПО-склад:${s.id || "?"}`);
+    }
   }
 
   const seen = new Map<string, string>();
@@ -72,6 +75,10 @@ export function validateWorkspaceInventory(payload: Record<string, unknown>): st
   for (const w of ctx.warehouseItems) {
     const inv = (w.inventoryNumber || "").trim();
     if (!inv) continue;
+    const linkedSoftwareStock = ctx.softwareItems.some(
+      (s) => getSoftwareWarehouseInv(s.id || "").toLowerCase() === inv.toLowerCase()
+    );
+    if (linkedSoftwareStock) continue;
     if (exactInventoryNumberTaken(inv, ctx, w.id)) {
       return `Инвентарный номер «${inv}» уже занят`;
     }
@@ -81,13 +88,30 @@ export function validateWorkspaceInventory(payload: Record<string, unknown>): st
     .map((w) => (w.inventoryNumber || "").trim())
     .filter(Boolean);
 
+  const validateRegistryItem = (
+    inv: string,
+    id: string | undefined,
+    kind: "computer" | "network"
+  ): string | null => {
+    const whMatch = warehouseBases.some((base) => inventoryNumbersMatch(inv, base));
+    if (!whMatch && exactInventoryNumberTaken(inv, ctx, id)) {
+      return `Инвентарный номер «${inv}» уже занят (${kind})`;
+    }
+    return null;
+  };
+
   for (const c of ctx.computers) {
     const inv = (c.inventoryNumber || "").trim();
     if (!inv) continue;
-    const whMatch = warehouseBases.some((base) => inventoryNumbersMatch(inv, base));
-    if (!whMatch && exactInventoryNumberTaken(inv, ctx, c.id)) {
-      return `Инвентарный номер «${inv}» уже занят`;
-    }
+    const err = validateRegistryItem(inv, c.id, "computer");
+    if (err) return err;
+  }
+
+  for (const n of ctx.networkDevices) {
+    const inv = (n.inventoryNumber || "").trim();
+    if (!inv) continue;
+    const err = validateRegistryItem(inv, n.id, "network");
+    if (err) return err;
   }
 
   return null;

@@ -58,6 +58,7 @@ import {
   matchesBaseInventoryNumber,
   allocateBatchInventoryNumbers,
   exactInventoryNumberTaken,
+  findWarehouseItemByInventoryNumber,
   inventoryBaseFamilyTaken,
   inventoryNumbersMatch,
   normalizeInventoryNumber,
@@ -769,8 +770,23 @@ export default function App() {
 
   // --- UNIFIED DEBOUNCED SERVER & LOCALSTORAGE STATE SYNCHRONIZATION ---
 
-  const handleUpdateItem = (type: string, id: string, updatedFields: any) => {
+  const handleUpdateItem = (type: string, id: string, updatedFields: Record<string, unknown>) => {
     if (checkLicenseBlocked()) return;
+
+    const invCandidate =
+      typeof updatedFields.inventoryNumber === 'string'
+        ? updatedFields.inventoryNumber
+        : typeof updatedFields.licenseKey === 'string'
+          ? updatedFields.licenseKey
+          : null;
+
+    if (invCandidate && (type === 'computer' || type === 'network' || type === 'warehouse' || type === 'software')) {
+      if (checkInventoryExists(invCandidate, id)) {
+        alert(`Оборудование с инвентарным номером ${invCandidate} уже существует!`);
+        return;
+      }
+    }
+
     if (type === 'computer') {
       setComputers(prev => prev.map(c => c.id === id ? { ...c, ...updatedFields } : c));
     } else if (type === 'network') {
@@ -1577,6 +1593,21 @@ export default function App() {
     if (checkLicenseBlocked()) return;
     const target = employees.find(e => e.id === id);
     if (!target) return;
+
+    const assignedComputers = computers.filter(c => c.employeeName === target.name);
+    for (const comp of assignedComputers) {
+      if (comp.status === 'На складе') continue;
+      const linkedWh = warehouses.find(w => w.objectName === comp.objectName);
+      returnAssetToWarehouse(
+        comp.inventoryNumber,
+        comp.deviceType || comp.category,
+        comp.category,
+        comp.model,
+        comp.cost || 0,
+        linkedWh?.name || 'Основной склад ИТ'
+      );
+    }
+
     setComputers(prev =>
       prev.map(c =>
         c.employeeName === target.name
@@ -1862,13 +1893,14 @@ export default function App() {
     technicalPdf?: { name: string; size?: string; content?: string }
   ): boolean => {
     if (checkLicenseBlocked()) return false;
-    const targetItem = warehouseItems.find(item => item.inventoryNumber === inventoryNumber);
+    const targetItem = findWarehouseItemByInventoryNumber<WarehouseItem>(warehouseItems, inventoryNumber);
     if (!targetItem || targetItem.quantity < quantityToWriteOff) return false;
+    const resolvedInv = targetItem.inventoryNumber;
 
     // 1. Create a Write-Off history record to persist in history log!
     const newWriteOffRecord: WarehouseWriteOff = {
       id: `wo-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-      inventoryNumber,
+      inventoryNumber: resolvedInv,
       name: targetItem.name,
       type: targetItem.type,
       model: targetItem.model,
@@ -1886,7 +1918,7 @@ export default function App() {
     // 2. Reduce stock or delete/mark written off
     setWarehouseItems(prev => {
       return prev.map(item => {
-        if (item.inventoryNumber === inventoryNumber) {
+        if (inventoryNumbersMatch(item.inventoryNumber, resolvedInv)) {
           const newQty = item.quantity - quantityToWriteOff;
           return {
             ...item,
@@ -1895,7 +1927,7 @@ export default function App() {
           };
         }
         return item;
-      }).filter(item => item.quantity > 0); // Keep stock positive
+      }).filter(item => item.quantity > 0);
     });
 
     // 3. Cascade write-off from groups
@@ -1903,7 +1935,7 @@ export default function App() {
       setNetworkDevices(prev => {
         let remaining = quantityToWriteOff;
         return prev.map(dev => {
-          if (dev.inventoryNumber === inventoryNumber && remaining > 0) {
+          if (inventoryNumbersMatch(dev.inventoryNumber, resolvedInv) && remaining > 0) {
             const subtract = Math.min(dev.quantity || 1, remaining);
             remaining -= subtract;
             return {
@@ -1933,11 +1965,11 @@ export default function App() {
         let countRemoved = 0;
         // Identify individual computer items associated with this inventory number
         const matchingIdle = prev.filter(c => 
-          matchesBaseInventoryNumber(c.inventoryNumber, inventoryNumber)
+          matchesBaseInventoryNumber(c.inventoryNumber, resolvedInv)
           && c.status === 'На складе'
         );
         const matchingActive = prev.filter(c => 
-          matchesBaseInventoryNumber(c.inventoryNumber, inventoryNumber)
+          matchesBaseInventoryNumber(c.inventoryNumber, resolvedInv)
           && c.status !== 'На складе'
         );
 
@@ -1971,14 +2003,13 @@ export default function App() {
   ): boolean => {
     if (checkLicenseBlocked()) return false;
     
-    // 1. Check if we have enough on stock in warehouseItems
-    const whItem = warehouseItems.find(item => item.inventoryNumber === inventoryNumber);
+    const whItem = findWarehouseItemByInventoryNumber<WarehouseItem>(warehouseItems, inventoryNumber);
     if (!whItem || whItem.quantity < quantity) return false;
+    const resolvedInv = whItem.inventoryNumber;
 
-    // 2. Reduce the quantity from warehouseItems balances
     setWarehouseItems(prev => {
       return prev.map(item => {
-        if (item.inventoryNumber === inventoryNumber) {
+        if (inventoryNumbersMatch(item.inventoryNumber, resolvedInv)) {
           const newQty = item.quantity - quantity;
           return {
             ...item,
@@ -1997,16 +2028,16 @@ export default function App() {
 
     if (isSoftwareLicense) {
       const linkedIds = findSoftwareIdsForWarehouseItem(whItem, softwareItems);
-      const storedSoft =
-        softwareItems.find(
-          (s) => linkedIds.includes(s.id) && s.status === 'Не активирована'
-        ) ||
-        softwareItems.find((s) => linkedIds.includes(s.id));
+      const inactive = softwareItems.filter(
+        (s) => linkedIds.includes(s.id) && s.status === 'Не активирована'
+      );
+      const idsToActivate = inactive.slice(0, quantity).map((s) => s.id);
+      let remaining = quantity - idsToActivate.length;
 
-      if (storedSoft) {
+      if (idsToActivate.length > 0) {
         setSoftwareItems((prev) =>
           prev.map((s) =>
-            s.id === storedSoft.id
+            idsToActivate.includes(s.id)
               ? {
                   ...s,
                   status: 'Активна',
@@ -2018,25 +2049,30 @@ export default function App() {
           )
         );
         success = true;
-      } else {
-        const newSoft: SoftwareItem = {
-          id: `soft-deploy-${Date.now()}`,
+      }
+
+      if (remaining > 0) {
+        const stamp = Date.now();
+        const newSoftItems: SoftwareItem[] = Array.from({ length: remaining }, (_, i) => ({
+          id: `soft-deploy-${stamp}-${i}`,
           name: whItem.name,
-          category: 'Иное ПО',
-          licenseKey: whItem.inventoryNumber.startsWith('SW-') ? '' : whItem.inventoryNumber,
+          category: 'Иное ПО' as const,
+          licenseKey: whItem.inventoryNumber.startsWith('SW-') ? '' : `${resolvedInv}-${i + 1}`,
           version: whItem.model || '',
           developer: '',
-          quantity,
+          quantity: 1,
           assignedEmployeeName: targetEmployeeName,
           objectName: targetObjectName,
-          status: 'Активна',
+          status: 'Активна' as const,
           purchaseDate: new Date().toISOString().split('T')[0],
-        };
-        setSoftwareItems((prev) => [...prev, newSoft]);
+        }));
+        setSoftwareItems((prev) => [...prev, ...newSoftItems]);
         success = true;
       }
     } else if (isNetwork) {
-      const matchingNetwork = networkDevices.find(nd => nd.inventoryNumber === inventoryNumber);
+      const matchingNetwork = networkDevices.find(nd =>
+        inventoryNumbersMatch(nd.inventoryNumber, resolvedInv)
+      );
       if (matchingNetwork) {
         if (quantity >= matchingNetwork.quantity) {
           setNetworkDevices(prev => prev.map(nd => nd.id === matchingNetwork.id ? {
@@ -2070,7 +2106,7 @@ export default function App() {
           objectName: targetObjectName,
           ipAddress: '192.168.1.1',
           quantity: quantity,
-          inventoryNumber: whItem.inventoryNumber,
+          inventoryNumber: resolvedInv,
           portsCount: 24,
           workingPorts: Array.from({ length: 24 }, (_, i) => i + 1),
           damagedPorts: [],

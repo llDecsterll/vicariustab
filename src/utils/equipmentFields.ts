@@ -66,6 +66,17 @@ export function normalizeInventoryNumber(inventoryNumber: string | undefined | n
   return trimmed || 'NET-EQ';
 }
 
+/** Synthetic warehouse inv. number for software stored on stock (shared client + server). */
+export function getSoftwareWarehouseInv(softwareId: string): string {
+  return `SW-${softwareId.slice(-8).toUpperCase()}`;
+}
+
+export function findWarehouseItemByInventoryNumber<
+  T extends { inventoryNumber?: string | null }
+>(items: T[], inventoryNumber: string): T | undefined {
+  return items.find((w) => inventoryNumbersMatch(w.inventoryNumber, inventoryNumber));
+}
+
 export function inventoryNumbersMatch(
   a: string | undefined | null,
   b: string | undefined | null

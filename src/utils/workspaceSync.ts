@@ -10,7 +10,7 @@ export type PersistResult =
 export async function persistWorkspaceState(
   payload: Record<string, unknown>,
   revision: number | null,
-  maxRetries = 3
+  maxRetries = 0
 ): Promise<PersistResult> {
   let attemptRevision = revision;
 
