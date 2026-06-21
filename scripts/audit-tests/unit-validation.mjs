@@ -11,14 +11,27 @@ import {
 import { getSoftwareWarehouseInv } from '../../src/utils/equipmentFields.ts';
 
 describe('workspaceValidation', () => {
-  it('rejects exact duplicate inventory numbers', () => {
+  it('rejects exact duplicate inventory numbers within same registry', () => {
     const err = validateWorkspaceInventory({
-      warehouseItems: [{ id: 'w1', inventoryNumber: 'PC-1' }],
-      computers: [{ id: 'c1', inventoryNumber: 'PC-1' }],
+      warehouseItems: [],
+      computers: [
+        { id: 'c1', inventoryNumber: 'PC-DUP' },
+        { id: 'c2', inventoryNumber: 'PC-DUP' },
+      ],
       networkDevices: [],
       softwareItems: [],
     });
     assert.ok(err?.includes('Дублирующ'));
+  });
+
+  it('allows warehouse base inv with matching stock computer card (qty=1 receipt)', () => {
+    const err = validateWorkspaceInventory({
+      warehouseItems: [{ id: 'wh-1', inventoryNumber: 'ST-0070' }],
+      computers: [{ id: 'comp-1', inventoryNumber: 'ST-0070' }],
+      networkDevices: [],
+      softwareItems: [],
+    });
+    assert.equal(err, null);
   });
 
   it('allows computer batch suffix when warehouse base exists', () => {

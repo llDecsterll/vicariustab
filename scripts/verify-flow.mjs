@@ -186,8 +186,11 @@ async function testInventoryValidation() {
   }
   const { validateWorkspaceInventory } = await import('../server/workspaceValidation.ts');
   const dupErr = validateWorkspaceInventory({
-    warehouseItems: [{ id: 'w1', inventoryNumber: 'PC-1' }],
-    computers: [{ id: 'c1', inventoryNumber: 'PC-1' }],
+    warehouseItems: [],
+    computers: [
+      { id: 'c1', inventoryNumber: 'PC-DUP' },
+      { id: 'c2', inventoryNumber: 'PC-DUP' },
+    ],
     networkDevices: [],
     softwareItems: [],
   });
