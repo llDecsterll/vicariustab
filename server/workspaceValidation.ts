@@ -36,40 +36,52 @@ function buildInvCtx(payload: Record<string, unknown>): InvCtx {
 /** Reject exact duplicate inventory numbers and conflicting warehouse batches. */
 export function validateWorkspaceInventory(payload: Record<string, unknown>): string | null {
   const ctx = buildInvCtx(payload);
-  const entries: { key: string; label: string }[] = [];
 
-  const pushExact = (raw: string | undefined | null, label: string) => {
-    const inv = (raw || "").trim();
-    if (!inv || inv.toUpperCase() === "NET-EQ") return;
-    entries.push({ key: inv.toLowerCase(), label });
+  const duplicateAmong = (
+    items: { id?: string; inventoryNumber?: string }[],
+    groupLabel: string
+  ): string | null => {
+    const seen = new Map<string, string>();
+    for (const item of items) {
+      const inv = (item.inventoryNumber || "").trim();
+      if (!inv || inv.toUpperCase() === "NET-EQ") continue;
+      const key = inv.toLowerCase();
+      if (seen.has(key)) {
+        return `Дублирующийся инвентарный номер «${inv}» (${groupLabel}:${seen.get(key)} и ${groupLabel}:${item.id || "?"})`;
+      }
+      seen.set(key, item.id || "?");
+    }
+    return null;
   };
 
-  for (const w of ctx.warehouseItems) {
-    pushExact(w.inventoryNumber, `склад:${w.id || "?"}`);
-  }
-  for (const c of ctx.computers) {
-    pushExact(c.inventoryNumber, `оборудование:${c.id || "?"}`);
-  }
-  for (const n of ctx.networkDevices) {
-    pushExact(n.inventoryNumber, `сеть:${n.id || "?"}`);
-  }
+  const dupWh = duplicateAmong(ctx.warehouseItems, "склад");
+  if (dupWh) return dupWh;
+  const dupComp = duplicateAmong(ctx.computers, "оборудование");
+  if (dupComp) return dupComp;
+  const dupNet = duplicateAmong(ctx.networkDevices, "сеть");
+  if (dupNet) return dupNet;
+
+  const softwareKeys = new Map<string, string>();
   for (const s of ctx.softwareItems) {
-    pushExact(s.licenseKey, `ПО:${s.id || "?"}`);
+    const key = (s.licenseKey || "").trim();
+    if (key) {
+      const lower = key.toLowerCase();
+      if (softwareKeys.has(lower)) {
+        return `Дублирующийся инвентарный номер «${key}» (${softwareKeys.get(lower)} и ПО:${s.id || "?"})`;
+      }
+      softwareKeys.set(lower, `ПО:${s.id || "?"}`);
+    }
     const syntheticWhInv = getSoftwareWarehouseInv(s.id || "");
     const whLineForSoftware = ctx.warehouseItems.some(
       (w) => (w.inventoryNumber || "").trim().toLowerCase() === syntheticWhInv.toLowerCase()
     );
     if (!whLineForSoftware) {
-      pushExact(syntheticWhInv, `ПО-склад:${s.id || "?"}`);
+      const lower = syntheticWhInv.toLowerCase();
+      if (softwareKeys.has(lower)) {
+        return `Дублирующийся инвентарный номер «${syntheticWhInv}» (${softwareKeys.get(lower)} и ПО-склад:${s.id || "?"})`;
+      }
+      softwareKeys.set(lower, `ПО-склад:${s.id || "?"}`);
     }
-  }
-
-  const seen = new Map<string, string>();
-  for (const { key, label } of entries) {
-    if (seen.has(key)) {
-      return `Дублирующийся инвентарный номер «${key}» (${seen.get(key)} и ${label})`;
-    }
-    seen.set(key, label);
   }
 
   for (const w of ctx.warehouseItems) {
@@ -79,7 +91,17 @@ export function validateWorkspaceInventory(payload: Record<string, unknown>): st
       (s) => getSoftwareWarehouseInv(s.id || "").toLowerCase() === inv.toLowerCase()
     );
     if (linkedSoftwareStock) continue;
-    if (exactInventoryNumberTaken(inv, ctx, w.id)) {
+
+    const ctxExcludingBatchRegistry: InvCtx = {
+      ...ctx,
+      computers: ctx.computers.filter(
+        (c) => !inventoryNumbersMatch(c.inventoryNumber, w.inventoryNumber)
+      ),
+      networkDevices: ctx.networkDevices.filter(
+        (n) => !inventoryNumbersMatch(n.inventoryNumber, w.inventoryNumber)
+      ),
+    };
+    if (exactInventoryNumberTaken(inv, ctxExcludingBatchRegistry, w.id)) {
       return `Инвентарный номер «${inv}» уже занят`;
     }
   }

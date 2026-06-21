@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.15] — 2026-06-18
+
+### Fixed
+- Server save rejected valid warehouse receipts when qty=1: warehouse line and stock computer card share the same base inv (e.g. `ST-0070`). Validation now checks duplicates per entity type and excludes batch-linked registry rows from warehouse conflict checks.
+
+---
+
 ## [2.0.14] — 2026-06-18 (audit-fix)
 
 ### Security
