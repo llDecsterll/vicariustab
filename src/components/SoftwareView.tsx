@@ -164,10 +164,14 @@ export default function SoftwareView({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!limitEquipmentTitle(name.trim())) return;
+    const trimmedName = limitEquipmentTitle(name.trim());
+    if (!trimmedName) {
+      alert(t('Укажите название программы'));
+      return;
+    }
 
     const payload = {
-      name: limitEquipmentTitle(name.trim()),
+      name: trimmedName,
       category,
       licenseKey: licenseKey || t('Без ключа'),
       version: version || '1.0',

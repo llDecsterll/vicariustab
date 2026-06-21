@@ -156,10 +156,22 @@ export default function NetworkView({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!limitEquipmentTitle(deviceName.trim()) || !ipAddress.trim() || quantity < 1) return;
+    const trimmedName = limitEquipmentTitle(deviceName.trim());
+    if (!trimmedName) {
+      alert(t('Укажите название устройства'));
+      return;
+    }
+    if (!ipAddress.trim()) {
+      alert(t('Укажите локальный IP-адрес'));
+      return;
+    }
+    if (quantity < 1) {
+      alert(t('Количество должно быть не менее 1'));
+      return;
+    }
 
     const payload = {
-      deviceName: limitEquipmentTitle(deviceName.trim()),
+      deviceName: trimmedName,
       type,
       objectName,
       ipAddress,

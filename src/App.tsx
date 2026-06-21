@@ -7,7 +7,7 @@
  * Все права защищены. Копирование, изменение, распространение и коммерческое использование без письменного согласия правообладателя запрещено.
  * Release
  */
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import DashboardView from './components/DashboardView';
@@ -66,7 +66,8 @@ import {
   markSessionNotificationsRead,
 } from './utils/sessionAuth';
 import { getStoredSessionToken, clearSessionCredentials, authHeaders } from './utils/deviceFingerprint';
-import { apiFetch, setDataRevisionHeader } from './utils/apiClient';
+import { apiFetch } from './utils/apiClient';
+import { persistWorkspaceState } from './utils/workspaceSync';
 import { fetchSetupStatus } from './utils/setupAuth';
 
 export default function App() {
@@ -102,6 +103,8 @@ export default function App() {
 
   const [isLoadedFromServer, setIsLoadedFromServer] = useState<boolean>(false);
   const [dataRevision, setDataRevision] = useState<number | null>(null);
+  const dataRevisionRef = useRef<number | null>(null);
+  const [saveError, setSaveError] = useState('');
   const [setupChecking, setSetupChecking] = useState(true);
   const [setupRequired, setSetupRequired] = useState(false);
   const [setupCompleteMessage, setSetupCompleteMessage] = useState('');
@@ -264,7 +267,10 @@ export default function App() {
   }, []);
 
   const applyServerPayload = useCallback((data: Record<string, unknown>) => {
-    if (typeof data._revision === 'number') setDataRevision(data._revision);
+    if (typeof data._revision === 'number') {
+      setDataRevision(data._revision);
+      dataRevisionRef.current = data._revision;
+    }
     applyLicenseStateFromServer(data);
     setLicenseStatus(getLicenseStatus());
     if (Array.isArray(data.objects)) setObjects(data.objects as ObjectItem[]);
@@ -317,6 +323,10 @@ export default function App() {
       void loadDataFromServer();
     }
   }, [isLoggedIn, isLoadedFromServer, loadDataFromServer]);
+
+  useEffect(() => {
+    dataRevisionRef.current = dataRevision;
+  }, [dataRevision]);
 
   useEffect(() => {
     const onAuthExpired = () => {
@@ -543,26 +553,21 @@ export default function App() {
 
       // 2. Transmit state to the backend (authenticated + revision check)
       void (async () => {
-        const result = await apiFetch<{ success?: boolean; revision?: number }>('/api/data', {
-          method: 'POST',
-          headers: setDataRevisionHeader(dataRevision),
-          body: JSON.stringify(stateToSave),
-        });
-        if (result.ok) {
-          if (result.data?.revision !== undefined) {
-            setDataRevision(result.data.revision);
-          }
-        } else {
-          const failed = result as Extract<typeof result, { ok: false }>;
-          if (failed.conflict && failed.payload && typeof failed.payload === 'object') {
-            const conflict = failed.payload as { data?: Record<string, unknown>; revision?: number };
-            console.warn('Server data conflict — reloading authoritative state');
-            if (conflict.data) applyServerPayload(conflict.data);
-            if (typeof conflict.revision === 'number') setDataRevision(conflict.revision);
-          } else if (failed.status === 402) {
-            console.warn('Save rejected: license expired on server');
-          }
+        const result = await persistWorkspaceState(stateToSave, dataRevisionRef.current);
+        if (result.ok === true) {
+          setDataRevision(result.revision);
+          dataRevisionRef.current = result.revision;
+          setSaveError('');
+          return;
         }
+        const msg =
+          result.status === 403
+            ? t('Сохранение отклонено: недостаточно прав (только просмотр).')
+            : result.status === 402
+              ? t('Сохранение отклонено: лицензия истекла или недействительна.')
+              : `${t('Не удалось сохранить данные на сервере')}: ${result.error}`;
+        console.warn('Workspace save failed:', result.status, result.error);
+        setSaveError(msg);
       })();
     }, 1000);
 
@@ -591,7 +596,6 @@ export default function App() {
     sidebarBgColor,
     sidebarOpacity,
     licenseRevision,
-    dataRevision,
     isLoggedIn,
     applyServerPayload,
   ]);
@@ -677,6 +681,8 @@ export default function App() {
     setIsLoggedIn(false);
     setIsLoadedFromServer(false);
     setDataRevision(null);
+    dataRevisionRef.current = null;
+    setSaveError('');
   }, [users, currentUserId, syncAuthAuditFromServer]);
 
   const handleSwitchUser = useCallback(async (user: SystemUser, password: string): Promise<boolean> => {
@@ -806,10 +812,16 @@ export default function App() {
 
   const handleDeleteNetwork = (id: string) => {
     if (checkLicenseBlocked()) return;
-    const target = networkDevices.find(n => n.id === id);
-    if (!target) return;
-    setNetworkDevices(prev => prev.filter(n => n.id !== id));
-    logActivity('Удалено сетевое оборудование', `Удалено устройство "${target.deviceName}"`, 'delete');
+    let deletedName: string | null = null;
+    setNetworkDevices((prev) => {
+      const target = prev.find((n) => n.id === id);
+      if (!target) return prev;
+      deletedName = target.deviceName;
+      return prev.filter((n) => n.id !== id);
+    });
+    if (deletedName) {
+      logActivity('Удалено сетевое оборудование', `Удалено устройство "${deletedName}"`, 'delete');
+    }
   };
 
   // Computers CRUD
@@ -1132,10 +1144,16 @@ export default function App() {
 
   const handleDeleteSoftware = (id: string) => {
     if (checkLicenseBlocked()) return;
-    const target = softwareItems.find(s => s.id === id);
-    if (!target) return;
-    setSoftwareItems(prev => prev.filter(s => s.id !== id));
-    logActivity('Удалено ПО', `Удалена карточка ПО "${target.name}"`, 'delete');
+    let deletedName: string | null = null;
+    setSoftwareItems((prev) => {
+      const target = prev.find((s) => s.id === id);
+      if (!target) return prev;
+      deletedName = target.name;
+      return prev.filter((s) => s.id !== id);
+    });
+    if (deletedName) {
+      logActivity('Удалено ПО', `Удалена карточка ПО "${deletedName}"`, 'delete');
+    }
   };
 
   const handleReturnSoftwareToWarehouse = (id: string) => {
@@ -2411,6 +2429,18 @@ export default function App() {
 
         {/* Dynamic Inner Panel Body */}
         <main className="flex-1 overflow-y-auto p-6 space-y-6">
+          {saveError && (
+            <div className="bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold px-4 py-3 rounded-xl flex items-start justify-between gap-3">
+              <span>{saveError}</span>
+              <button
+                type="button"
+                onClick={() => setSaveError('')}
+                className="text-rose-500 hover:text-rose-700 shrink-0 font-bold"
+              >
+                ×
+              </button>
+            </div>
+          )}
           {renderActiveView()}
         </main>
       </div>
