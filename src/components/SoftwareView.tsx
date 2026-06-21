@@ -21,6 +21,7 @@ import { SoftwareItem, SoftwareCategory, EmployeeItem, ObjectItem, ComputerItem 
 
 interface SoftwareViewProps {
   softwareItems: SoftwareItem[];
+  allSoftwareItems?: SoftwareItem[];
   employees: EmployeeItem[];
   objects: ObjectItem[];
   computers: ComputerItem[];
@@ -34,6 +35,7 @@ interface SoftwareViewProps {
 
 export default function SoftwareView({
   softwareItems,
+  allSoftwareItems,
   employees,
   objects,
   computers,
@@ -208,11 +210,12 @@ export default function SoftwareView({
     ...objects.map((obj) => ({ value: obj.name, label: obj.name })),
   ];
 
-  // Analytics helper calculations
-  const totalApps = softwareItems.length;
-  const activeLicenses = softwareItems.filter(i => i.status === 'Активна').length;
-  const expiredLicenses = softwareItems.filter(i => i.status === 'Истекла').length;
-  const totalLicenseSeats = softwareItems.reduce((acc, curr) => acc + curr.quantity, 0);
+  // Analytics helper calculations (full registry, not only active group view)
+  const registryItems = allSoftwareItems ?? softwareItems;
+  const totalApps = registryItems.length;
+  const activeLicenses = registryItems.filter(i => i.status === 'Активна').length;
+  const expiredLicenses = registryItems.filter(i => i.status === 'Истекла').length;
+  const totalLicenseSeats = registryItems.reduce((acc, curr) => acc + curr.quantity, 0);
 
   return (
     <div className="space-y-6">

@@ -30,13 +30,37 @@ export function findSoftwareIdsForWarehouseItem(
   softwareItems: SoftwareItem[]
 ): string[] {
   return softwareItems
-    .filter(
-      (s) =>
-        getSoftwareWarehouseInv(s.id) === item.inventoryNumber ||
-        s.licenseKey === item.inventoryNumber ||
-        (item.type === 'Лицензии ПО' && s.name === item.name)
-    )
+    .filter((s) => warehouseItemLinksSoftware(item, s))
     .map((s) => s.id);
+}
+
+export function warehouseItemLinksSoftware(
+  item: WarehouseItem,
+  soft: SoftwareItem
+): boolean {
+  return (
+    getSoftwareWarehouseInv(soft.id) === item.inventoryNumber ||
+    (!!soft.licenseKey && soft.licenseKey === item.inventoryNumber) ||
+    (item.type === 'Лицензии ПО' && item.name === soft.name)
+  );
+}
+
+export function isSoftwareStoredOnWarehouse(
+  soft: SoftwareItem,
+  warehouseItems: WarehouseItem[]
+): boolean {
+  return warehouseItems.some(
+    (w) => w.quantity > 0 && warehouseItemLinksSoftware(w, soft)
+  );
+}
+
+export function filterSoftwareForEquipmentView(
+  softwareItems: SoftwareItem[],
+  warehouseItems: WarehouseItem[]
+): SoftwareItem[] {
+  return softwareItems.filter(
+    (s) => !(s.status === 'Не активирована' && isSoftwareStoredOnWarehouse(s, warehouseItems))
+  );
 }
 
 function countByInventory(
@@ -61,13 +85,7 @@ function countByInventory(
 function countSoftwareLinks(softwareId: string, ctx: EquipmentDeleteContext): number {
   const soft = ctx.softwareItems.find((s) => s.id === softwareId);
   if (!soft) return 0;
-  const swInv = getSoftwareWarehouseInv(softwareId);
-  return ctx.warehouseItems.filter(
-    (w) =>
-      w.inventoryNumber === swInv ||
-      w.inventoryNumber === soft.licenseKey ||
-      (w.type === 'Лицензии ПО' && w.name === soft.name)
-  ).length;
+  return ctx.warehouseItems.filter((w) => warehouseItemLinksSoftware(w, soft)).length;
 }
 
 function buildCascadeLines(

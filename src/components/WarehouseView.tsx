@@ -17,7 +17,7 @@ import {
   supportsComputerSpecifications,
   inventoryNumbersMatch,
 } from '../utils/equipmentFields';
-import ModalCloseButton from './ModalCloseButton';
+import { getSoftwareWarehouseInv, isSoftwareStoredOnWarehouse } from '../utils/equipmentDelete';
 
 interface WarehouseViewProps {
   warehouseItems: WarehouseItem[];
@@ -54,8 +54,8 @@ interface WarehouseViewProps {
   networkDevices?: NetworkDevice[];
   softwareItems?: SoftwareItem[];
   onDeployAsset?: (inventoryNumber: string, quantity: number, targetEmployeeName: string, targetObjectName: string) => boolean;
-  onReturnActiveAssetToWarehouse?: (itemSource: 'computer' | 'network', itemId: string, targetWarehouseName: string) => void;
-  onTransferActiveAsset?: (itemSource: 'computer' | 'network', itemId: string, targetObjectName: string, targetEmployeeName?: string) => void;
+  onReturnActiveAssetToWarehouse?: (itemSource: 'computer' | 'network' | 'software', itemId: string, targetWarehouseName: string) => void;
+  onTransferActiveAsset?: (itemSource: 'computer' | 'network' | 'software', itemId: string, targetObjectName: string, targetEmployeeName?: string) => void;
   onTransferWarehouseStock?: (itemId: string, sourceWarehouseName: string, targetWarehouseName: string, quantity: number) => void;
 }
 
@@ -512,15 +512,17 @@ export default function WarehouseView({
       };
     });
 
-  // 4. Active Software Licenses / keys
-  const softUnified = (softwareItems || []).map(s => {
+  // 4. Active Software Licenses / keys (hide stock already shown in whUnified)
+  const softUnified = (softwareItems || [])
+    .filter((s) => !(s.status === 'Не активирована' && isSoftwareStoredOnWarehouse(s, warehouseItems || [])))
+    .map(s => {
     const linkedWhName = warehouses.find(w => w.objectName === s.objectName)?.name || 'Основной склад ИТ';
     return {
       id: s.id,
       name: s.name,
       type: 'Лицензии ПО' as const,
       model: `${s.developer || ''} (v${s.version || ''})`,
-      inventoryNumber: s.licenseKey,
+      inventoryNumber: s.licenseKey || getSoftwareWarehouseInv(s.id),
       quantity: s.quantity || 1,
       unit: 'шт.',
       costPerUnit: 0,

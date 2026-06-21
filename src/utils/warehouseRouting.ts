@@ -12,6 +12,7 @@ import type {
   WarehouseItem,
   WarehouseItemType,
 } from '../types';
+import { inventoryNumbersMatch } from './equipmentFields';
 
 export type EquipmentTab =
   | 'computers'
@@ -43,21 +44,24 @@ export function filterComputersByEquipmentTab(
   computers: ComputerItem[],
   tab: EquipmentTab
 ): ComputerItem[] {
+  const active = computers.filter(
+    (c) => c.status !== 'На складе' && c.status !== 'Списано'
+  );
   switch (tab) {
     case 'computers':
-      return computers.filter((c) => c.category === 'Ноутбук' || c.category === 'ПК');
+      return active.filter((c) => c.category === 'Ноутбук' || c.category === 'ПК');
     case 'peripherals':
-      return computers.filter((c) => c.category === 'Монитор' || c.category === 'Периферия');
+      return active.filter((c) => c.category === 'Монитор' || c.category === 'Периферия');
     case 'orgtech':
-      return computers.filter((c) => c.category === 'Оргтехника');
+      return active.filter((c) => c.category === 'Оргтехника');
     case 'surveillance':
-      return computers.filter((c) => c.category === 'Видеонаблюдение');
+      return active.filter((c) => c.category === 'Видеонаблюдение');
     case 'consumables':
-      return computers.filter((c) => c.category === 'Расходники');
+      return active.filter((c) => c.category === 'Расходники');
     case 'other_equip':
-      return computers.filter((c) => c.category === 'Другое');
+      return active.filter((c) => c.category === 'Другое');
     default:
-      return computers;
+      return active;
   }
 }
 
@@ -240,23 +244,30 @@ export function getNetworkDeviceDisplayStatus(
   warehouseItems: WarehouseItem[],
   warehouses: CustomWarehouse[]
 ): ComputerStatus {
-  const inv = device.inventoryNumber;
-  if (inv) {
-    const whItem = warehouseItems.find(
-      (w) =>
-        w.inventoryNumber === inv &&
-        w.quantity > 0 &&
-        w.type === 'Сетевое оборудование'
-    );
-    if (whItem) {
-      const wh = warehouses.find((w) => w.name === whItem.warehouseName);
-      const stockObject = wh?.objectName ?? warehouses[0]?.objectName;
-      if (stockObject && device.objectName === stockObject) {
-        return 'На складе';
-      }
+  const whItem = warehouseItems.find(
+    (w) =>
+      inventoryNumbersMatch(w.inventoryNumber, device.inventoryNumber) &&
+      w.quantity > 0 &&
+      w.type === 'Сетевое оборудование'
+  );
+  if (whItem) {
+    const wh = warehouses.find((w) => w.name === whItem.warehouseName);
+    const stockObject = wh?.objectName ?? warehouses[0]?.objectName;
+    if (stockObject && device.objectName === stockObject) {
+      return 'На складе';
     }
   }
   return 'В работе';
+}
+
+export function filterNetworkDevicesForEquipmentView(
+  devices: NetworkDevice[],
+  warehouseItems: WarehouseItem[],
+  warehouses: CustomWarehouse[]
+): NetworkDevice[] {
+  return devices.filter(
+    (d) => getNetworkDeviceDisplayStatus(d, warehouseItems, warehouses) !== 'На складе'
+  );
 }
 
 export const NETWORK_CATEGORY_FILTER_OPTIONS: { value: NetworkDeviceType | 'Все'; label: string }[] = [

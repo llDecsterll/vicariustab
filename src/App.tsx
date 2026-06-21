@@ -46,6 +46,7 @@ import { checkForPlatformUpdate, markInstalledCommit, buildUpdateNotificationTex
 import { APP_VERSION } from './config/appConfig';
 import {
   filterComputersByEquipmentTab,
+  filterNetworkDevicesForEquipmentView,
   resolveWarehouseComputerRoute,
   resolveNetworkDeviceType,
   equipmentTabLabel,
@@ -72,9 +73,11 @@ import ConfirmDeleteModal from './components/ConfirmDeleteModal';
 import ConfirmReturnModal from './components/ConfirmReturnModal';
 import {
   buildDeletePreview,
+  filterSoftwareForEquipmentView,
   findSoftwareIdsForWarehouseItem,
   getSoftwareWarehouseInv,
   isNotLinkedToInventoryKey,
+  warehouseItemLinksSoftware,
   type EquipmentDeleteSource,
 } from './utils/equipmentDelete';
 import { inventoryNumbersMatch, normalizeInventoryNumber } from './utils/equipmentFields';
@@ -855,9 +858,22 @@ export default function App() {
   const requestReturnEquipment = useCallback(
     (source: 'computer' | 'network' | 'software', id: string) => {
       if (currentUser?.role === 'Viewer') return;
+      let valid = false;
+      if (source === 'computer') {
+        valid = !!computers.find((c) => c.id === id);
+      } else if (source === 'network') {
+        valid = !!networkDevices.find((n) => n.id === id);
+      } else {
+        const soft = softwareItems.find((s) => s.id === id);
+        valid = !!soft && soft.status !== 'Не активирована';
+      }
+      if (!valid) {
+        alert('Не удалось найти активную запись для возврата на склад.');
+        return;
+      }
       setEquipmentReturnRequest({ source, id });
     },
-    [currentUser]
+    [currentUser, computers, networkDevices, softwareItems]
   );
 
   const clearDetailIfDeleted = useCallback(
@@ -899,16 +915,27 @@ export default function App() {
         setEquipmentDeleteRequest(null);
         return;
       }
-      const invKey = normalizeInventoryNumber(target.inventoryNumber);
-      setWarehouseItems((prev) => prev.filter((w) => isNotLinkedToInventoryKey(w.inventoryNumber, invKey)));
-      setComputers((prev) => prev.filter((c) => isNotLinkedToInventoryKey(c.inventoryNumber, invKey)));
-      setNetworkDevices((prev) => prev.filter((nd) => isNotLinkedToInventoryKey(nd.inventoryNumber, invKey)));
       const softIds = findSoftwareIdsForWarehouseItem(target, softwareItems);
-      if (softIds.length) {
+      if (target.type === 'Лицензии ПО' || softIds.length > 0) {
         setSoftwareItems((prev) => prev.filter((s) => !softIds.includes(s.id)));
+        setWarehouseItems((prev) =>
+          prev.filter((w) => {
+            if (w.id === id) return false;
+            return !softIds.some((sid) => {
+              const soft = softwareItems.find((s) => s.id === sid);
+              return soft ? warehouseItemLinksSoftware(w, soft) : false;
+            });
+          })
+        );
+        logDetail = `Удалена позиция «${target.name}» (склад) и связанные лицензии ПО`;
+      } else {
+        const invKey = normalizeInventoryNumber(target.inventoryNumber);
+        setWarehouseItems((prev) => prev.filter((w) => isNotLinkedToInventoryKey(w.inventoryNumber, invKey)));
+        setComputers((prev) => prev.filter((c) => isNotLinkedToInventoryKey(c.inventoryNumber, invKey)));
+        setNetworkDevices((prev) => prev.filter((nd) => isNotLinkedToInventoryKey(nd.inventoryNumber, invKey)));
+        logDetail = `Удалена позиция «${target.name}» (склад) и все связанные карточки`;
+        clearDetailIfDeleted(source, id, invKey);
       }
-      logDetail = `Удалена позиция «${target.name}» (склад) и все связанные карточки`;
-      clearDetailIfDeleted(source, id, invKey);
     } else if (source === 'network') {
       const target = networkDevices.find((n) => n.id === id);
       if (!target) {
@@ -927,16 +954,8 @@ export default function App() {
         setEquipmentDeleteRequest(null);
         return;
       }
-      const swInv = getSoftwareWarehouseInv(id);
       setSoftwareItems((prev) => prev.filter((s) => s.id !== id));
-      setWarehouseItems((prev) =>
-        prev.filter(
-          (w) =>
-            w.inventoryNumber !== swInv &&
-            w.inventoryNumber !== target.licenseKey &&
-            !(w.type === 'Лицензии ПО' && w.name === target.name)
-        )
-      );
+      setWarehouseItems((prev) => prev.filter((w) => !warehouseItemLinksSoftware(w, target)));
       logDetail = `Удалено ПО «${target.name}» и связанные позиции склада`;
       clearDetailIfDeleted(source, id);
     } else {
@@ -1094,11 +1113,16 @@ export default function App() {
   };
 
   const handleReturnActiveAssetToWarehouse = (
-    itemSource: 'computer' | 'network',
+    itemSource: 'computer' | 'network' | 'software',
     itemId: string,
     targetWarehouseName: string
   ) => {
     if (checkLicenseBlocked()) return;
+
+    if (itemSource === 'software') {
+      handleReturnSoftwareToWarehouse(itemId, targetWarehouseName);
+      return;
+    }
 
     const targetWhName = targetWarehouseName || warehouses[0]?.name || 'Основной склад ИТ';
     const linkedWarehouse = warehouses.find(w => w.name === targetWhName);
@@ -1339,39 +1363,46 @@ export default function App() {
     logActivity('Изменено ПО', `Параметры ПО "${soft.name}" обновлены`, 'update');
   };
 
-  const handleReturnSoftwareToWarehouse = (id: string) => {
+  const handleReturnSoftwareToWarehouse = (id: string, targetWarehouseName?: string) => {
     if (checkLicenseBlocked()) return;
     const soft = softwareItems.find((s) => s.id === id);
-    if (!soft) return;
+    if (!soft || soft.status === 'Не активирована') return;
 
-    const targetWhName = warehouses[0]?.name || 'Основной склад ИТ';
+    const targetWhName = targetWarehouseName || warehouses[0]?.name || 'Основной склад ИТ';
     const defaultObjectName =
       warehouses.find((w) => w.name === targetWhName)?.objectName || objects[0]?.name || 'Главный офис';
-    const inv = `SW-${soft.id.slice(-8).toUpperCase()}`;
+    const inv = getSoftwareWarehouseInv(soft.id);
+    const returnQty = 1;
+    const currentQty = soft.quantity || 1;
 
     setSoftwareItems((prev) =>
-      prev.map((s) =>
-        s.id === id
-          ? {
-              ...s,
-              status: 'Не активирована',
-              assignedEmployeeName: 'Свободная лицензия',
-              assignedDeviceId: undefined,
-              objectName: defaultObjectName,
-            }
-          : s
-      )
+      prev.map((s) => {
+        if (s.id !== id) return s;
+        if (currentQty > returnQty && s.status === 'Активна') {
+          return { ...s, quantity: currentQty - returnQty };
+        }
+        return {
+          ...s,
+          status: 'Не активирована',
+          assignedEmployeeName: 'Свободная лицензия',
+          assignedDeviceId: undefined,
+          objectName: defaultObjectName,
+        };
+      })
     );
 
     setWarehouseItems((prev) => {
       const existing = prev.find(
         (w) =>
-          w.inventoryNumber === inv &&
+          w.type === 'Лицензии ПО' &&
+          (w.inventoryNumber === inv ||
+            (!!soft.licenseKey && w.inventoryNumber === soft.licenseKey) ||
+            w.name === soft.name) &&
           (w.warehouseName || 'Основной склад ИТ') === targetWhName
       );
       if (existing) {
         return prev.map((w) =>
-          w.id === existing.id ? { ...w, quantity: w.quantity + 1, status: 'В наличии' as const } : w
+          w.id === existing.id ? { ...w, quantity: w.quantity + returnQty, status: 'В наличии' as const } : w
         );
       }
       return [
@@ -1382,7 +1413,7 @@ export default function App() {
           type: 'Лицензии ПО' as const,
           model: soft.version || soft.name,
           inventoryNumber: inv,
-          quantity: 1,
+          quantity: returnQty,
           unit: 'шт.',
           costPerUnit: 0,
           status: 'В наличии' as const,
@@ -1393,7 +1424,7 @@ export default function App() {
 
     logActivity(
       'Возврат на склад',
-      `ПО «${soft.name}» возвращено на склад «${targetWhName}»`,
+      `ПО «${soft.name}» (${returnQty} шт.) возвращено на склад «${targetWhName}»`,
       'update'
     );
   };
@@ -1730,11 +1761,52 @@ export default function App() {
       }).filter(item => item.quantity > 0);
     });
 
-    // 3. Update the matching active assets in computers or network catalogues
+    // 3. Update the matching active assets in equipment catalogues
     const isNetwork = whItem.type === 'Сетевое оборудование';
+    const isSoftwareLicense = whItem.type === 'Лицензии ПО';
     let success = false;
 
-    if (isNetwork) {
+    if (isSoftwareLicense) {
+      const linkedIds = findSoftwareIdsForWarehouseItem(whItem, softwareItems);
+      const storedSoft =
+        softwareItems.find(
+          (s) => linkedIds.includes(s.id) && s.status === 'Не активирована'
+        ) ||
+        softwareItems.find((s) => linkedIds.includes(s.id));
+
+      if (storedSoft) {
+        setSoftwareItems((prev) =>
+          prev.map((s) =>
+            s.id === storedSoft.id
+              ? {
+                  ...s,
+                  status: 'Активна',
+                  assignedEmployeeName: targetEmployeeName,
+                  objectName: targetObjectName,
+                  assignedDeviceId: undefined,
+                }
+              : s
+          )
+        );
+        success = true;
+      } else {
+        const newSoft: SoftwareItem = {
+          id: `soft-deploy-${Date.now()}`,
+          name: whItem.name,
+          category: 'Иное ПО',
+          licenseKey: whItem.inventoryNumber.startsWith('SW-') ? '' : whItem.inventoryNumber,
+          version: whItem.model || '',
+          developer: '',
+          quantity,
+          assignedEmployeeName: targetEmployeeName,
+          objectName: targetObjectName,
+          status: 'Активна',
+          purchaseDate: new Date().toISOString().split('T')[0],
+        };
+        setSoftwareItems((prev) => [...prev, newSoft]);
+        success = true;
+      }
+    } else if (isNetwork) {
       const matchingNetwork = networkDevices.find(nd => nd.inventoryNumber === inventoryNumber);
       if (matchingNetwork) {
         if (quantity >= matchingNetwork.quantity) {
@@ -2010,7 +2082,7 @@ export default function App() {
       case 'network':
         return (
           <NetworkView
-            networkDevices={networkDevices}
+            networkDevices={filterNetworkDevicesForEquipmentView(networkDevices, warehouseItems, warehouses)}
             objects={objects}
             warehouseItems={warehouseItems}
             warehouses={warehouses}
@@ -2274,7 +2346,8 @@ export default function App() {
       case 'software':
         return (
           <SoftwareView
-            softwareItems={softwareItems}
+            softwareItems={filterSoftwareForEquipmentView(softwareItems, warehouseItems)}
+            allSoftwareItems={softwareItems}
             employees={employees}
             objects={objects}
             computers={computers}
