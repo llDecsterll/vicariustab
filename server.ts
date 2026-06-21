@@ -56,6 +56,12 @@ import {
   preparePayloadForSave,
 } from "./server/userCredentials.ts";
 import { buildPurgedWorkspacePayload } from "./server/purgeWorkspace.ts";
+import {
+  isLoginRateLimited,
+  recordLoginFailure,
+  clearLoginFailures,
+  loginRateLimitMessage,
+} from "./server/loginRateLimit.ts";
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
@@ -735,10 +741,17 @@ async function startServer() {
         return res.status(400).json({ error: "Login and password required" });
       }
 
+      if (isLoginRateLimited(req, login)) {
+        return res.status(429).json({ error: loginRateLimitMessage(), code: "RATE_LIMITED" });
+      }
+
       const user = await verifyCredentials(login, password);
       if (!user) {
+        recordLoginFailure(req, login);
         return res.status(401).json({ error: "Invalid credentials", code: "AUTH_FAILED" });
       }
+
+      clearLoginFailures(req, login);
 
       if (await isSetupRequired()) {
         return res.status(403).json({ error: "Complete initial setup first", code: "SETUP_REQUIRED" });
@@ -939,14 +952,24 @@ async function startServer() {
 
       const parsed = JSON.parse(decrypted);
       const sanitized = stripLicenseArtifacts(parsed);
+      const prepared = await preparePayloadForSave(sanitized as Record<string, unknown>);
       const config = readDbConfig();
       if (config.type === "mysql" || config.type === "postgres") {
-        await saveToSql(config, sanitized);
+        await saveToSql(config, prepared);
       }
-      await saveApplicationData(sanitized as Record<string, unknown>, null);
+      await saveApplicationData(prepared, null);
       return res.json({ success: true });
-    } catch (error) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to import backup";
       console.error("Error importing backup:", error);
+      if (
+        message.includes("инвентар") ||
+        message.includes("Дублирующ") ||
+        message.includes("администратор") ||
+        message.includes("пароль")
+      ) {
+        return res.status(400).json({ error: message });
+      }
       return res.status(500).json({ error: "Failed to import backup" });
     }
   });
