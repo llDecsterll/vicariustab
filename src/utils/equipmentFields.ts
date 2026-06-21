@@ -60,11 +60,28 @@ export function matchesBaseInventoryNumber(
   );
 }
 
+/** Fallback for network equipment without an assigned inventory number */
+export function normalizeInventoryNumber(inventoryNumber: string | undefined | null): string {
+  const trimmed = (inventoryNumber || '').trim();
+  return trimmed || 'NET-EQ';
+}
+
+export function inventoryNumbersMatch(
+  a: string | undefined | null,
+  b: string | undefined | null
+): boolean {
+  const na = normalizeInventoryNumber(a);
+  const nb = normalizeInventoryNumber(b);
+  if (na === nb) return true;
+  return matchesBaseInventoryNumber(a, b) || matchesBaseInventoryNumber(b, a);
+}
+
 export function isNotLinkedToInventoryBase(
   itemInventoryNumber: string | undefined | null,
   baseInventoryNumber: string | undefined | null
 ): boolean {
-  return !matchesBaseInventoryNumber(itemInventoryNumber, baseInventoryNumber);
+  if (!baseInventoryNumber) return true;
+  return !inventoryNumbersMatch(itemInventoryNumber, baseInventoryNumber);
 }
 
 /** Apply receipt specs to a single registry unit (supports batch qty > 1) */

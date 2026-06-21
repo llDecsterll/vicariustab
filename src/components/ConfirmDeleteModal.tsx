@@ -1,23 +1,32 @@
 /*
- * Unified equipment deletion confirmation dialog
+ * Unified confirmation dialog for deletions across the platform
  */
 import React from 'react';
 import { AlertTriangle, Trash2 } from 'lucide-react';
 import { useTranslation } from '../utils/i18n';
-import type { EquipmentDeletePreview } from '../utils/equipmentDelete';
 import ModalCloseButton from './ModalCloseButton';
 
-interface DeleteEquipmentModalProps {
-  preview: EquipmentDeletePreview | null;
+export interface ConfirmDeletePreview {
+  title: string;
+  subtitle: string;
+  itemName: string;
+  detailLabel: string;
+  detailValue: string;
+  cascadeLines: string[];
+  confirmLabel?: string;
+}
+
+interface ConfirmDeleteModalProps {
+  preview: ConfirmDeletePreview | null;
   onClose: () => void;
   onConfirm: () => void;
 }
 
-export default function DeleteEquipmentModal({
+export default function ConfirmDeleteModal({
   preview,
   onClose,
   onConfirm,
-}: DeleteEquipmentModalProps) {
+}: ConfirmDeleteModalProps) {
   const { t } = useTranslation();
   if (!preview) return null;
 
@@ -31,8 +40,8 @@ export default function DeleteEquipmentModal({
                 <AlertTriangle size={20} />
               </div>
               <div>
-                <h3 className="font-bold text-lg text-slate-800">{t('Удаление оборудования')}</h3>
-                <p className="text-xs text-slate-500 mt-1">{t('Действие необратимо. Связанные записи будут удалены везде.')}</p>
+                <h3 className="font-bold text-lg text-slate-800">{t(preview.title)}</h3>
+                <p className="text-xs text-slate-500 mt-1">{t(preview.subtitle)}</p>
               </div>
             </div>
             <ModalCloseButton onClick={onClose} />
@@ -43,10 +52,12 @@ export default function DeleteEquipmentModal({
               <span className="text-[10px] font-bold text-slate-400 uppercase">{t('Наименование')}</span>
               <p className="font-semibold text-slate-800">{preview.itemName}</p>
             </div>
-            <div>
-              <span className="text-[10px] font-bold text-slate-400 uppercase">{t('Инв. № / ключ')}</span>
-              <p className="font-mono text-xs text-slate-600">{preview.inventoryLabel}</p>
-            </div>
+            {preview.detailValue && (
+              <div>
+                <span className="text-[10px] font-bold text-slate-400 uppercase">{t(preview.detailLabel)}</span>
+                <p className="font-mono text-xs text-slate-600 break-all">{preview.detailValue}</p>
+              </div>
+            )}
           </div>
 
           {preview.cascadeLines.length > 0 && (
@@ -77,7 +88,7 @@ export default function DeleteEquipmentModal({
               className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold rounded-lg transition-colors shadow-sm flex items-center gap-1.5"
             >
               <Trash2 size={14} />
-              {t('Удалить везде')}
+              {t(preview.confirmLabel || 'Удалить')}
             </button>
           </div>
         </div>

@@ -56,18 +56,10 @@ export default function SoftwareView({
   const [revealedKeys, setRevealedKeys] = useState<Record<string, boolean>>({});
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  const defaultWarehouseName = warehouses[0]?.name || 'Основной склад ИТ';
-
   const handleReturnToWarehouse = (item: SoftwareItem) => {
     if (!onReturnToWarehouse) return;
     if (item.status === 'Не активирована') return;
-    if (
-      window.confirm(
-        `${t('Вернуть на склад')} «${item.name}» (${defaultWarehouseName})?`
-      )
-    ) {
-      onReturnToWarehouse(item.id);
-    }
+    onReturnToWarehouse(item.id);
   };
 
   const handleDeleteSoftware = (item: SoftwareItem) => {

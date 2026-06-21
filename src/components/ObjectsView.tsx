@@ -30,6 +30,7 @@ import {
 import { ObjectItem, NetworkDevice, ComputerItem, SystemUser } from '../types';
 import { useTranslation } from '../utils/i18n';
 import ModalCloseButton from './ModalCloseButton';
+import ConfirmDeleteModal from './ConfirmDeleteModal';
 
 interface ObjectsViewProps {
   objects: ObjectItem[];
@@ -79,6 +80,7 @@ export default function ObjectsView({
   const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<ObjectItem | null>(null);
   
   // Form states
   const [name, setName] = useState('');
@@ -225,7 +227,7 @@ export default function ObjectsView({
                       )}
                       {currentUser?.role === 'Admin' && (
                         <button
-                          onClick={() => onDelete(obj.id)}
+                          onClick={() => setDeleteTarget(obj)}
                           className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-red-500 transition-colors cursor-pointer"
                           title={t("Удалить объект")}
                         >
@@ -391,6 +393,29 @@ export default function ObjectsView({
           </div>
         </div>
       )}
+
+      <ConfirmDeleteModal
+        preview={
+          deleteTarget
+            ? {
+                title: 'Удаление объекта',
+                subtitle: 'Объект будет удалён из системы. Это действие необратимо.',
+                itemName: deleteTarget.name,
+                detailLabel: 'Адрес',
+                detailValue: deleteTarget.address,
+                cascadeLines: [],
+                confirmLabel: 'Удалить',
+              }
+            : null
+        }
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={() => {
+          if (deleteTarget) {
+            onDelete(deleteTarget.id);
+            setDeleteTarget(null);
+          }
+        }}
+      />
     </div>
   );
 }

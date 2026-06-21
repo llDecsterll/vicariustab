@@ -59,13 +59,7 @@ export default function NetworkView({
 
   const handleReturnToWarehouse = (dev: NetworkDevice) => {
     if (!onReturnToWarehouse) return;
-    if (
-      window.confirm(
-        `${t('Вернуть на склад')} «${dev.deviceName}»${dev.inventoryNumber ? ` (${t('инв. №')} ${dev.inventoryNumber})` : ''}?`
-      )
-    ) {
-      onReturnToWarehouse(dev.id);
-    }
+    onReturnToWarehouse(dev.id);
   };
 
   const handleDeleteDevice = (dev: NetworkDevice) => {

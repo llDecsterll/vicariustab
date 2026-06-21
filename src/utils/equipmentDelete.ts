@@ -1,5 +1,8 @@
 import type { ComputerItem, NetworkDevice, SoftwareItem, WarehouseItem } from '../types';
-import { matchesBaseInventoryNumber } from './equipmentFields';
+import {
+  inventoryNumbersMatch,
+  normalizeInventoryNumber,
+} from './equipmentFields';
 
 export type EquipmentDeleteSource = 'warehouse' | 'network' | 'software' | 'computer';
 
@@ -40,18 +43,16 @@ function countByInventory(
   inventoryNumber: string | undefined | null,
   ctx: EquipmentDeleteContext
 ): { warehouse: number; network: number; computer: number; software: number } {
-  if (!inventoryNumber) {
-    return { warehouse: 0, network: 0, computer: 0, software: 0 };
-  }
+  const base = normalizeInventoryNumber(inventoryNumber);
   return {
     warehouse: ctx.warehouseItems.filter((w) =>
-      matchesBaseInventoryNumber(w.inventoryNumber, inventoryNumber)
+      inventoryNumbersMatch(w.inventoryNumber, base)
     ).length,
     network: ctx.networkDevices.filter((n) =>
-      matchesBaseInventoryNumber(n.inventoryNumber, inventoryNumber)
+      inventoryNumbersMatch(n.inventoryNumber, base)
     ).length,
     computer: ctx.computers.filter((c) =>
-      matchesBaseInventoryNumber(c.inventoryNumber, inventoryNumber)
+      inventoryNumbersMatch(c.inventoryNumber, base)
     ).length,
     software: 0,
   };
@@ -120,11 +121,12 @@ export function buildDeletePreview(
   if (source === 'network') {
     const dev = ctx.networkDevices.find((n) => n.id === id);
     if (!dev) return null;
-    const invCounts = countByInventory(dev.inventoryNumber, ctx);
+    const invNorm = normalizeInventoryNumber(dev.inventoryNumber);
+    const invCounts = countByInventory(invNorm, ctx);
     const cascadeLines = buildCascadeLines(
       {
         warehouse: invCounts.warehouse,
-        network: 1,
+        network: invCounts.network,
         computer: invCounts.computer,
         software: 0,
       },
@@ -134,7 +136,7 @@ export function buildDeletePreview(
       source,
       id,
       itemName: dev.deviceName,
-      inventoryLabel: dev.inventoryNumber || '—',
+      inventoryLabel: invNorm,
       cascadeLines,
     };
   }
@@ -166,7 +168,12 @@ export function buildDeletePreview(
       computer: 1,
       software: 0,
     },
-    { warehouse: invCounts.warehouse > 0, network: false, computer: true, software: false }
+    {
+      warehouse: invCounts.warehouse > 0 || comp.status === 'На складе',
+      network: invCounts.network > 0,
+      computer: true,
+      software: false,
+    }
   );
   return {
     source,
@@ -175,4 +182,36 @@ export function buildDeletePreview(
     inventoryLabel: comp.inventoryNumber,
     cascadeLines,
   };
+}
+
+export function resolveDeleteInventoryKey(
+  source: EquipmentDeleteSource,
+  id: string,
+  ctx: EquipmentDeleteContext
+): string | null {
+  if (source === 'warehouse') {
+    const item = ctx.warehouseItems.find((w) => w.id === id);
+    return item ? normalizeInventoryNumber(item.inventoryNumber) : null;
+  }
+  if (source === 'network') {
+    const dev = ctx.networkDevices.find((n) => n.id === id);
+    return dev ? normalizeInventoryNumber(dev.inventoryNumber) : null;
+  }
+  if (source === 'software') return null;
+  const comp = ctx.computers.find((c) => c.id === id);
+  return comp ? normalizeInventoryNumber(comp.inventoryNumber) : null;
+}
+
+export function matchesInventoryKey(
+  itemInventoryNumber: string | undefined | null,
+  inventoryKey: string
+): boolean {
+  return inventoryNumbersMatch(itemInventoryNumber, inventoryKey);
+}
+
+export function isNotLinkedToInventoryKey(
+  itemInventoryNumber: string | undefined | null,
+  inventoryKey: string
+): boolean {
+  return !matchesInventoryKey(itemInventoryNumber, inventoryKey);
 }

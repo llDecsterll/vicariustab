@@ -12,6 +12,7 @@ import { useTranslation } from '../utils/i18n';
 import { Users, Plus, Search, Trash2, Edit2, ShieldAlert, Laptop, Briefcase, Mail, Phone, ArrowLeftRight, Check, X, MapPin, Building2 } from 'lucide-react';
 import { EmployeeItem, ComputerItem, EmployeeStatus, ObjectItem } from '../types';
 import ModalCloseButton from './ModalCloseButton';
+import ConfirmDeleteModal from './ConfirmDeleteModal';
 
 interface EmployeesViewProps {
   employees: EmployeeItem[];
@@ -55,7 +56,7 @@ export default function EmployeesView({
 
   // Form states
   const [name, setName] = useState('');
-  const [confirmDeleteEmpId, setConfirmDeleteEmpId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<EmployeeItem | null>(null);
   const [position, setPosition] = useState('');
   const [department, setDepartment] = useState('IT');
   const [status, setStatus] = useState<EmployeeStatus>('Работает');
@@ -312,32 +313,13 @@ export default function EmployeesView({
                     </button>
                   )}
                   {isAdmin && (
-                    <>
-                      {confirmDeleteEmpId === emp.id ? (
-                        <div className="flex items-center gap-1 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200 text-[10px] animate-fade-in shadow-xs select-none">
-                          <span className="text-rose-700 font-bold">{t("Удалить?")}</span>
-                          <button
-                            onClick={() => {
-                              onDelete(emp.id);
-                              setConfirmDeleteEmpId(null);
-                            }}
-                            className="px-1.5 py-0.5 bg-rose-600 hover:bg-rose-700 text-white rounded font-bold cursor-pointer transition-colors text-[9px]"
-                          >{t("Да")}</button>
-                          <button
-                            onClick={() => setConfirmDeleteEmpId(null)}
-                            className="px-1.5 py-0.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded font-bold cursor-pointer transition-colors text-[9px]"
-                          >{t("Нет")}</button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => setConfirmDeleteEmpId(emp.id)}
-                          className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-red-500 transition-colors cursor-pointer"
-                          title={t("Удалить сотрудника")}
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      )}
-                    </>
+                    <button
+                      onClick={() => setDeleteTarget(emp)}
+                      className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-red-500 transition-colors cursor-pointer"
+                      title={t("Удалить сотрудника")}
+                    >
+                      <Trash2 size={13} />
+                    </button>
                   )}
                 </div>
               </div>
@@ -662,6 +644,29 @@ export default function EmployeesView({
           </div>
         </div>
       )}
+
+      <ConfirmDeleteModal
+        preview={
+          deleteTarget
+            ? {
+                title: 'Удаление сотрудника',
+                subtitle: 'Профиль сотрудника будет удалён из системы. Это действие необратимо.',
+                itemName: deleteTarget.name,
+                detailLabel: 'Должность',
+                detailValue: deleteTarget.position,
+                cascadeLines: [],
+                confirmLabel: 'Удалить',
+              }
+            : null
+        }
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={() => {
+          if (deleteTarget) {
+            onDelete(deleteTarget.id);
+            setDeleteTarget(null);
+          }
+        }}
+      />
     </div>
   );
 }

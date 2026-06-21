@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { InventoryAudit, ComputerItem, NetworkDevice } from '../types';
 import { useTranslation } from '../utils/i18n';
+import ConfirmDeleteModal from './ConfirmDeleteModal';
 
 interface AuditsViewProps {
   audits: InventoryAudit[];
@@ -92,7 +93,7 @@ export default function AuditsView({
   } | null>(null);
 
   const isViewer = currentUser?.role === 'Viewer';
-  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<InventoryAudit | null>(null);
 
   // Helper to pre-fill responsive inputs
   const handleOpenAddModal = () => {
@@ -319,35 +320,14 @@ ${equipmentTable}
                       {audit.status}
                     </span>
                     {audit.status === 'Завершена' && !isViewer && onDeleteAudit && (
-                      <div className="relative inline-flex items-center">
-                        {deleteConfirmId === audit.id ? (
-                          <span className="inline-flex items-center gap-1 bg-rose-50 border border-rose-200/80 rounded-lg p-1 px-2 text-rose-700 animate-fade-in z-10 shadow-sm">
-                            <span className="text-[10px] font-bold">{t("Удалить?")}</span>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                onDeleteAudit(audit.id);
-                                setDeleteConfirmId(null);
-                              }}
-                              className="text-[10px] bg-rose-600 hover:bg-rose-700 text-white font-bold p-0.5 px-1.5 rounded transition-colors cursor-pointer"
-                            >{t("Да")}</button>
-                            <button
-                              type="button"
-                              onClick={() => setDeleteConfirmId(null)}
-                              className="text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold p-0.5 px-1.5 rounded transition-all cursor-pointer"
-                            >{t("Нет")}</button>
-                          </span>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => setDeleteConfirmId(audit.id)}
-                            className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer flex items-center justify-center border border-transparent hover:border-rose-100"
-                            title={t("Удалить законченную инвентаризацию")}
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        )}
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setDeleteTarget(audit)}
+                        className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer flex items-center justify-center border border-transparent hover:border-rose-100"
+                        title={t("Удалить законченную инвентаризацию")}
+                      >
+                        <Trash2 size={13} />
+                      </button>
                     )}
                   </div>
                   <span className="text-slate-400 text-[10px] uppercase font-bold font-mono text-right shrink-0">
@@ -787,6 +767,29 @@ ${equipmentTable}
           </div>
         </div>
       )}
+
+      <ConfirmDeleteModal
+        preview={
+          deleteTarget
+            ? {
+                title: 'Удаление инвентаризации',
+                subtitle: 'Запись об инвентаризации будет удалена. Это действие необратимо.',
+                itemName: deleteTarget.title,
+                detailLabel: 'ID',
+                detailValue: deleteTarget.id,
+                cascadeLines: [],
+                confirmLabel: 'Удалить',
+              }
+            : null
+        }
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={() => {
+          if (deleteTarget && onDeleteAudit) {
+            onDeleteAudit(deleteTarget.id);
+            setDeleteTarget(null);
+          }
+        }}
+      />
     </div>
   );
 }

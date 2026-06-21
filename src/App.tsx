@@ -55,7 +55,6 @@ import {
   getWarehouseItemSpecs,
   limitEquipmentTitle,
   matchesBaseInventoryNumber,
-  isNotLinkedToInventoryBase,
 } from './utils/equipmentFields';
 import { Copy, Check, Mail } from 'lucide-react';
 import { copyTextToClipboard } from './utils/clipboard';
@@ -69,13 +68,16 @@ import { getStoredSessionToken, clearSessionCredentials, authHeaders } from './u
 import { apiFetch } from './utils/apiClient';
 import { persistWorkspaceState } from './utils/workspaceSync';
 import { fetchSetupStatus } from './utils/setupAuth';
-import DeleteEquipmentModal from './components/DeleteEquipmentModal';
+import ConfirmDeleteModal from './components/ConfirmDeleteModal';
+import ConfirmReturnModal from './components/ConfirmReturnModal';
 import {
   buildDeletePreview,
   findSoftwareIdsForWarehouseItem,
   getSoftwareWarehouseInv,
+  isNotLinkedToInventoryKey,
   type EquipmentDeleteSource,
 } from './utils/equipmentDelete';
+import { inventoryNumbersMatch, normalizeInventoryNumber } from './utils/equipmentFields';
 
 export default function App() {
   const { t } = useTranslation();
@@ -114,6 +116,10 @@ export default function App() {
   const [saveError, setSaveError] = useState('');
   const [equipmentDeleteRequest, setEquipmentDeleteRequest] = useState<{
     source: EquipmentDeleteSource;
+    id: string;
+  } | null>(null);
+  const [equipmentReturnRequest, setEquipmentReturnRequest] = useState<{
+    source: 'computer' | 'network' | 'software';
     id: string;
   } | null>(null);
   const [setupChecking, setSetupChecking] = useState(true);
@@ -776,20 +782,80 @@ export default function App() {
     return false;
   };
 
+  const equipmentDeleteContext = useMemo(
+    () => ({ warehouseItems, networkDevices, softwareItems, computers }),
+    [warehouseItems, networkDevices, softwareItems, computers]
+  );
+
   const equipmentDeletePreview = useMemo(() => {
     if (!equipmentDeleteRequest) return null;
-    return buildDeletePreview(equipmentDeleteRequest.source, equipmentDeleteRequest.id, {
-      warehouseItems,
-      networkDevices,
-      softwareItems,
-      computers,
-    });
-  }, [equipmentDeleteRequest, warehouseItems, networkDevices, softwareItems, computers]);
+    return buildDeletePreview(
+      equipmentDeleteRequest.source,
+      equipmentDeleteRequest.id,
+      equipmentDeleteContext
+    );
+  }, [equipmentDeleteRequest, equipmentDeleteContext]);
+
+  const equipmentDeleteModalPreview = useMemo(() => {
+    if (!equipmentDeletePreview) return null;
+    return {
+      title: 'Удаление оборудования',
+      subtitle: 'Действие необратимо. Связанные записи будут удалены везде.',
+      itemName: equipmentDeletePreview.itemName,
+      detailLabel: 'Инв. № / ключ',
+      detailValue: equipmentDeletePreview.inventoryLabel,
+      cascadeLines: equipmentDeletePreview.cascadeLines,
+      confirmLabel: 'Удалить везде',
+    };
+  }, [equipmentDeletePreview]);
+
+  const equipmentReturnPreview = useMemo(() => {
+    if (!equipmentReturnRequest) return null;
+    const targetWhName = warehouses[0]?.name || 'Основной склад ИТ';
+    if (equipmentReturnRequest.source === 'computer') {
+      const comp = computers.find((c) => c.id === equipmentReturnRequest.id);
+      if (!comp) return null;
+      return {
+        itemName: `${comp.category} ${comp.model}`.trim(),
+        inventoryLabel: comp.inventoryNumber,
+        warehouseName: targetWhName,
+      };
+    }
+    if (equipmentReturnRequest.source === 'network') {
+      const dev = networkDevices.find((n) => n.id === equipmentReturnRequest.id);
+      if (!dev) return null;
+      return {
+        itemName: dev.deviceName,
+        inventoryLabel: normalizeInventoryNumber(dev.inventoryNumber),
+        warehouseName: targetWhName,
+      };
+    }
+    const soft = softwareItems.find((s) => s.id === equipmentReturnRequest.id);
+    if (!soft) return null;
+    return {
+      itemName: soft.name,
+      inventoryLabel: soft.licenseKey || getSoftwareWarehouseInv(soft.id),
+      warehouseName: targetWhName,
+    };
+  }, [equipmentReturnRequest, computers, networkDevices, softwareItems, warehouses]);
 
   const requestDeleteEquipment = useCallback(
     (source: EquipmentDeleteSource, id: string) => {
       if (currentUser?.role === 'Viewer') return;
+      const preview = buildDeletePreview(source, id, equipmentDeleteContext);
+      if (!preview) {
+        alert('Не удалось найти запись для удаления.');
+        return;
+      }
       setEquipmentDeleteRequest({ source, id });
+    },
+    [currentUser, equipmentDeleteContext]
+  );
+
+  const requestReturnEquipment = useCallback(
+    (source: 'computer' | 'network' | 'software', id: string) => {
+      if (currentUser?.role === 'Viewer') return;
+      setEquipmentReturnRequest({ source, id });
     },
     [currentUser]
   );
@@ -800,17 +866,18 @@ export default function App() {
         if (!prev) return null;
         if (prev.type === source && prev.id === id) return null;
         if (inventoryNumber) {
+          const invKey = normalizeInventoryNumber(inventoryNumber);
           if (prev.type === 'computer') {
             const comp = computers.find((c) => c.id === prev.id);
-            if (comp && matchesBaseInventoryNumber(comp.inventoryNumber, inventoryNumber)) return null;
+            if (comp && inventoryNumbersMatch(comp.inventoryNumber, invKey)) return null;
           }
           if (prev.type === 'network') {
             const dev = networkDevices.find((n) => n.id === prev.id);
-            if (dev && matchesBaseInventoryNumber(dev.inventoryNumber, inventoryNumber)) return null;
+            if (dev && inventoryNumbersMatch(dev.inventoryNumber, invKey)) return null;
           }
           if (prev.type === 'warehouse') {
             const wh = warehouseItems.find((w) => w.id === prev.id);
-            if (wh && matchesBaseInventoryNumber(wh.inventoryNumber, inventoryNumber)) return null;
+            if (wh && inventoryNumbersMatch(wh.inventoryNumber, invKey)) return null;
           }
         }
         return prev;
@@ -832,30 +899,28 @@ export default function App() {
         setEquipmentDeleteRequest(null);
         return;
       }
-      const inv = target.inventoryNumber;
-      setWarehouseItems((prev) => prev.filter((w) => w.id !== id));
-      setComputers((prev) => prev.filter((c) => isNotLinkedToInventoryBase(c.inventoryNumber, inv)));
-      setNetworkDevices((prev) => prev.filter((nd) => isNotLinkedToInventoryBase(nd.inventoryNumber, inv)));
+      const invKey = normalizeInventoryNumber(target.inventoryNumber);
+      setWarehouseItems((prev) => prev.filter((w) => isNotLinkedToInventoryKey(w.inventoryNumber, invKey)));
+      setComputers((prev) => prev.filter((c) => isNotLinkedToInventoryKey(c.inventoryNumber, invKey)));
+      setNetworkDevices((prev) => prev.filter((nd) => isNotLinkedToInventoryKey(nd.inventoryNumber, invKey)));
       const softIds = findSoftwareIdsForWarehouseItem(target, softwareItems);
       if (softIds.length) {
         setSoftwareItems((prev) => prev.filter((s) => !softIds.includes(s.id)));
       }
       logDetail = `Удалена позиция «${target.name}» (склад) и все связанные карточки`;
-      clearDetailIfDeleted(source, id, inv);
+      clearDetailIfDeleted(source, id, invKey);
     } else if (source === 'network') {
       const target = networkDevices.find((n) => n.id === id);
       if (!target) {
         setEquipmentDeleteRequest(null);
         return;
       }
-      const inv = target.inventoryNumber;
-      setNetworkDevices((prev) => prev.filter((n) => n.id !== id));
-      if (inv) {
-        setWarehouseItems((prev) => prev.filter((w) => !matchesBaseInventoryNumber(w.inventoryNumber, inv)));
-        setComputers((prev) => prev.filter((c) => !matchesBaseInventoryNumber(c.inventoryNumber, inv)));
-      }
-      logDetail = `Удалено сетевое оборудование «${target.deviceName}» и связанные записи склада`;
-      clearDetailIfDeleted(source, id, inv);
+      const invKey = normalizeInventoryNumber(target.inventoryNumber);
+      setNetworkDevices((prev) => prev.filter((n) => isNotLinkedToInventoryKey(n.inventoryNumber, invKey)));
+      setWarehouseItems((prev) => prev.filter((w) => isNotLinkedToInventoryKey(w.inventoryNumber, invKey)));
+      setComputers((prev) => prev.filter((c) => isNotLinkedToInventoryKey(c.inventoryNumber, invKey)));
+      logDetail = `Удалено сетевое оборудование «${target.deviceName}» и связанные записи`;
+      clearDetailIfDeleted(source, id, invKey);
     } else if (source === 'software') {
       const target = softwareItems.find((s) => s.id === id);
       if (!target) {
@@ -880,21 +945,26 @@ export default function App() {
         setEquipmentDeleteRequest(null);
         return;
       }
-      const inv = target.inventoryNumber;
+      const invKey = normalizeInventoryNumber(target.inventoryNumber);
       setComputers((prev) => prev.filter((c) => c.id !== id));
-      setWarehouseItems((prev) =>
-        prev
-          .map((w) => {
-            if (matchesBaseInventoryNumber(inv, w.inventoryNumber)) {
-              const newQty = w.quantity - 1;
-              return newQty > 0 ? { ...w, quantity: newQty } : null;
-            }
-            return w;
-          })
-          .filter((w): w is WarehouseItem => w !== null)
-      );
-      logDetail = `Удалена карточка «${target.category} ${target.model}» (инв. № ${inv})`;
-      clearDetailIfDeleted(source, id, inv);
+      if (target.status === 'На складе') {
+        setWarehouseItems((prev) => prev.filter((w) => isNotLinkedToInventoryKey(w.inventoryNumber, invKey)));
+      } else {
+        setWarehouseItems((prev) =>
+          prev
+            .map((w) => {
+              if (inventoryNumbersMatch(w.inventoryNumber, invKey)) {
+                const newQty = w.quantity - 1;
+                return newQty > 0 ? { ...w, quantity: newQty } : null;
+              }
+              return w;
+            })
+            .filter((w): w is WarehouseItem => w !== null)
+        );
+      }
+      setNetworkDevices((prev) => prev.filter((nd) => isNotLinkedToInventoryKey(nd.inventoryNumber, invKey)));
+      logDetail = `Удалена карточка «${target.category} ${target.model}» (инв. № ${target.inventoryNumber})`;
+      clearDetailIfDeleted(source, id, invKey);
     }
 
     logActivity('Удаление оборудования', logDetail, 'delete');
@@ -1071,36 +1141,42 @@ export default function App() {
       const dev = networkDevices.find(n => n.id === itemId);
       if (!dev) return;
 
+      const normalizedInv = normalizeInventoryNumber(dev.inventoryNumber);
+
       // 1. Decrement quantity or move to warehouse location
       if (dev.quantity > 1) {
         setNetworkDevices(prev => prev.map(n => n.id === itemId ? { ...n, quantity: n.quantity - 1 } : n));
         
         // Also ensure there is a network device at the warehouse representing the returned quantity
         setNetworkDevices(prev => {
-          const whNet = prev.find(n => n.inventoryNumber === dev.inventoryNumber && n.objectName === defaultObjectName);
+          const whNet = prev.find(
+            n => inventoryNumbersMatch(n.inventoryNumber, normalizedInv) && n.objectName === defaultObjectName
+          );
           if (whNet) {
-            return prev.map(n => n.id === whNet.id ? { ...n, quantity: n.quantity + 1 } : n);
+            return prev.map(n => n.id === whNet.id ? { ...n, quantity: n.quantity + 1, inventoryNumber: normalizedInv } : n);
           } else {
             const returnedNet: NetworkDevice = {
               ...dev,
               id: `net-wh-ret-${Date.now()}`,
               quantity: 1,
-              objectName: defaultObjectName
+              objectName: defaultObjectName,
+              inventoryNumber: normalizedInv,
             };
             return [...prev, returnedNet];
           }
         });
       } else {
-        // Change its location/object to the warehouse's object!
+        // Change its location/object to the warehouse's object and sync inventory number
         setNetworkDevices(prev => prev.map(n => n.id === itemId ? {
           ...n,
-          objectName: defaultObjectName
+          objectName: defaultObjectName,
+          inventoryNumber: normalizedInv,
         } : n));
       }
 
       // 2. Return to warehouse stock
       returnAssetToWarehouse(
-        dev.inventoryNumber || 'NET-EQ',
+        normalizedInv,
         dev.deviceName,
         'Сетевое оборудование',
         dev.deviceName,
@@ -1110,7 +1186,7 @@ export default function App() {
 
       logActivity(
         'Возврат на склад', 
-        `Сетевой актив "${dev.deviceName}" (Инв. № ${dev.inventoryNumber || 'NET-EQ'}) возвращен на склад "${targetWhName}"`, 
+        `Сетевой актив "${dev.deviceName}" (Инв. № ${normalizedInv}) возвращен на склад "${targetWhName}"`, 
         'update'
       );
     }
@@ -1322,7 +1398,18 @@ export default function App() {
     );
   };
 
-  // Employees CRUD
+  const executeEquipmentReturn = () => {
+    if (!equipmentReturnRequest) return;
+    if (checkLicenseBlocked()) return;
+    const { source, id } = equipmentReturnRequest;
+    if (source === 'software') {
+      handleReturnSoftwareToWarehouse(id);
+    } else {
+      handleReturnToWarehouse(source, id);
+    }
+    setEquipmentReturnRequest(null);
+  };
+
   const handleAddEmployee = (name: string, position: string, department: string, status?: EmployeeStatus, objectName?: string, email?: string, phone?: string) => {
     if (checkLicenseBlocked()) return;
     const newEmp: EmployeeItem = {
@@ -1930,7 +2017,7 @@ export default function App() {
             onAdd={handleAddNetwork}
             onEdit={handleEditNetwork}
             onDelete={(id) => requestDeleteEquipment('network', id)}
-            onReturnToWarehouse={(id) => handleReturnToWarehouse('network', id)}
+            onReturnToWarehouse={(id) => requestReturnEquipment('network', id)}
             onViewDetails={handleNavigateDetail}
             currentUser={currentUser}
             allowDirectAdd
@@ -1946,7 +2033,7 @@ export default function App() {
             onAdd={handleAddComputer}
             onEdit={handleEditComputer}
             onDelete={(id) => requestDeleteEquipment('computer', id)}
-            onReturnToWarehouse={(id) => handleReturnToWarehouse('computer', id)}
+            onReturnToWarehouse={(id) => requestReturnEquipment('computer', id)}
             onViewDetails={handleNavigateDetail}
             currentUser={currentUser}
             equipmentTab="computers"
@@ -2094,7 +2181,7 @@ export default function App() {
             onAdd={handleAddComputer}
             onEdit={handleEditComputer}
             onDelete={(id) => requestDeleteEquipment('computer', id)}
-            onReturnToWarehouse={(id) => handleReturnToWarehouse('computer', id)}
+            onReturnToWarehouse={(id) => requestReturnEquipment('computer', id)}
             onViewDetails={handleNavigateDetail}
             addButtonLabel="Добавить Периферию"
             addModalTitle="Добавить Периферию"
@@ -2114,7 +2201,7 @@ export default function App() {
             onAdd={handleAddComputer}
             onEdit={handleEditComputer}
             onDelete={(id) => requestDeleteEquipment('computer', id)}
-            onReturnToWarehouse={(id) => handleReturnToWarehouse('computer', id)}
+            onReturnToWarehouse={(id) => requestReturnEquipment('computer', id)}
             onViewDetails={handleNavigateDetail}
             addButtonLabel="Добавить Оргтехнику"
             addModalTitle="Добавить Оргтехнику"
@@ -2134,7 +2221,7 @@ export default function App() {
             onAdd={handleAddComputer}
             onEdit={handleEditComputer}
             onDelete={(id) => requestDeleteEquipment('computer', id)}
-            onReturnToWarehouse={(id) => handleReturnToWarehouse('computer', id)}
+            onReturnToWarehouse={(id) => requestReturnEquipment('computer', id)}
             onViewDetails={handleNavigateDetail}
             addButtonLabel="Добавить Видеооборудование"
             addModalTitle="Добавить Видеооборудование"
@@ -2154,7 +2241,7 @@ export default function App() {
             onAdd={handleAddComputer}
             onEdit={handleEditComputer}
             onDelete={(id) => requestDeleteEquipment('computer', id)}
-            onReturnToWarehouse={(id) => handleReturnToWarehouse('computer', id)}
+            onReturnToWarehouse={(id) => requestReturnEquipment('computer', id)}
             onViewDetails={handleNavigateDetail}
             addButtonLabel="Добавить расходники"
             addModalTitle="Добавить расходники"
@@ -2174,7 +2261,7 @@ export default function App() {
             onAdd={handleAddComputer}
             onEdit={handleEditComputer}
             onDelete={(id) => requestDeleteEquipment('computer', id)}
-            onReturnToWarehouse={(id) => handleReturnToWarehouse('computer', id)}
+            onReturnToWarehouse={(id) => requestReturnEquipment('computer', id)}
             onViewDetails={handleNavigateDetail}
             addButtonLabel="Добавить другое оборудование"
             addModalTitle="Добавить другое оборудование"
@@ -2194,7 +2281,7 @@ export default function App() {
             onAdd={handleAddSoftware}
             onEdit={handleEditSoftware}
             onDelete={(id) => requestDeleteEquipment('software', id)}
-            onReturnToWarehouse={handleReturnSoftwareToWarehouse}
+            onReturnToWarehouse={(id) => requestReturnEquipment('software', id)}
             currentUser={currentUser}
             warehouses={warehouses}
           />
@@ -2563,10 +2650,16 @@ export default function App() {
         />
       )}
 
-      <DeleteEquipmentModal
-        preview={equipmentDeletePreview}
+      <ConfirmDeleteModal
+        preview={equipmentDeleteModalPreview}
         onClose={() => setEquipmentDeleteRequest(null)}
         onConfirm={executeEquipmentDelete}
+      />
+
+      <ConfirmReturnModal
+        preview={equipmentReturnPreview}
+        onClose={() => setEquipmentReturnRequest(null)}
+        onConfirm={executeEquipmentReturn}
       />
     </div>
   );

@@ -62,6 +62,7 @@ import { VICARIUSTAB_UPDATE_REPO, VICARIUSTAB_UPDATE_REPO_DISPLAY, APP_VERSION }
 import { buildUpdateNotificationText, buildUpdateCompletedText, checkForPlatformUpdate, applyPlatformUpdate, fetchUpdateJobStatus, markInstalledCommit, type UpdateCheckResult } from '../utils/updateCheck';
 import CopyrightFooter from './CopyrightFooter';
 import ActiveSessionsPanel from './ActiveSessionsPanel';
+import ConfirmDeleteModal from './ConfirmDeleteModal';
 import { authHeaders } from '../utils/deviceFingerprint';
 
 interface SettingsViewProps {
@@ -565,7 +566,7 @@ export default function SettingsView({
   const [tempSidebarOpacity, setTempSidebarOpacity] = useState(sidebarOpacity);
 
   // Reliable inline confirmation states to bypass sandboxed iFrame blocking
-  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<SystemUser | null>(null);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [resetSuccess, setResetSuccess] = useState(false);
 
@@ -2166,36 +2167,14 @@ export default function SettingsView({
                             </button>
                           )}
                           {u.id !== currentUser.id && (
-                            <div className="relative flex items-center">
-                              {deleteConfirmId === u.id && (
-                                <div className="absolute right-0 top-0 translate-y-[-100%] md:translate-y-0 md:right-8 flex items-center gap-1.5 bg-slate-900 text-white border border-slate-750 px-2 py-1 rounded-xl shadow-lg z-30 animate-fade-in shrink-0 whitespace-nowrap">
-                                  <span className="text-[9px] font-bold text-slate-300">{t("Удалить?")}</span>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      onDeleteUser(u.id);
-                                      setDeleteConfirmId(null);
-                                    }}
-                                    className="px-1.5 py-0.5 bg-red-600 text-white rounded font-extrabold text-[9px] cursor-pointer hover:bg-red-700 transition-colors"
-                                  >{t("Да")}</button>
-                                  <button
-                                    type="button"
-                                    onClick={() => setDeleteConfirmId(null)}
-                                    className="px-1.5 py-0.5 bg-slate-700 text-slate-300 rounded font-bold text-[9px] cursor-pointer hover:bg-slate-600 transition-colors"
-                                  >{t("Нет")}</button>
-                                </div>
-                              )}
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setDeleteConfirmId(u.id);
-                                }}
-                                className="p-1 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                                title={t("Удалить право доступа")}
-                              >
-                                <Trash2 size={13} />
-                              </button>
-                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setDeleteTarget(u)}
+                              className="p-1 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                              title={t("Удалить право доступа")}
+                            >
+                              <Trash2 size={13} />
+                            </button>
                           )}
                         </div>
                       )}
@@ -2476,6 +2455,29 @@ export default function SettingsView({
           </motion.div>
         )}
       </AnimatePresence>
+
+      <ConfirmDeleteModal
+        preview={
+          deleteTarget
+            ? {
+                title: 'Удаление пользователя',
+                subtitle: 'Учётная запись будет удалена. Это действие необратимо.',
+                itemName: deleteTarget.login,
+                detailLabel: 'Роль',
+                detailValue: deleteTarget.role,
+                cascadeLines: [],
+                confirmLabel: 'Удалить',
+              }
+            : null
+        }
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={() => {
+          if (deleteTarget) {
+            onDeleteUser(deleteTarget.id);
+            setDeleteTarget(null);
+          }
+        }}
+      />
     </div>
   );
 }

@@ -324,13 +324,7 @@ export default function ComputersView({
   const handleReturnToWarehouse = (comp: ComputerItem) => {
     if (!onReturnToWarehouse) return;
     if (comp.status === 'На складе' || comp.status === 'Списано') return;
-    if (
-      window.confirm(
-        `${t('Вернуть на склад')} «${comp.model}» (${t('инв. №')} ${comp.inventoryNumber})?`
-      )
-    ) {
-      onReturnToWarehouse(comp.id);
-    }
+    onReturnToWarehouse(comp.id);
   };
 
   const categoryOptionsForForm = (() => {

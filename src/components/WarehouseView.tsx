@@ -15,6 +15,7 @@ import {
   EQUIPMENT_TITLE_MAX_LENGTH,
   limitEquipmentTitle,
   supportsComputerSpecifications,
+  inventoryNumbersMatch,
 } from '../utils/equipmentFields';
 import ModalCloseButton from './ModalCloseButton';
 
@@ -481,7 +482,7 @@ export default function WarehouseView({
       // and the network device is located at that warehouse's objectName,
       // it is a stock item that is already shown as part of whUnified. We filter those out to avoid duplication.
       const matchingWhItem = (warehouseItems || []).find(
-        item => item.inventoryNumber === n.inventoryNumber && item.quantity > 0
+        item => inventoryNumbersMatch(item.inventoryNumber, n.inventoryNumber) && item.quantity > 0
       );
       if (matchingWhItem) {
         const linkedWh = warehouses.find(w => w.name === matchingWhItem.warehouseName);
