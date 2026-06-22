@@ -8,6 +8,7 @@ import { useTranslation } from '../utils/i18n';
 import BrandLogo from './BrandLogo';
 import { APP_NAME } from '../config/appConfig';
 import { completeInitialSetup } from '../utils/setupAuth';
+import { translateAuthError } from '../utils/authErrors';
 
 interface FirstRunSetupProps {
   workspaceName?: string;
@@ -31,11 +32,11 @@ export default function FirstRunSetup({ workspaceName, siteLogo, onComplete }: F
     setError('');
 
     if (!login.trim() || !password || !email.trim()) {
-      setError('Заполните все обязательные поля.');
+      setError(t('Заполните все обязательные поля.'));
       return;
     }
     if (password !== confirmPassword) {
-      setError('Пароли не совпадают.');
+      setError(t('Пароли не совпадают.'));
       return;
     }
 
@@ -44,7 +45,7 @@ export default function FirstRunSetup({ workspaceName, siteLogo, onComplete }: F
     setLoading(false);
 
     if (!result.ok) {
-      setError(result.error || 'Не удалось создать учётную запись администратора.');
+      setError(translateAuthError(result.error || t('Не удалось создать учётную запись администратора.'), t));
       return;
     }
 
@@ -65,7 +66,7 @@ export default function FirstRunSetup({ workspaceName, siteLogo, onComplete }: F
             <BrandLogo size={48} variant="full" className="shadow-lg border-blue-500/30" />
           )}
           <span className="text-[20px] font-black tracking-widest text-white font-mono">
-            {workspaceName ? workspaceName.toUpperCase() : APP_NAME.toUpperCase()}
+            {workspaceName ? t(workspaceName).toUpperCase() : APP_NAME.toUpperCase()}
           </span>
         </div>
         <h2 className="mt-4 text-center text-2xl font-extrabold tracking-tight text-white">
@@ -109,7 +110,7 @@ export default function FirstRunSetup({ workspaceName, siteLogo, onComplete }: F
                     : 'bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-750'
                 }`}
               >
-                English (EN)
+                {t('English (EN)')}
               </button>
               <button
                 type="button"
@@ -120,7 +121,7 @@ export default function FirstRunSetup({ workspaceName, siteLogo, onComplete }: F
                     : 'bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-750'
                 }`}
               >
-                中文 (ZH)
+                {t('中文 (ZH)')}
               </button>
             </div>
           </div>
