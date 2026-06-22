@@ -535,7 +535,7 @@ export default function WarehouseView({
     .filter(
       (c) =>
         c.status === 'На складе' &&
-        !isStockRegistryDuplicateOfWarehouseBatch(c, warehouseItems || [], warehouses)
+        !isStockRegistryDuplicateOfWarehouseBatch(c, warehouseItems || [])
     )
     .map(c => {
       const linkedWhName = warehouses.find(w => w.objectName === c.objectName)?.name || 'Основной склад ИТ';
@@ -568,7 +568,7 @@ export default function WarehouseView({
       return (
         displayStatus !== 'На списание' &&
         displayStatus !== 'Списано' &&
-        !isStockRegistryDuplicateOfWarehouseBatch(n, warehouseItems || [], warehouses)
+        !isStockRegistryDuplicateOfWarehouseBatch(n, warehouseItems || [])
       );
     })
     .map((n) => {

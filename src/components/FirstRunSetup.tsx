@@ -3,7 +3,7 @@
  */
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { User, Lock, Mail, ShieldCheck, AlertCircle, CheckCircle2, Eye, EyeOff } from 'lucide-react';
+import { User, Lock, Mail, ShieldCheck, AlertCircle, CheckCircle2, Eye, EyeOff, Languages } from 'lucide-react';
 import { useTranslation } from '../utils/i18n';
 import BrandLogo from './BrandLogo';
 import { APP_NAME } from '../config/appConfig';
@@ -16,7 +16,7 @@ interface FirstRunSetupProps {
 }
 
 export default function FirstRunSetup({ workspaceName, siteLogo, onComplete }: FirstRunSetupProps) {
-  const { t } = useTranslation();
+  const { t, language, setLanguage } = useTranslation();
   const [login, setLogin] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -81,7 +81,50 @@ export default function FirstRunSetup({ workspaceName, siteLogo, onComplete }: F
         animate={{ opacity: 1, y: 0 }}
         className="mt-8 sm:mx-auto sm:w-full sm:max-w-md relative z-10 px-4"
       >
-        <div className="bg-slate-800/95 backdrop-blur-md py-8 px-6 sm:px-10 rounded-3xl border border-slate-700/60 shadow-2xl">
+        <div className="bg-slate-800/95 backdrop-blur-md py-8 px-6 sm:px-10 rounded-3xl border border-slate-700/60 shadow-2xl space-y-5">
+          <div className="bg-slate-900/80 p-4 rounded-2xl border border-slate-700/60 space-y-2.5">
+            <div className="flex items-center gap-2 text-slate-300">
+              <Languages size={15} className="text-blue-400" />
+              <span className="text-xs font-bold uppercase tracking-wider">{t('Язык платформы (Language)')}</span>
+            </div>
+            <p className="text-[10px] text-slate-400">{t('Выберите основной язык интерфейса')}</p>
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => setLanguage('ru')}
+                className={`py-2 px-2 rounded-xl text-[11px] font-bold border transition-all ${
+                  language === 'ru'
+                    ? 'bg-blue-600 border-blue-600 text-white'
+                    : 'bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-750'
+                }`}
+              >
+                {t('Русский (RU)')}
+              </button>
+              <button
+                type="button"
+                onClick={() => setLanguage('en')}
+                className={`py-2 px-2 rounded-xl text-[11px] font-bold border transition-all ${
+                  language === 'en'
+                    ? 'bg-blue-600 border-blue-600 text-white'
+                    : 'bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-750'
+                }`}
+              >
+                English (EN)
+              </button>
+              <button
+                type="button"
+                onClick={() => setLanguage('zh')}
+                className={`py-2 px-2 rounded-xl text-[11px] font-bold border transition-all ${
+                  language === 'zh'
+                    ? 'bg-blue-600 border-blue-600 text-white'
+                    : 'bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-750'
+                }`}
+              >
+                中文 (ZH)
+              </button>
+            </div>
+          </div>
+
           <form className="space-y-4" onSubmit={(e) => void handleSubmit(e)}>
             <div>
               <label className="block text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-1.5">{t('Логин')} *</label>

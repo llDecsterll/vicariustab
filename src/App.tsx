@@ -1336,7 +1336,10 @@ export default function App() {
     const sourceItem = warehouseItems.find(w => w.id === itemId);
     if (!sourceItem || sourceItem.quantity < quantity) return;
 
-    // 1. Decrement source ware-item
+    const invKey = getWarehouseBatchInventoryKey(sourceItem.inventoryNumber);
+    const stockObjectName = resolveStockObjectForWarehouse(targetWarehouseName, warehouses, objects);
+    const sourceObjectName = resolveStockObjectForWarehouse(sourceWarehouseName, warehouses, objects);
+
     setWarehouseItems(prev => {
       let nextList = prev.map(w => {
         if (w.id === itemId) {
@@ -1345,11 +1348,11 @@ export default function App() {
         return w;
       }).filter(w => w.quantity > 0);
 
-      // 2. Increment or add to target ware-item
       const targetIndex = nextList.findIndex(
         (w) =>
-          inventoryNumbersMatch(w.inventoryNumber, sourceItem.inventoryNumber) &&
-          (w.warehouseName || 'Основной склад ИТ') === targetWarehouseName
+          inventoryNumbersMatch(w.inventoryNumber, invKey) &&
+          (w.warehouseName || 'Основной склад ИТ') === targetWarehouseName &&
+          isActiveWarehouseStockLine(w)
       );
 
       if (targetIndex > -1) {
@@ -1361,14 +1364,31 @@ export default function App() {
         const newStockItem: WarehouseItem = {
           ...sourceItem,
           id: `wh-item-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-          quantity: quantity,
-          warehouseName: targetWarehouseName
+          quantity,
+          warehouseName: targetWarehouseName,
+          inventoryNumber: invKey,
         };
         nextList.push(newStockItem);
       }
 
       return nextList;
     });
+
+    setComputers((prev) =>
+      prev.map((c) =>
+        c.status === 'На складе' && inventoryNumbersMatch(c.inventoryNumber, invKey)
+          ? { ...c, objectName: stockObjectName, employeeName: 'Склад ИТ' }
+          : c
+      )
+    );
+
+    setNetworkDevices((prev) =>
+      prev.map((n) =>
+        inventoryNumbersMatch(n.inventoryNumber, invKey) && n.objectName === sourceObjectName
+          ? { ...n, objectName: stockObjectName }
+          : n
+      )
+    );
 
     logActivity(
       'Перемещение ТМЦ', 
