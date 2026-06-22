@@ -12,6 +12,12 @@ import {
   getSoftwareWarehouseInv,
 } from './equipmentFields';
 
+export {
+  isActiveWarehouseStockLine,
+  isWrittenOffLifecycleStatus,
+  purgeWrittenOffRegistry,
+} from './equipmentFields';
+
 const WAREHOUSE_COMPUTER_TYPES: WarehouseItemType[] = [
   'Компьютеры',
   'Периферия',
@@ -114,7 +120,10 @@ export function filterSoftwareForEquipmentView(
   warehouseItems: WarehouseItem[]
 ): SoftwareItem[] {
   return softwareItems.filter(
-    (s) => !(s.status === 'Не активирована' && isSoftwareStoredOnWarehouse(s, warehouseItems))
+    (s) =>
+      s.status !== 'На списание' &&
+      s.status !== 'Списано' &&
+      !(s.status === 'Не активирована' && isSoftwareStoredOnWarehouse(s, warehouseItems))
   );
 }
 

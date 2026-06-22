@@ -27,10 +27,11 @@ interface SoftwareViewProps {
   computers: ComputerItem[];
   onAdd: (item: Omit<SoftwareItem, 'id'>) => boolean | void;
   onEdit: (id: string, item: Omit<SoftwareItem, 'id'>) => boolean | void;
-  onDelete?: (id: string) => void;
+  onMarkForWriteOff?: (id: string) => void;
   onReturnToWarehouse?: (id: string) => void;
   currentUser?: { role: 'Viewer' | 'Editor' | 'Admin' };
   warehouses?: { name: string }[];
+  allowCreate?: boolean;
 }
 
 export default function SoftwareView({
@@ -41,10 +42,11 @@ export default function SoftwareView({
   computers,
   onAdd,
   onEdit,
-  onDelete,
+  onMarkForWriteOff,
   onReturnToWarehouse,
   currentUser,
   warehouses = [],
+  allowCreate = true,
 }: SoftwareViewProps) {
   const { t } = useTranslation();
   const [search, setSearch] = useState('');
@@ -62,11 +64,6 @@ export default function SoftwareView({
     if (!onReturnToWarehouse) return;
     if (item.status === 'Не активирована') return;
     onReturnToWarehouse(item.id);
-  };
-
-  const handleDeleteSoftware = (item: SoftwareItem) => {
-    if (!onDelete) return;
-    onDelete(item.id);
   };
 
   // Form states
@@ -178,6 +175,11 @@ export default function SoftwareView({
       notes
     };
 
+    if (!allowCreate && !editingId) {
+      alert(t('Ручное добавление ПО отключено. Используйте выдачу/перемещение.'));
+      return;
+    }
+
     const ok = editingId ? onEdit(editingId, payload) : onAdd(payload);
     if (ok !== false) {
       setShowModal(false);
@@ -278,7 +280,7 @@ export default function SoftwareView({
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           </div>
 
-          {!isViewer && (
+          {!isViewer && allowCreate && (
             <button
               onClick={handleOpenAdd}
               className="bg-blue-600 hover:bg-blue-700 text-white font-medium text-sm py-2 px-4 rounded-lg flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer"
@@ -424,22 +426,13 @@ export default function SoftwareView({
                           >
                             <Edit2 size={13} />
                           </button>
-                          {onReturnToWarehouse && item.status !== 'Не активирована' && (
+                          {onReturnToWarehouse && item.status !== 'Не активирована' && item.status !== 'На списание' && (
                             <button
                               onClick={() => handleReturnToWarehouse(item)}
                               className="p-1.5 bg-slate-50 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 border border-slate-100 hover:border-emerald-100 rounded-lg transition-all"
                               title={t("Вернуть на склад")}
                             >
                               <RotateCcw size={13} />
-                            </button>
-                          )}
-                          {onDelete && (
-                            <button
-                              onClick={() => handleDeleteSoftware(item)}
-                              className="p-1.5 bg-slate-50 text-slate-500 hover:text-rose-600 hover:bg-rose-50 border border-slate-100 hover:border-rose-100 rounded-lg transition-all"
-                              title={t("Удалить")}
-                            >
-                              <Trash2 size={13} />
                             </button>
                           )}
                         </td>

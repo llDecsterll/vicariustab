@@ -16,8 +16,13 @@ import {
   limitEquipmentTitle,
   supportsComputerSpecifications,
 } from '../utils/equipmentFields';
-import { isStockRegistryDuplicateOfWarehouseBatch } from '../utils/warehouseRouting';
-import { getSoftwareWarehouseInv, isSoftwareStoredOnWarehouse } from '../utils/equipmentDelete';
+import { isStockRegistryDuplicateOfWarehouseBatch, getNetworkDeviceDisplayStatus } from '../utils/warehouseRouting';
+import {
+  getSoftwareWarehouseInv,
+  isSoftwareStoredOnWarehouse,
+  warehouseItemLinksSoftware,
+} from '../utils/equipmentDelete';
+import { inventoryNumbersMatch, matchesInventorySearch } from '../utils/equipmentFields';
 import ModalCloseButton from './ModalCloseButton';
 
 interface WarehouseViewProps {
@@ -33,13 +38,22 @@ interface WarehouseViewProps {
     caseModel?: string;
   }) => boolean | void;
   onWriteOff: (
+    id: string, 
+    sourceType: 'computer' | 'network' | 'software' | 'warehouse', 
     inventoryNumber: string, 
-    quantityToWriteOff: number, 
-    reason?: string, 
-    technicalPdf?: { name: string; size?: string; content?: string }
-  ) => boolean;
+    quantity: number, 
+    reason: string, 
+    author: string, 
+    approver: string, 
+    documentNumber?: string,
+    comment?: string,
+    department?: string,
+    objectName?: string,
+    pdf?: { name: string; size?: string; content?: string }
+  ) => boolean | void;
   onDeleteEquipment?: (source: 'warehouse' | 'network' | 'software' | 'computer', id: string) => void;
   onDeleteWriteOff?: (id: string) => void;
+  onMarkForWriteOff?: (source: 'warehouse' | 'network' | 'software' | 'computer', id: string) => void;
   onViewDetails?: (type: 'computer' | 'network' | 'employee' | 'object' | 'warehouse', id: string) => void;
   currentUser?: { role: 'Viewer' | 'Editor' | 'Admin' };
   
@@ -54,7 +68,13 @@ interface WarehouseViewProps {
   computers?: ComputerItem[];
   networkDevices?: NetworkDevice[];
   softwareItems?: SoftwareItem[];
-  onDeployAsset?: (inventoryNumber: string, quantity: number, targetEmployeeName: string, targetObjectName: string) => boolean;
+  onDeployAsset?: (
+    warehouseItemId: string,
+    inventoryNumber: string,
+    quantity: number,
+    targetEmployeeName: string,
+    targetObjectName: string
+  ) => boolean;
   onReturnActiveAssetToWarehouse?: (itemSource: 'computer' | 'network' | 'software', itemId: string, targetWarehouseName: string) => void;
   onTransferActiveAsset?: (itemSource: 'computer' | 'network' | 'software', itemId: string, targetObjectName: string, targetEmployeeName?: string) => void;
   onTransferWarehouseStock?: (itemId: string, sourceWarehouseName: string, targetWarehouseName: string, quantity: number) => void;
@@ -87,6 +107,7 @@ export default function WarehouseView({
   onReceipt,
   onWriteOff,
   onDeleteEquipment,
+  onMarkForWriteOff,
   onViewDetails,
   currentUser,
   warehouses = [],
@@ -108,6 +129,7 @@ export default function WarehouseView({
   // Secondary layout navigation
   const [currentWhTab, setCurrentWhTab] = useState<'stock' | 'history' | 'warehouses'>('stock');
   const [selectedWarehouseFilter, setSelectedWarehouseFilter] = useState('all');
+  const [activeWriteOffTab, setActiveWriteOffTab] = useState<'pending' | 'history'>('pending');
 
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState<WarehouseItemType | 'Все'>('Все');
@@ -157,8 +179,24 @@ export default function WarehouseView({
   const [writeOffInvNum, setWriteOffInvNum] = useState('');
   const [writeOffQty, setWriteOffQty] = useState(1);
   const [writeOffReason, setWriteOffReason] = useState('');
+  const [writeOffAuthor, setWriteOffAuthor] = useState('');
+  const [writeOffApprover, setWriteOffApprover] = useState('');
+  const [writeOffDocument, setWriteOffDocument] = useState('');
+  const [writeOffComment, setWriteOffComment] = useState('');
+  const [writeOffDepartment, setWriteOffDepartment] = useState('');
+  const [writeOffObject, setWriteOffObject] = useState('');
   const [writeOffPdf, setWriteOffPdf] = useState<{ name: string; size?: string; content?: string } | null>(null);
   const [writeOffError, setWriteOffError] = useState('');
+  const [activeWriteOffSourceItem, setActiveWriteOffSourceItem] = useState<{
+    id: string;
+    sourceType: 'computer' | 'network' | 'software' | 'warehouse';
+    name: string;
+    model: string;
+    inventoryNumber: string;
+    quantity: number;
+    unit: string;
+    cost: number;
+  } | null>(null);
 
   // Form States - Return or Move Active Issued Equipment
   const [showActiveAssetTransitionModal, setShowActiveAssetTransitionModal] = useState(false);
@@ -182,8 +220,7 @@ export default function WarehouseView({
     setTransitionMode('return');
     // Set default target warehouse
     const currentWhName = item.warehouseName || warehouses[0]?.name || 'Основной склад ИТ';
-    const differentWh = warehouses.find(w => w.name !== currentWhName) || warehouses[0];
-    setTransitionTargetWarehouse(differentWh?.name || 'Основной склад ИТ');
+    setTransitionTargetWarehouse(currentWhName);
     setTransitionTargetObject(objects[0]?.name || 'Главный офис');
     setTransitionTargetEmployee('Без изменений');
     setTransitionError('');
@@ -229,7 +266,7 @@ export default function WarehouseView({
     if (!transferStockItem || !onTransferWarehouseStock) return;
 
     if (transferQty < 1) {
-      setTransferError('Количество должно быть не менее 1');
+      setTransferError(t('Количество должно быть не менее 1'));
       return;
     }
     if (transferQty > transferStockItem.quantity) {
@@ -237,7 +274,7 @@ export default function WarehouseView({
       return;
     }
     if (transferSourceWarehouse === transferTargetWarehouse) {
-      setTransferError('Склад-источник и склад-получатель должны отличаться');
+      setTransferError(t('Склад-источник и склад-получатель должны отличаться'));
       return;
     }
 
@@ -272,7 +309,7 @@ export default function WarehouseView({
     if (!deployItem || !onDeployAsset) return;
 
     if (deployQty < 1) {
-      setDeployError('Количество должно быть не менее 1');
+      setDeployError(t('Количество должно быть не менее 1'));
       return;
     }
 
@@ -282,6 +319,7 @@ export default function WarehouseView({
     }
 
     const success = onDeployAsset(
+      deployItem.id,
       deployItem.inventoryNumber,
       deployQty,
       deployEmployee,
@@ -291,14 +329,14 @@ export default function WarehouseView({
     if (success) {
       setShowDeployModal(false);
     } else {
-      setDeployError('Не удалось выдать товар со склада. Возможно, устройство не найдено или возникла непредвиденная ошибка.');
+      setDeployError(t('Не удалось выдать товар со склада. Возможно, устройство не найдено или возникла непредвиденная ошибка.'));
     }
   };
 
   const handleFileUpload = (file: File | null, groupName: string) => {
     if (!file) return;
     if (!file.name.toLowerCase().endsWith('.pdf')) {
-      alert('Пожалуйста, выберите файл в формате PDF!');
+      alert(t('Пожалуйста, выберите файл в формате PDF!'));
       return;
     }
     const reader = new FileReader();
@@ -318,7 +356,7 @@ export default function WarehouseView({
   const handleWriteOffPdfUpload = (file: File | null) => {
     if (!file) return;
     if (!file.name.toLowerCase().endsWith('.pdf')) {
-      alert('Пожалуйста, выберите файл в формате PDF!');
+      alert(t('Пожалуйста, выберите файл в формате PDF!'));
       return;
     }
     const reader = new FileReader();
@@ -409,33 +447,47 @@ export default function WarehouseView({
     e.preventDefault();
     setWriteOffError('');
 
-    const targetItem = warehouseItems.find(item => item.inventoryNumber === writeOffInvNum);
-    if (!targetItem) {
-      setWriteOffError('Элемент с таким инвентарным номером не найден на складе.');
+    if (!activeWriteOffSourceItem) {
+      setWriteOffError(t('Не выбран элемент для списания.'));
       return;
     }
 
-    if (writeOffQty > targetItem.quantity) {
-      setWriteOffError(`Недостаточное количество. На складе всего ${targetItem.quantity} ${targetItem.unit}`);
+    if (writeOffQty > activeWriteOffSourceItem.quantity) {
+      setWriteOffError(`${t('Недостаточное количество.')} ${t('Доступно для списания всего')} ${activeWriteOffSourceItem.quantity} ${t(activeWriteOffSourceItem.unit || 'шт.')}`);
+      return;
+    }
+
+    if (!writeOffAuthor.trim() || !writeOffApprover.trim()) {
+      setWriteOffError(t('Укажите ФИО инициатора и согласующего.'));
       return;
     }
 
     const success = onWriteOff(
+      activeWriteOffSourceItem.id,
+      activeWriteOffSourceItem.sourceType,
       writeOffInvNum, 
       writeOffQty, 
       writeOffReason, 
+      writeOffAuthor,
+      writeOffApprover,
+      writeOffDocument,
+      writeOffComment,
+      writeOffDepartment,
+      writeOffObject,
       writeOffPdf || undefined
     );
     
     if (success) {
       setShowWriteOffModal(false);
     } else {
-      setWriteOffError('Произошла ошибка при списании товара.');
+      setWriteOffError(t('Произошла ошибка при списании товара.'));
     }
   };
 
   // 1. Standard Warehouse Stock items
-  const whUnified = warehouseItems.map(item => ({
+  const whUnified = warehouseItems
+    .filter((item) => item.quantity > 0 && item.status !== 'Списано' && item.status !== 'На списание')
+    .map(item => ({
     id: item.id,
     name: item.name,
     type: item.type,
@@ -453,7 +505,7 @@ export default function WarehouseView({
 
   // 2. Active Issued Computers (status is not "На складе" and not "Списано")
   const compsUnified = (computers || [])
-    .filter(c => c.status !== 'На складе' && c.status !== 'Списано')
+    .filter(c => c.status !== 'На складе' && c.status !== 'Списано' && c.status !== 'На списание')
     .map(c => {
       // Find the warehouse associated with the object location of the computer
       const linkedWhName = warehouses.find(w => w.objectName === c.objectName)?.name || 'Основной склад ИТ';
@@ -511,11 +563,16 @@ export default function WarehouseView({
 
   // 3. Active Network Devices linked to objects
   const netUnified = (networkDevices || [])
-    .filter(
-      (n) =>
+    .filter((n) => {
+      const displayStatus = getNetworkDeviceDisplayStatus(n, warehouseItems || [], warehouses);
+      return (
+        displayStatus !== 'На списание' &&
+        displayStatus !== 'Списано' &&
         !isStockRegistryDuplicateOfWarehouseBatch(n, warehouseItems || [], warehouses)
-    )
-    .map(n => {
+      );
+    })
+    .map((n) => {
+      const displayStatus = getNetworkDeviceDisplayStatus(n, warehouseItems || [], warehouses);
       const linkedWhName = warehouses.find(w => w.objectName === n.objectName)?.name || 'Основной склад ИТ';
       return {
         id: n.id,
@@ -526,7 +583,7 @@ export default function WarehouseView({
         quantity: n.quantity || 1,
         unit: 'шт.',
         costPerUnit: n.cost || 0,
-        status: 'Привязано',
+        status: displayStatus === 'На складе' ? ('На складе' as const) : ('Привязано' as const),
         location: n.objectName,
         employeeName: '—',
         itemSource: 'network' as const,
@@ -536,7 +593,12 @@ export default function WarehouseView({
 
   // 4. Active Software Licenses / keys (hide stock already shown in whUnified)
   const softUnified = (softwareItems || [])
-    .filter((s) => !(s.status === 'Не активирована' && isSoftwareStoredOnWarehouse(s, warehouseItems || [])))
+    .filter(
+      (s) =>
+        s.status !== 'На списание' &&
+        s.status !== 'Списано' &&
+        !(s.status === 'Не активирована' && isSoftwareStoredOnWarehouse(s, warehouseItems || []))
+    )
     .map(s => {
     const linkedWhName = warehouses.find(w => w.objectName === s.objectName)?.name || 'Основной склад ИТ';
     return {
@@ -547,7 +609,7 @@ export default function WarehouseView({
       inventoryNumber: s.licenseKey || getSoftwareWarehouseInv(s.id),
       quantity: s.quantity || 1,
       unit: 'шт.',
-      costPerUnit: 0,
+      costPerUnit: s.cost || 0,
       status: s.status === 'Активна' ? 'В работе' : s.status === 'Не активирована' ? 'На складе' : s.status,
       location: s.objectName || 'Главный офис',
       employeeName: s.assignedEmployeeName || '—',
@@ -562,9 +624,10 @@ export default function WarehouseView({
   // Apply filters on the unified assets list
   const filtered = totalUnifiedList.filter(item => {
     // Search matching
-    const matchesSearch = item.name.toLowerCase().includes(search.toLowerCase()) || 
-                          item.model.toLowerCase().includes(search.toLowerCase()) || 
-                          (item.inventoryNumber || '').toLowerCase().includes(search.toLowerCase());
+    const matchesSearch =
+      item.name.toLowerCase().includes(search.toLowerCase()) ||
+      item.model.toLowerCase().includes(search.toLowerCase()) ||
+      matchesInventorySearch(item.inventoryNumber, search);
     
     // Category match
     const matchesTab = activeTab === 'Все' || item.type === activeTab;
@@ -583,11 +646,12 @@ export default function WarehouseView({
       matchesPlacement =
         item.itemSource === 'warehouse' ||
         (item.itemSource === 'software' && item.status === 'На складе') ||
-        (item.itemSource === 'computer' && item.status === 'На складе');
+        (item.itemSource === 'computer' && item.status === 'На складе') ||
+        (item.itemSource === 'network' && item.status === 'На складе');
     } else if (placementFilter === 'issued') {
       matchesPlacement =
         (item.itemSource === 'computer' && item.status !== 'На складе') ||
-        item.itemSource === 'network' ||
+        (item.itemSource === 'network' && item.status !== 'На складе') ||
         (item.itemSource === 'software' && item.status === 'В работе');
     }
 
@@ -607,6 +671,73 @@ export default function WarehouseView({
 
   const selectedWarehouseSum = whSpecificItems.reduce((sum, item) => sum + (item.quantity * item.costPerUnit), 0);
   const selectedWarehouseCount = whSpecificItems.reduce((sum, item) => sum + item.quantity, 0);
+
+  const pendingWarehouseItems = warehouseItems.filter((w) => w.status === 'На списание');
+
+  const isInvCoveredByPendingWarehouse = (inv?: string) =>
+    pendingWarehouseItems.some((w) => inventoryNumbersMatch(w.inventoryNumber, inv));
+
+  const isSoftwareCoveredByPendingWarehouse = (s: SoftwareItem) =>
+    pendingWarehouseItems.some((w) => warehouseItemLinksSoftware(w, s));
+
+  const pendingWriteOffItems = [
+    ...pendingWarehouseItems.map((w) => ({
+      id: w.id,
+      sourceType: 'warehouse' as const,
+      name: w.name,
+      model: w.model,
+      inventoryNumber: w.inventoryNumber || '',
+      quantity: w.quantity || 1,
+      unit: w.unit || 'шт.',
+      cost: w.costPerUnit || 0,
+      originalItem: w,
+    })),
+    ...computers
+      .filter(
+        (c) => c.status === 'На списание' && !isInvCoveredByPendingWarehouse(c.inventoryNumber)
+      )
+      .map((c) => ({
+        id: c.id,
+        sourceType: 'computer' as const,
+        name: c.category,
+        model: c.model,
+        inventoryNumber: c.inventoryNumber || '',
+        quantity: 1,
+        unit: 'шт.',
+        cost: c.cost || 0,
+        originalItem: c,
+      })),
+    ...networkDevices
+      .filter(
+        (n) => n.status === 'На списание' && !isInvCoveredByPendingWarehouse(n.inventoryNumber)
+      )
+      .map((n) => ({
+        id: n.id,
+        sourceType: 'network' as const,
+        name: n.deviceName,
+        model: n.type,
+        inventoryNumber: n.inventoryNumber || '',
+        quantity: n.quantity || 1,
+        unit: 'шт.',
+        cost: n.cost || 0,
+        originalItem: n,
+      })),
+    ...softwareItems
+      .filter(
+        (s) => s.status === 'На списание' && !isSoftwareCoveredByPendingWarehouse(s)
+      )
+      .map((s) => ({
+        id: s.id,
+        sourceType: 'software' as const,
+        name: s.name,
+        model: s.developer || s.category,
+        inventoryNumber: s.licenseKey || '',
+        quantity: s.quantity || 1,
+        unit: 'лиц.',
+        cost: s.cost || 0,
+        originalItem: s,
+      })),
+  ];
 
   // Total company TMZ value metric
   const grandCompanyValueSum = totalUnifiedList.reduce((sum, item) => sum + (item.quantity * item.costPerUnit), 0);
@@ -634,7 +765,17 @@ export default function WarehouseView({
 
   // Export Warehouse Stock to CSV
   const exportToCSV = () => {
-    const headers = ['Наименование,Тип,Модель,Инвентарный номер,Количество,Ед. изм.,Стоимость за ед.,Общая стоимость,Статус'];
+    const headers = [
+      t('CSV: Наименование'),
+      t('CSV: Тип'),
+      t('CSV: Модель'),
+      t('CSV: Инвентарный номер'),
+      t('CSV: Количество'),
+      t('CSV: Ед. изм.'),
+      t('CSV: Стоимость за ед.'),
+      t('CSV: Общая стоимость'),
+      t('CSV: Статус'),
+    ].join(',');
     const rows = warehouseItems.map(item => 
       `"${item.name}","${item.type}","${item.model}","${item.inventoryNumber}",${item.quantity},"${item.unit}",${item.costPerUnit},${item.costPerUnit * item.quantity},"${item.status}"`
     );
@@ -672,7 +813,7 @@ export default function WarehouseView({
           }`}
         >
           <ClipboardList size={13} />
-          {t("История списаний складов")}
+          {t("Списание оборудования")}
         </button>
         <button
           onClick={() => setCurrentWhTab('warehouses')}
@@ -876,7 +1017,7 @@ export default function WarehouseView({
                               {item.name}
                             </span>
                             <span className="text-[10px] text-slate-400 font-semibold flex items-center flex-wrap gap-1 mt-0.5">
-                              <span>{item.warehouseName || 'Основной склад ИТ'}</span>
+                              <span>{t(item.warehouseName || 'Основной склад ИТ')}</span>
                               {item.employeeName && item.employeeName !== '—' ? (
                                 <span className="text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded text-[9px] font-bold border border-amber-200">
                                   {t("В работе:")} {item.employeeName} ({item.location})
@@ -898,7 +1039,7 @@ export default function WarehouseView({
                           {item.quantity}
                         </span>
                       </td>
-                      <td className="py-3.5 px-5 text-slate-450 text-xs">{item.unit || 'шт.'}</td>
+                      <td className="py-3.5 px-5 text-slate-450 text-xs">{t(item.unit || 'шт.')}</td>
                       <td className="py-3.5 px-5 text-right font-mono text-slate-650 font-medium">{formatCurrency(item.costPerUnit)}</td>
                       <td className="py-3.5 px-5 text-right font-mono font-extrabold text-slate-900">{formatCurrency(item.costPerUnit * item.quantity)}</td>
                       <td className="py-3.5 px-5 text-center">
@@ -966,32 +1107,32 @@ export default function WarehouseView({
                                   <ArrowLeftRight size={14} />
                                 </button>
                               )}
-                              {!isViewer && onDeleteEquipment && (
+                              {!isViewer && onMarkForWriteOff && (
                                 <button
-                                  onClick={() => onDeleteEquipment('warehouse', item.id)}
+                                  onClick={() => onMarkForWriteOff('warehouse', item.id)}
                                   className="p-1.5 hover:bg-red-50 rounded-lg text-slate-400 hover:text-red-500 transition-colors cursor-pointer"
-                                  title={t("Удалить везде")}
+                                  title={t("На списание")}
                                 >
                                   <Trash2 size={14} />
                                 </button>
                               )}
                             </>
                           ) : item.itemSource === 'computer' && item.status === 'На складе' ? (
-                            !isViewer && onDeleteEquipment && (
+                            !isViewer && onMarkForWriteOff && (
                               <button
-                                onClick={() => onDeleteEquipment('computer', item.id)}
+                                onClick={() => onMarkForWriteOff('computer', item.id)}
                                 className="p-1.5 hover:bg-red-50 rounded-lg text-slate-400 hover:text-red-500 transition-colors cursor-pointer"
-                                title={t("Удалить везде")}
+                                title={t("На списание")}
                               >
                                 <Trash2 size={14} />
                               </button>
                             )
                           ) : (
                             <div className="flex flex-col items-center gap-1.5">
-                              {!isViewer && onDeleteEquipment && (
+                              {!isViewer && onMarkForWriteOff && (
                                 <button
                                   onClick={() =>
-                                    onDeleteEquipment(
+                                    onMarkForWriteOff(
                                       item.itemSource === 'network'
                                         ? 'network'
                                         : item.itemSource === 'software'
@@ -1001,7 +1142,7 @@ export default function WarehouseView({
                                     )
                                   }
                                   className="p-1.5 hover:bg-red-50 rounded-lg text-slate-400 hover:text-red-500 transition-colors cursor-pointer"
-                                  title={t("Удалить везде")}
+                                  title={t("На списание")}
                                 >
                                   <Trash2 size={14} />
                                 </button>
@@ -1040,16 +1181,41 @@ export default function WarehouseView({
       {/* RENDER TAB 2: WRITE-OFFS HISTORY */}
       {currentWhTab === 'history' && (
         <div className="space-y-4 animate-fade-in">
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden p-6 space-y-4">
-            <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
-              <ClipboardList size={16} className="text-slate-500" />
-              {t("История списаний и утилизации материальных ценностей")}
-            </h3>
-            <p className="text-xs text-slate-455">
-              {t("Здесь отображаются все оформленные акты списания с указанием технического обоснования от сервисного центра и причин.")}
-            </p>
+          {/* Sub tabs for Write-offs */}
+          <div className="flex border-b border-slate-100 bg-white p-2 rounded-xl border shadow-3xs gap-1 w-max">
+            <button
+              onClick={() => setActiveWriteOffTab('pending')}
+              className={`flex items-center gap-2 py-2 px-4 text-xs font-bold rounded-lg transition-all ${
+                activeWriteOffTab === 'pending'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
+              }`}
+            >
+              {t("Ожидает списания")} ({pendingWriteOffItems.length})
+            </button>
+            <button
+              onClick={() => setActiveWriteOffTab('history')}
+              className={`flex items-center gap-2 py-2 px-4 text-xs font-bold rounded-lg transition-all ${
+                activeWriteOffTab === 'history'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
+              }`}
+            >
+              {t("История актов списания")}
+            </button>
+          </div>
 
-            <div className="overflow-x-auto border border-slate-100 rounded-xl bg-slate-50/20">
+          {activeWriteOffTab === 'history' && (
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden p-6 space-y-4">
+              <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                <ClipboardList size={16} className="text-slate-500" />
+                {t("История списаний и утилизации материальных ценностей")}
+              </h3>
+              <p className="text-xs text-slate-455">
+                {t("Здесь отображаются все оформленные акты списания с указанием технического обоснования от сервисного центра и причин.")}
+              </p>
+
+              <div className="overflow-x-auto border border-slate-100 rounded-xl bg-slate-50/20">
               <table className="w-full text-left text-sm border-collapse">
                 <thead>
                   <tr className="border-b border-slate-100 bg-slate-50 text-slate-400">
@@ -1067,7 +1233,7 @@ export default function WarehouseView({
                   {warehouseWriteOffs.map((wo) => (
                     <tr key={wo.id} className="hover:bg-slate-50/60 transition-colors">
                       <td className="py-3.5 px-4 text-slate-500 font-semibold text-xs font-mono">{wo.date}</td>
-                      <td className="py-3.5 px-4 text-slate-600 text-xs font-bold">{wo.warehouseName || 'Основной склад ИТ'}</td>
+                      <td className="py-3.5 px-4 text-slate-600 text-xs font-bold">{t(wo.warehouseName || 'Основной склад ИТ')}</td>
                       <td className="py-3.5 px-4">
                         <div className="font-bold text-slate-800">{wo.name}</div>
                         <div className="text-[10px] text-slate-400 font-semibold">{wo.model} ({t(wo.type)})</div>
@@ -1085,29 +1251,46 @@ export default function WarehouseView({
                         <div className="text-xs text-slate-650 font-medium italic break-words mb-1">
                           "{wo.reason}"
                         </div>
+                        <div className="text-[10px] text-slate-400 font-medium mb-1.5 flex flex-wrap gap-1">
+                          {wo.author && <span className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-500" title={t("Инициатор")}>{t("Инициатор")}: {wo.author}</span>}
+                          {wo.approver && <span className="bg-emerald-50 px-1.5 py-0.5 rounded text-emerald-600" title={t("Утвердил")}>{t("Утвердил")}: {wo.approver}</span>}
+                          {wo.documentNumber && <span className="bg-blue-50 px-1.5 py-0.5 rounded text-blue-600">{t("Док:")} {wo.documentNumber}</span>}
+                          {wo.department && <span className="bg-purple-50 px-1.5 py-0.5 rounded text-purple-600">{t("Отдел:")} {wo.department}</span>}
+                          {wo.objectName && <span className="bg-indigo-50 px-1.5 py-0.5 rounded text-indigo-600">{t("Объект:")} {wo.objectName}</span>}
+                        </div>
+                        {wo.comment && (
+                          <div className="text-[10px] text-slate-400 mb-1">
+                            {t("Комментарий:")} {wo.comment}
+                          </div>
+                        )}
                         {wo.pdfFile ? (
                           <a
                             href={wo.pdfFile.content}
                             download={wo.pdfFile.name}
-                            className="inline-flex items-center gap-1.5 bg-blue-50 hover:bg-blue-100 text-blue-800 text-[10px] font-bold px-2.5 py-1 rounded-md transition-all border border-blue-100"
+                            className="inline-flex items-center gap-1.5 bg-blue-50 hover:bg-blue-100 text-blue-800 text-[10px] font-bold px-2.5 py-1 rounded-md transition-all border border-blue-100 mt-1"
                           >
                             <FileText size={11} className="text-blue-600 animate-pulse" />
                             <span>{wo.pdfFile.name} ({wo.pdfFile.size || 'PDF'})</span>
                           </a>
                         ) : (
-                          <span className="text-[10px] text-slate-400 italic">{t("Без технического заключения")}</span>
+                          <span className="text-[10px] text-slate-400 italic block mt-1">{t("Без технического заключения")}</span>
                         )}
                       </td>
-                      <td className="py-3.5 px-4 text-center select-none">
+                      <td className="py-3.5 px-4 text-center select-none space-x-1">
                         {!isViewer && onDeleteWriteOff && (
-                          <button
-                            type="button"
-                            onClick={() => onDeleteWriteOff(wo.id)}
-                            className="p-1.5 hover:bg-red-50 rounded-lg text-slate-405 hover:text-red-600 transition-colors cursor-pointer"
-                            title={t("Удалить из истории")}
-                          >
-                            <Trash2 size={13} />
-                          </button>
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                // @ts-ignore - Temporary hack if we want to restore, but since we don't have onRestore we just delete the act (which leaves the item as Списано)
+                                onDeleteWriteOff(wo.id)
+                              }}
+                              className="p-1.5 hover:bg-red-50 rounded-lg text-slate-405 hover:text-red-600 transition-colors cursor-pointer"
+                              title={t("Удалить акт (без восстановления оборудования)")}
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </>
                         )}
                       </td>
                     </tr>
@@ -1120,7 +1303,73 @@ export default function WarehouseView({
                 </tbody>
               </table>
             </div>
-          </div>
+            </div>
+          )}
+
+          {activeWriteOffTab === 'pending' && (
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden p-6 space-y-4">
+              <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                <Trash2 size={16} className="text-red-500" />
+                {t("Оборудование, ожидающее списания")}
+              </h3>
+              <p className="text-xs text-slate-455">
+                {t("Выберите оборудование и нажмите «Оформить акт», чтобы окончательно списать его и перенести в историю.")}
+              </p>
+
+              <div className="overflow-x-auto border border-slate-100 rounded-xl bg-slate-50/20">
+                <table className="w-full text-left text-sm border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-100 bg-slate-50 text-slate-400">
+                      <th className="py-3 px-4 font-semibold text-slate-500 text-xs uppercase">{t("Категория")}</th>
+                      <th className="py-3 px-4 font-semibold text-slate-500 text-xs uppercase">{t("Модель / Детали")}</th>
+                      <th className="py-3 px-4 font-semibold text-slate-500 text-xs uppercase">{t("Инвентарный №")}</th>
+                      <th className="py-3 px-4 text-center font-semibold text-slate-500 text-xs uppercase">{t("Кол-во")}</th>
+                      <th className="py-3 px-4 text-right font-semibold text-slate-500 text-xs uppercase">{t("Стоимость")}</th>
+                      <th className="py-3 px-4 text-center font-semibold text-slate-500 text-xs uppercase">{t("Действия")}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-slate-700 bg-white">
+                    {pendingWriteOffItems.map((item) => (
+                      <tr key={item.id} className="hover:bg-slate-50/60 transition-colors">
+                        <td className="py-3.5 px-4 font-bold text-slate-800">{item.name}</td>
+                        <td className="py-3.5 px-4 text-slate-600 text-xs font-semibold">{item.model}</td>
+                        <td className="py-3.5 px-4 font-mono text-slate-500 text-xs font-bold">{item.inventoryNumber || '—'}</td>
+                        <td className="py-3.5 px-4 text-center">
+                          <span className="px-2 py-0.5 rounded-md bg-rose-50 text-rose-800 font-mono text-xs font-bold">
+                            {item.quantity} {item.unit}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 text-right font-mono font-bold text-slate-800">
+                          {formatCurrency(item.cost * item.quantity)}
+                        </td>
+                        <td className="py-3.5 px-4 text-center">
+                          {!isViewer && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setWriteOffInvNum(item.inventoryNumber || '');
+                                setWriteOffQty(item.quantity);
+                                setActiveWriteOffSourceItem(item);
+                                setShowWriteOffModal(true);
+                              }}
+                              className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-1.5 px-3 rounded-lg shadow-xs transition-colors whitespace-nowrap"
+                            >
+                              {t("Оформить акт")}
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                    {pendingWriteOffItems.length === 0 && (
+                      <tr>
+                        <td colSpan={6} className="text-center py-12 text-slate-400">{t("Нет оборудования, ожидающего списания")}</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -1142,14 +1391,14 @@ export default function WarehouseView({
                 e.preventDefault();
                 if (!newWhName.trim()) return;
                 if (warehouses.some(w => w.name.toLowerCase() === newWhName.trim().toLowerCase())) {
-                  alert('Склад с таким названием уже существует!');
+                  alert(t('Склад с таким названием уже существует!'));
                   return;
                 }
                 const newWh: CustomWarehouse = {
                   id: `wh-${Date.now()}`,
                   name: newWhName.trim(),
                   objectName: newWhObject,
-                  description: newWhDesc.trim() || 'Филиальный склад IT оборудования',
+                  description: newWhDesc.trim() || t('Филиальный склад IT оборудования'),
                   isCustom: true
                 };
                 setWarehouses(prev => [...prev, newWh]);
@@ -1216,7 +1465,7 @@ export default function WarehouseView({
                 <div className="space-y-1">
                   <div className="flex items-center gap-1.5">
                     <span className="p-1 px-1.5 rounded-md bg-blue-600 text-white text-[9px] font-bold uppercase">{t("ГЛАВНЫЙ")}</span>
-                    <h4 className="font-bold text-sm text-slate-800">Основной склад ИТ</h4>
+                    <h4 className="font-bold text-sm text-slate-800">{t("Основной склад ИТ")}</h4>
                   </div>
                   <p className="text-xs text-slate-500 font-medium">
                     {t("Главный распределительный архивный склад для закупки техники.")}
@@ -1224,7 +1473,7 @@ export default function WarehouseView({
                 </div>
                 
                 <div className="flex justify-between items-center text-[11px] text-slate-455 border-t pt-2 border-slate-100">
-                  <span>{t("Связанный объект:")} <strong className="text-slate-700">Главный офис</strong></span>
+                  <span>{t("Связанный объект:")} <strong className="text-slate-700">{t("Главный офис")}</strong></span>
                 </div>
               </div>
 
@@ -1702,18 +1951,12 @@ export default function WarehouseView({
 
             <form onSubmit={handleWriteOffSubmit} className="flex-1 overflow-y-auto space-y-4 pr-1">
               <div>
-                <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">{t("Выберите товар для списания")}</label>
-                <select
-                  value={writeOffInvNum}
-                  onChange={(e) => setWriteOffInvNum(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs bg-white text-slate-700 font-semibold cursor-pointer"
-                >
-                  {warehouseItems.map(item => (
-                    <option key={item.id} value={item.inventoryNumber}>
-                      {item.name} ({item.inventoryNumber}) — В наличии {item.quantity} {item.unit || 'шт.'}
-                    </option>
-                  ))}
-                </select>
+                <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">{t("Выбранный товар для списания")}</label>
+                <div className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs bg-slate-50 text-slate-700 font-semibold">
+                  {activeWriteOffSourceItem 
+                    ? `${activeWriteOffSourceItem.name} (${activeWriteOffSourceItem.inventoryNumber || t('Без инв. №')}) — ${t('Доступно')} ${activeWriteOffSourceItem.quantity} ${t(activeWriteOffSourceItem.unit || 'шт.')}` 
+                    : t('Не выбран')}
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -1746,6 +1989,77 @@ export default function WarehouseView({
                   onChange={(e) => setWriteOffReason(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-250 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-rose-500/10 focus:border-rose-500 text-slate-750"
                 />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t("Инициатор списания (ФИО)")}</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Иванов И.И."
+                    value={writeOffAuthor}
+                    onChange={(e) => setWriteOffAuthor(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-medium text-slate-700"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t("Согласующий (ФИО)")}</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Петров П.П."
+                    value={writeOffApprover}
+                    onChange={(e) => setWriteOffApprover(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-medium text-slate-700"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t("Документ / Номер акта")}</label>
+                  <input
+                    type="text"
+                    placeholder="№ А-123 от 20.06.2026"
+                    value={writeOffDocument}
+                    onChange={(e) => setWriteOffDocument(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-medium text-slate-700"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t("Доп. Комментарий")}</label>
+                  <input
+                    type="text"
+                    placeholder={t("Например: Утилизация через эко-сервис")}
+                    value={writeOffComment}
+                    onChange={(e) => setWriteOffComment(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-medium text-slate-700"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t("Подразделение (Откуда)")}</label>
+                  <input
+                    type="text"
+                    placeholder={t("Например: Бухгалтерия")}
+                    value={writeOffDepartment}
+                    onChange={(e) => setWriteOffDepartment(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-medium text-slate-700"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t("Объект / Локация")}</label>
+                  <input
+                    type="text"
+                    placeholder={t("Например: Главный офис")}
+                    value={writeOffObject}
+                    onChange={(e) => setWriteOffObject(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-medium text-slate-700"
+                  />
+                </div>
               </div>
 
               {/* TECHNICAL REPORT DOCUMENT */}
@@ -1900,7 +2214,7 @@ export default function WarehouseView({
             <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl text-xs space-y-1">
               <div><strong>{t("Оборудование:")}</strong> {transitionAssetItem.name} ({transitionAssetItem.model})</div>
               <div><strong>{t("Инвентарный №:")}</strong> {transitionAssetItem.inventoryNumber}</div>
-              <div><strong>{t("Текущее расположение:")}</strong> {transitionAssetItem.location} ({transitionAssetItem.employeeName || 'Основной'})</div>
+              <div><strong>{t("Текущее расположение:")}</strong> {transitionAssetItem.location} ({transitionAssetItem.employeeName || t('Основной')})</div>
             </div>
 
             <div className="flex bg-slate-100 p-1 rounded-xl">

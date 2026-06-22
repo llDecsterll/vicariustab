@@ -12,7 +12,8 @@ export interface ObjectItem {
   name: string;
   address: string;
   photoUrl?: string;
-  iconName?: string; // custom icon name like 'Building2', 'Warehouse', 'Server', 'Wifi', 'Laptop'
+  iconName?: string;
+  isArchived?: boolean; // NEW: Archiving objects
 }
 
 export type NetworkDeviceType = 'Коммутатор' | 'Маршрутизатор' | 'Точка доступа' | 'Другое';
@@ -21,7 +22,7 @@ export interface NetworkDevice {
   id: string;
   deviceName: string;
   type: NetworkDeviceType;
-  objectName: string; // Referenced Object name
+  objectName: string;
   ipAddress: string;
   quantity: number;
   inventoryNumber?: string;
@@ -33,22 +34,23 @@ export interface NetworkDevice {
   invoiceInfo?: string;
   memoInfo?: string;
   warrantyInfo?: string;
-  cost?: number; // Cost / price of the equipment
+  cost?: number;
+  status?: 'В работе' | 'На списание' | 'Активно' | 'На складе' | 'Выдано' | 'В ремонте' | 'На проверке' | 'Под списание' | 'Списано';
 }
 
 export type ComputerCategory = 'Ноутбук' | 'ПК' | 'Монитор' | 'Периферия' | 'Оргтехника' | 'Видеонаблюдение' | 'Расходники' | 'Другое';
-export type ComputerStatus = 'В работе' | 'На ремонте' | 'На складе' | 'Списано';
+export type ComputerStatus = 'В работе' | 'На ремонте' | 'На складе' | 'Списано' | 'На списание' | 'Активно' | 'Выдано' | 'В ремонте' | 'На проверке' | 'Под списание';
 
 export interface ComputerItem {
   id: string;
   category: ComputerCategory;
   model: string;
   inventoryNumber: string;
-  employeeName: string; // Referenced Employee Name
+  employeeName: string;
   status: ComputerStatus;
-  objectName: string; // Location
+  objectName: string;
   photoUrl?: string;
-  deviceType?: string; // Specific device type e.g. 'Ноутбук', 'Видеокамера', etc.
+  deviceType?: string;
   serialNumber?: string;
   pdfFiles?: { name: string; size?: string; content?: string }[];
   motherboardModel?: string;
@@ -67,21 +69,21 @@ export interface ComputerItem {
   invoiceInfo?: string;
   memoInfo?: string;
   warrantyInfo?: string;
-  linkedToDeviceId?: string; // ID of PC or Laptop this peripheral/monitor is linked to
-  cost?: number; // Cost / price of the equipment
+  linkedToDeviceId?: string;
+  cost?: number;
   replacedComponents?: {
     id: string;
-    name: string; // e.g. "SSD", "RAM", etc.
-    oldDetails: string; // e.g. "Kingston 240GB"
-    newDetails: string; // e.g. "Crucial 500GB"
+    name: string;
+    oldDetails: string;
+    newDetails: string;
     date: string;
     reason?: string;
   }[];
   cartridges?: {
     id: string;
-    model: string; // e.g. "HP 85A"
+    model: string;
     status: 'Заправлен' | 'Пустой' | 'На заправке';
-    color?: string; // e.g. "Черный", "Голубой", etc.
+    color?: string;
     lastServiceDate?: string;
   }[];
 }
@@ -96,13 +98,14 @@ export interface EmployeeItem {
   photoUrl?: string;
   pdfFiles?: { name: string; size?: string; content?: string }[];
   status?: EmployeeStatus;
-  objectName?: string; // Attached location/object
+  objectName?: string;
   email?: string;
   phone?: string;
+  isArchived?: boolean; // NEW: Archiving employees
 }
 
 export type WarehouseItemType = 'Компьютеры' | 'Сетевое оборудование' | 'Периферия' | 'Оргтехника' | 'Видеонаблюдение' | 'Расходные материалы' | 'Лицензии ПО' | 'Другое';
-export type WarehouseItemStatus = 'В наличии' | 'Заказано' | 'Списано';
+export type WarehouseItemStatus = 'В наличии' | 'Заказано' | 'Списано' | 'На списание' | 'Активно' | 'Выдано' | 'В ремонте' | 'На проверке' | 'Под списание';
 
 export interface WarehouseItem {
   id: string;
@@ -119,8 +122,8 @@ export interface WarehouseItem {
   invoiceInfo?: string;
   memoInfo?: string;
   warrantyInfo?: string;
-  warehouseName?: string; // NEW: Linked warehouse name
-  deviceType?: string; // Specific device type e.g. 'ПК', 'Ноутбук'
+  warehouseName?: string;
+  deviceType?: string;
   serialNumber?: string;
   cpuModel?: string;
   ramModel?: string;
@@ -183,11 +186,11 @@ export interface SystemUser {
   email: string;
   role: UserRole;
   avatarUrl?: string;
-  isCustom?: boolean; // to delete custom added users
-  login?: string; // username for sign-in (form-only password below)
-  password?: string; // form-only; never returned from server after save
-  passwordSet?: boolean; // server indicates credentials exist
-  isBlocked?: boolean; // NEW: true if user block status is active
+  isCustom?: boolean;
+  login?: string;
+  password?: string;
+  passwordSet?: boolean;
+  isBlocked?: boolean; // NEW: Block users
   emailVerified?: boolean;
   emailNotificationsEnabled?: boolean;
   telegramChatId?: string;
@@ -205,18 +208,19 @@ export interface SoftwareItem {
   developer: string;
   quantity: number;
   assignedEmployeeName: string;
-  assignedDeviceId?: string; // ID устройства к которому привязано ПО
+  assignedDeviceId?: string;
   objectName: string;
-  status: 'Активна' | 'Истекла' | 'Не активирована';
+  status: 'Активна' | 'Истекла' | 'Не активирована' | 'На списание' | 'Активно' | 'На складе' | 'Выдано' | 'В ремонте' | 'На проверке' | 'Под списание' | 'Списано';
   purchaseDate?: string;
   expirationDate?: string;
   notes?: string;
+  cost?: number;
 }
 
 export interface CustomWarehouse {
   id: string;
   name: string;
-  objectName: string; // Linked branch/object
+  objectName: string;
   description?: string;
   isCustom?: boolean;
 }
@@ -234,4 +238,12 @@ export interface WarehouseWriteOff {
   date: string;
   pdfFile?: { name: string; size?: string; content?: string };
   warehouseName?: string;
+  author?: string;
+  approver?: string;
+  documentNumber?: string; // NEW fields
+  comment?: string;
+  department?: string;
+  objectName?: string;
+  photos?: string[];
+  history?: { date: string; action: string; user: string }[];
 }

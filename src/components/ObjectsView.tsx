@@ -39,6 +39,7 @@ interface ObjectsViewProps {
   onAdd: (name: string, address: string, iconName?: string) => void;
   onEdit: (id: string, name: string, address: string, iconName?: string) => void;
   onDelete: (id: string) => void;
+  onArchive?: (id: string, isArchived: boolean) => void;
   onViewDetails?: (type: 'computer' | 'network' | 'employee' | 'object' | 'warehouse', id: string) => void;
   currentUser?: SystemUser;
 }
@@ -73,12 +74,14 @@ export default function ObjectsView({
   onAdd,
   onEdit,
   onDelete,
+  onArchive,
   onViewDetails,
   currentUser,
 }: ObjectsViewProps) {
   const { t } = useTranslation();
   const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ObjectItem | null>(null);
   
@@ -129,8 +132,12 @@ export default function ObjectsView({
   };
 
   const filtered = objects.filter(
-    o => o.name.toLowerCase().includes(search.toLowerCase()) || 
-         o.address.toLowerCase().includes(search.toLowerCase())
+    o => {
+      const matchesSearch = o.name.toLowerCase().includes(search.toLowerCase()) || 
+           o.address.toLowerCase().includes(search.toLowerCase());
+      const matchesArchive = showArchived ? true : !o.isArchived;
+      return matchesSearch && matchesArchive;
+    }
   );
 
   const isViewer = currentUser?.role === 'Viewer';
@@ -159,11 +166,23 @@ export default function ObjectsView({
         </div>
         
         {!isViewer && (
-          <button
-            onClick={handleOpenAdd}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-medium text-sm py-2 px-4 rounded-lg flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer"
-          >
-            <Plus size={16} />{t("Добавить объект")}</button>
+          <div className="flex items-center gap-2">
+            <label className="flex items-center gap-2 text-xs font-semibold text-slate-500 cursor-pointer mr-2">
+              <input 
+                type="checkbox" 
+                checked={showArchived}
+                onChange={(e) => setShowArchived(e.target.checked)}
+                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+              />
+              Показать архив
+            </label>
+            <button
+              onClick={handleOpenAdd}
+              className="bg-blue-600 hover:bg-blue-700 text-white font-medium text-sm py-2 px-4 rounded-lg flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer"
+            >
+              <Plus size={16} />{t("Добавить объект")}
+            </button>
+          </div>
         )}
       </div>
 
@@ -232,6 +251,15 @@ export default function ObjectsView({
                           title={t("Удалить объект")}
                         >
                           <Trash2 size={13} />
+                        </button>
+                      )}
+                      {!isViewer && onArchive && (
+                        <button
+                          onClick={() => onArchive(obj.id, !obj.isArchived)}
+                          className={`p-1 hover:bg-slate-100 rounded transition-colors cursor-pointer ${obj.isArchived ? 'text-amber-500' : 'text-slate-400 hover:text-amber-500'}`}
+                          title={obj.isArchived ? t("Разархивировать") : t("В архив")}
+                        >
+                          <span className="text-[10px] font-bold">{obj.isArchived ? '🗃️' : '📁'}</span>
                         </button>
                       )}
                     </div>

@@ -12,6 +12,7 @@ const BASE = process.env.AUDIT_BASE_URL || 'http://127.0.0.1:8098';
 const testEnv = { ...process.env, AUDIT_BASE_URL: BASE };
 const tests = [
   'unit-equipment.mjs',
+  'unit-lifecycle.mjs',
   'unit-validation.mjs',
   'integration-api.mjs',
   'load-concurrent.mjs',

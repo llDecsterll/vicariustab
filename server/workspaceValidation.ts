@@ -100,6 +100,9 @@ export function validateWorkspaceInventory(payload: Record<string, unknown>): st
       networkDevices: ctx.networkDevices.filter(
         (n) => !inventoryNumbersMatch(n.inventoryNumber, w.inventoryNumber)
       ),
+      softwareItems: ctx.softwareItems.filter(
+        (s) => !inventoryNumbersMatch(s.licenseKey, w.inventoryNumber)
+      ),
     };
     if (exactInventoryNumberTaken(inv, ctxExcludingBatchRegistry, w.id)) {
       return `Инвентарный номер «${inv}» уже занят`;

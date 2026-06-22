@@ -826,11 +826,19 @@ async function startServer() {
     requireValidLicenseForWrite,
     async (req: AuthedRequest, res) => {
       try {
-        const data = req.body;
+        const data = req.body as Record<string, unknown>;
         if (!data || typeof data !== "object") {
           return res.status(400).json({ error: "Invalid payload" });
         }
-        const prepared = await preparePayloadForSave(data as Record<string, unknown>);
+        
+        // Prevent Privilege Escalation / Mass Assignment
+        if (req.authSession?.userRole !== "Admin") {
+          delete data.users;
+          delete data.license_key;
+          delete data.license_key_sig;
+        }
+
+        const prepared = await preparePayloadForSave(data);
         const expectedRevision = parseExpectedRevision(req);
         const result = await saveApplicationData(prepared, expectedRevision);
         if ("conflict" in result && result.conflict) {
@@ -845,17 +853,18 @@ async function startServer() {
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : "Failed to save data";
         console.error("Error writing database:", error);
+        const lowerMsg = message.toLowerCase();
         if (
-          message.includes("пароль") ||
-          message.includes("Логин") ||
-          message.includes("email") ||
-          message.includes("инвентар") ||
-          message.includes("Дублирующ") ||
-          message.includes("администратор")
+          lowerMsg.includes("пароль") ||
+          lowerMsg.includes("логин") ||
+          lowerMsg.includes("email") ||
+          lowerMsg.includes("инвентар") ||
+          lowerMsg.includes("дублирующ") ||
+          lowerMsg.includes("администратор")
         ) {
           return res.status(400).json({ error: message });
         }
-        return res.status(500).json({ error: "Failed to save data" });
+          return res.status(500).json({ error: `Server Error: ${message}` });
       }
     }
   );

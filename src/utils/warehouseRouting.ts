@@ -9,10 +9,38 @@ import type {
   CustomWarehouse,
   NetworkDevice,
   NetworkDeviceType,
+  ObjectItem,
   WarehouseItem,
   WarehouseItemType,
 } from '../types';
 import { inventoryNumbersMatch } from './equipmentFields';
+
+/** Warehouse name linked to an object location (fallback: first warehouse). */
+export function resolveWarehouseNameForObject(
+  objectName: string | undefined,
+  warehouses: CustomWarehouse[],
+  fallback = 'Основной склад ИТ'
+): string {
+  if (objectName) {
+    const linked = warehouses.find((w) => w.objectName === objectName);
+    if (linked) return linked.name;
+  }
+  return warehouses[0]?.name || fallback;
+}
+
+/** Stock object for a named warehouse. */
+export function resolveStockObjectForWarehouse(
+  warehouseName: string,
+  warehouses: CustomWarehouse[],
+  objects: ObjectItem[],
+  fallback = 'Главный офис'
+): string {
+  return (
+    warehouses.find((w) => w.name === warehouseName)?.objectName ||
+    objects[0]?.name ||
+    fallback
+  );
+}
 
 export type EquipmentTab =
   | 'computers'
@@ -45,7 +73,10 @@ export function filterComputersByEquipmentTab(
   tab: EquipmentTab
 ): ComputerItem[] {
   const active = computers.filter(
-    (c) => c.status !== 'На складе' && c.status !== 'Списано'
+    (c) =>
+      c.status !== 'На складе' &&
+      c.status !== 'Списано' &&
+      c.status !== 'На списание'
   );
   switch (tab) {
     case 'computers':
@@ -244,11 +275,16 @@ export function getNetworkDeviceDisplayStatus(
   warehouseItems: WarehouseItem[],
   warehouses: CustomWarehouse[]
 ): ComputerStatus {
+  if (device.status === 'На списание' || device.status === 'Списано') {
+    return device.status;
+  }
   const whItem = warehouseItems.find(
     (w) =>
       inventoryNumbersMatch(w.inventoryNumber, device.inventoryNumber) &&
       w.quantity > 0 &&
-      w.type === 'Сетевое оборудование'
+      w.type === 'Сетевое оборудование' &&
+      w.status !== 'Списано' &&
+      w.status !== 'На списание'
   );
   if (whItem) {
     const wh = warehouses.find((w) => w.name === whItem.warehouseName);
@@ -265,9 +301,10 @@ export function filterNetworkDevicesForEquipmentView(
   warehouseItems: WarehouseItem[],
   warehouses: CustomWarehouse[]
 ): NetworkDevice[] {
-  return devices.filter(
-    (d) => getNetworkDeviceDisplayStatus(d, warehouseItems, warehouses) !== 'На складе'
-  );
+  return devices.filter((d) => {
+    if (d.status === 'На списание' || d.status === 'Списано') return false;
+    return getNetworkDeviceDisplayStatus(d, warehouseItems, warehouses) !== 'На складе';
+  });
 }
 
 /** Stock registry row already represented by an active warehouse batch line. */

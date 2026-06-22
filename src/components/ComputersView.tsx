@@ -31,10 +31,10 @@ interface ComputersViewProps {
   objects: ObjectItem[];
   allComputers?: ComputerItem[];
   onAdd: (comp: Omit<ComputerItem, 'id'>) => boolean | void;
-  onEdit: (id: string, comp: Omit<ComputerItem, 'id'>) => boolean | void;
-  onDelete?: (id: string) => void;
+  onEdit: (id: string, item: Omit<ComputerItem, 'id'>) => boolean | void;
+  onMarkForWriteOff?: (id: string) => void;
   onReturnToWarehouse?: (id: string) => void;
-  onViewDetails?: (type: 'computer' | 'network' | 'employee' | 'object' | 'warehouse', id: string) => void;
+  onViewDetails?: (type: 'computer' | 'employee' | 'object', id: string) => void;
   addButtonLabel?: string;
   addModalTitle?: string;
   currentUser?: { role: 'Viewer' | 'Editor' | 'Admin' };
@@ -81,7 +81,7 @@ export default function ComputersView({
   allComputers,
   onAdd,
   onEdit,
-  onDelete,
+  onMarkForWriteOff,
   onReturnToWarehouse,
   onViewDetails,
   addButtonLabel = 'Добавить компьютер',
@@ -520,22 +520,13 @@ export default function ComputersView({
                             <Edit2 size={14} />
                           </button>
                         )}
-                        {isEquipmentGroup && !isViewer && onReturnToWarehouse && c.status !== 'На складе' && c.status !== 'Списано' && (
+                        {isEquipmentGroup && !isViewer && onReturnToWarehouse && c.status !== 'На складе' && c.status !== 'Списано' && c.status !== 'На списание' && (
                           <button
                             onClick={() => handleReturnToWarehouse(c)}
                             className="p-1 hover:bg-emerald-50 rounded text-slate-400 hover:text-emerald-600 transition-colors cursor-pointer"
                             title={t("Вернуть на склад")}
                           >
                             <RotateCcw size={14} />
-                          </button>
-                        )}
-                        {!isViewer && onDelete && (
-                          <button
-                            onClick={() => onDelete(c.id)}
-                            className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-red-500 transition-colors cursor-pointer"
-                            title={t("Удалить")}
-                          >
-                            <Trash2 size={14} />
                           </button>
                         )}
                       </div>

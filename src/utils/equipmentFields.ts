@@ -1,4 +1,11 @@
-import type { ComputerCategory, WarehouseItem, WarehouseItemType } from '../types';
+import type {
+  ComputerCategory,
+  ComputerItem,
+  NetworkDevice,
+  SoftwareItem,
+  WarehouseItem,
+  WarehouseItemType,
+} from '../types';
 
 /** Max length for product title and model on all equipment forms */
 export const EQUIPMENT_TITLE_MAX_LENGTH = 32;
@@ -60,6 +67,22 @@ export function matchesBaseInventoryNumber(
   );
 }
 
+/** Base batch inv. for warehouse grouping (ST-0061-2 → ST-0061, ST-0061 → ST-0061). */
+export function getWarehouseBatchInventoryKey(
+  inventoryNumber: string | undefined | null
+): string {
+  const inv = (inventoryNumber || '').trim();
+  if (!inv) return inv;
+  const lastDash = inv.lastIndexOf('-');
+  if (lastDash <= 0) return inv;
+  const suffix = inv.slice(lastDash + 1);
+  const base = inv.slice(0, lastDash);
+  if (/^\d+$/.test(suffix) && base.includes('-')) {
+    return base;
+  }
+  return inv;
+}
+
 /** Fallback for network equipment without an assigned inventory number */
 export function normalizeInventoryNumber(inventoryNumber: string | undefined | null): string {
   const trimmed = (inventoryNumber || '').trim();
@@ -85,6 +108,18 @@ export function inventoryNumbersMatch(
   const nb = normalizeInventoryNumber(b);
   if (na === nb) return true;
   return matchesBaseInventoryNumber(a, b) || matchesBaseInventoryNumber(b, a);
+}
+
+/** Warehouse list search: substring or batch-family match (ST-0061 finds ST-0061-2). */
+export function matchesInventorySearch(
+  itemInventoryNumber: string | undefined | null,
+  query: string
+): boolean {
+  const q = (query || '').trim();
+  if (!q) return true;
+  const inv = (itemInventoryNumber || '').toLowerCase();
+  if (inv.includes(q.toLowerCase())) return true;
+  return inventoryNumbersMatch(itemInventoryNumber, q);
 }
 
 /** Allocate unique inv. numbers for a warehouse batch (base, base-1, base-2, …). */
@@ -223,4 +258,90 @@ export function hasAnyComputerSpecs(specs: ComputerReceiptSpecs): boolean {
       specs.powerSupplyModel ||
       specs.caseModel
   );
+}
+
+export function isWrittenOffLifecycleStatus(
+  status: string | undefined | null
+): boolean {
+  return status === 'Списано' || status === 'На списание';
+}
+
+/** Warehouse line that can receive a return or receipt merge (not written off / pending). */
+export function isActiveWarehouseStockLine(item: WarehouseItem): boolean {
+  return (
+    item.quantity > 0 &&
+    item.status !== 'Списано' &&
+    item.status !== 'На списание'
+  );
+}
+
+function warehouseItemLinksSoftwareForPurge(
+  item: WarehouseItem,
+  soft: SoftwareItem
+): boolean {
+  return (
+    getSoftwareWarehouseInv(soft.id) === item.inventoryNumber ||
+    (!!soft.licenseKey && soft.licenseKey === item.inventoryNumber) ||
+    (item.type === 'Лицензии ПО' && item.name === soft.name)
+  );
+}
+
+/** Remove finalized write-off rows from active registries; optionally purge pending batch linked by inv. */
+export function purgeWrittenOffRegistry(
+  items: {
+    warehouseItems: WarehouseItem[];
+    computers: ComputerItem[];
+    networkDevices: NetworkDevice[];
+    softwareItems: SoftwareItem[];
+  },
+  inventoryKey: string,
+  options: { purgePendingLinked?: boolean } = {}
+): {
+  warehouseItems: WarehouseItem[];
+  computers: ComputerItem[];
+  networkDevices: NetworkDevice[];
+  softwareItems: SoftwareItem[];
+} {
+  const invKey = normalizeInventoryNumber(inventoryKey);
+  const { purgePendingLinked = false } = options;
+
+  const warehouseItems = items.warehouseItems.filter((w) => {
+    if (!inventoryNumbersMatch(w.inventoryNumber, invKey)) return true;
+    if (w.quantity <= 0 || w.status === 'Списано') return false;
+    if (purgePendingLinked && w.status === 'На списание') return false;
+    return true;
+  });
+
+  const computers = items.computers.filter((c) => {
+    if (!inventoryNumbersMatch(c.inventoryNumber, invKey)) return true;
+    if (c.status === 'Списано') return false;
+    if (purgePendingLinked && c.status === 'На списание') return false;
+    return true;
+  });
+
+  const networkDevices = items.networkDevices.filter((n) => {
+    if (!inventoryNumbersMatch(n.inventoryNumber, invKey)) return true;
+    if (n.status === 'Списано' || (n.quantity ?? 1) <= 0) return false;
+    if (purgePendingLinked && n.status === 'На списание') return false;
+    return true;
+  });
+
+  const softwareItems = items.softwareItems.filter((s) => {
+    const linkedToInvWh = items.warehouseItems.some(
+      (w) =>
+        warehouseItemLinksSoftwareForPurge(w, s) &&
+        inventoryNumbersMatch(w.inventoryNumber, invKey)
+    );
+    if (!linkedToInvWh) return true;
+    if (s.status === 'Списано' || (s.quantity ?? 1) <= 0) return false;
+    if (purgePendingLinked && s.status === 'На списание') return false;
+    return true;
+  });
+
+  return {
+    warehouseItems,
+    computers,
+    networkDevices,
+    softwareItems,
+  };
 }

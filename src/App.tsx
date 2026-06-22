@@ -49,18 +49,17 @@ import {
   filterNetworkDevicesForEquipmentView,
   resolveWarehouseComputerRoute,
   resolveNetworkDeviceType,
+  resolveStockObjectForWarehouse,
+  resolveWarehouseNameForObject,
   equipmentTabLabel,
 } from './utils/warehouseRouting';
 import {
   buildComputerSpecsFromReceipt,
+  getWarehouseBatchInventoryKey,
   getWarehouseItemSpecs,
+  inventoryNumbersMatch,
   limitEquipmentTitle,
   matchesBaseInventoryNumber,
-  allocateBatchInventoryNumbers,
-  exactInventoryNumberTaken,
-  findWarehouseItemByInventoryNumber,
-  inventoryBaseFamilyTaken,
-  inventoryNumbersMatch,
   normalizeInventoryNumber,
 } from './utils/equipmentFields';
 import { Copy, Check, Mail } from 'lucide-react';
@@ -84,7 +83,10 @@ import {
   findLinkedStockComputerIds,
   findSoftwareIdsForWarehouseItem,
   getSoftwareWarehouseInv,
+  isActiveWarehouseStockLine,
   isNotLinkedToInventoryKey,
+  isWrittenOffLifecycleStatus,
+  purgeWrittenOffRegistry,
   warehouseItemLinksSoftware,
   type EquipmentDeleteSource,
 } from './utils/equipmentDelete';
@@ -482,15 +484,6 @@ export default function App() {
 
   const handleAddUser = (u: Omit<SystemUser, 'id'>) => {
     if (checkLicenseBlocked()) return;
-    const login = (u.login || '').trim();
-    if (!login) {
-      alert('Укажите логин пользователя.');
-      return;
-    }
-    if (users.some(existing => (existing.login || '').trim().toLowerCase() === login.toLowerCase())) {
-      alert(`Пользователь с логином «${login}» уже существует.`);
-      return;
-    }
     const newUser: SystemUser = {
       ...u,
       id: `user-${Date.now()}`
@@ -503,11 +496,6 @@ export default function App() {
     if (checkLicenseBlocked()) return;
     const target = users.find(u => u.id === id);
     if (!target) return;
-    const activeAdmins = users.filter(u => u.role === 'Admin' && !u.isBlocked);
-    if (target.role === 'Admin' && activeAdmins.length <= 1) {
-      alert('Нельзя удалить последнего активного администратора системы.');
-      return;
-    }
     setUsers(prev => prev.filter(u => u.id !== id));
     logActivity('Отозван доступ', `Отозван доступ к панели у сотрудника "${target.name}"`, 'system');
   };
@@ -770,23 +758,8 @@ export default function App() {
 
   // --- UNIFIED DEBOUNCED SERVER & LOCALSTORAGE STATE SYNCHRONIZATION ---
 
-  const handleUpdateItem = (type: string, id: string, updatedFields: Record<string, unknown>) => {
+  const handleUpdateItem = (type: string, id: string, updatedFields: any) => {
     if (checkLicenseBlocked()) return;
-
-    const invCandidate =
-      typeof updatedFields.inventoryNumber === 'string'
-        ? updatedFields.inventoryNumber
-        : typeof updatedFields.licenseKey === 'string'
-          ? updatedFields.licenseKey
-          : null;
-
-    if (invCandidate && (type === 'computer' || type === 'network' || type === 'warehouse' || type === 'software')) {
-      if (checkInventoryExists(invCandidate, id)) {
-        alert(`Оборудование с инвентарным номером ${invCandidate} уже существует!`);
-        return;
-      }
-    }
-
     if (type === 'computer') {
       setComputers(prev => prev.map(c => c.id === id ? { ...c, ...updatedFields } : c));
     } else if (type === 'network') {
@@ -850,10 +823,10 @@ export default function App() {
 
   const equipmentReturnPreview = useMemo(() => {
     if (!equipmentReturnRequest) return null;
-    const targetWhName = warehouses[0]?.name || 'Основной склад ИТ';
     if (equipmentReturnRequest.source === 'computer') {
       const comp = computers.find((c) => c.id === equipmentReturnRequest.id);
       if (!comp) return null;
+      const targetWhName = resolveWarehouseNameForObject(comp.objectName, warehouses);
       return {
         itemName: `${comp.category} ${comp.model}`.trim(),
         inventoryLabel: comp.inventoryNumber,
@@ -863,6 +836,7 @@ export default function App() {
     if (equipmentReturnRequest.source === 'network') {
       const dev = networkDevices.find((n) => n.id === equipmentReturnRequest.id);
       if (!dev) return null;
+      const targetWhName = resolveWarehouseNameForObject(dev.objectName, warehouses);
       return {
         itemName: dev.deviceName,
         inventoryLabel: normalizeInventoryNumber(dev.inventoryNumber),
@@ -871,6 +845,7 @@ export default function App() {
     }
     const soft = softwareItems.find((s) => s.id === equipmentReturnRequest.id);
     if (!soft) return null;
+    const targetWhName = resolveWarehouseNameForObject(soft.objectName, warehouses);
     return {
       itemName: soft.name,
       inventoryLabel: soft.licenseKey || getSoftwareWarehouseInv(soft.id),
@@ -953,33 +928,49 @@ export default function App() {
       }
       const softIds = findSoftwareIdsForWarehouseItem(target, softwareItems);
       if (target.type === 'Лицензии ПО' || softIds.length > 0) {
-        setSoftwareItems((prev) => prev.filter((s) => !softIds.includes(s.id)));
+        setSoftwareItems((prev) =>
+          prev.map((s) =>
+            softIds.includes(s.id) ? { ...s, status: 'На списание' as const } : s
+          )
+        );
         setWarehouseItems((prev) =>
-          prev.filter((w) => {
-            if (w.id === id) return false;
-            return !softIds.some((sid) => {
+          prev.map((w) => {
+            if (w.id === id) return { ...w, status: 'На списание' as const };
+            const linked = softIds.some((sid) => {
               const soft = softwareItems.find((s) => s.id === sid);
               return soft ? warehouseItemLinksSoftware(w, soft) : false;
             });
+            return linked ? { ...w, status: 'На списание' as const } : w;
           })
         );
-        logDetail = `Удалена позиция «${target.name}» (склад) и связанные лицензии ПО`;
+        logDetail = `Позиция «${target.name}» и связанные лицензии ПО переведены в статус «На списание»`;
       } else {
         const invKey = normalizeInventoryNumber(target.inventoryNumber);
         const linkedStockIds = new Set(
           findLinkedStockComputerIds(target, computers, warehouses)
         );
-        setWarehouseItems((prev) => prev.filter((w) => isNotLinkedToInventoryKey(w.inventoryNumber, invKey)));
-        setComputers((prev) =>
-          prev.filter(
-            (c) =>
-              !linkedStockIds.has(c.id) &&
-              isNotLinkedToInventoryKey(c.inventoryNumber, invKey)
+        setWarehouseItems((prev) =>
+          prev.map((w) =>
+            isNotLinkedToInventoryKey(w.inventoryNumber, invKey)
+              ? w
+              : { ...w, status: 'На списание' as const }
           )
         );
-        setNetworkDevices((prev) => prev.filter((nd) => isNotLinkedToInventoryKey(nd.inventoryNumber, invKey)));
-        logDetail = `Удалена позиция «${target.name}» (склад) и все связанные карточки`;
-        clearDetailIfDeleted(source, id, invKey);
+        setComputers((prev) =>
+          prev.map((c) =>
+            linkedStockIds.has(c.id) || !isNotLinkedToInventoryKey(c.inventoryNumber, invKey)
+              ? { ...c, status: 'На списание' as const }
+              : c
+          )
+        );
+        setNetworkDevices((prev) =>
+          prev.map((nd) =>
+            isNotLinkedToInventoryKey(nd.inventoryNumber, invKey)
+              ? nd
+              : { ...nd, status: 'На списание' as const }
+          )
+        );
+        logDetail = `Позиция «${target.name}» и связанные карточки переведены в статус «На списание»`;
       }
     } else if (source === 'network') {
       const target = networkDevices.find((n) => n.id === id);
@@ -1031,7 +1022,7 @@ export default function App() {
       clearDetailIfDeleted(source, id, invKey);
     }
 
-    logActivity('Удаление оборудования', logDetail, 'delete');
+    logActivity('Списание оборудования', logDetail, 'update');
     setEquipmentDeleteRequest(null);
   }, [
     equipmentDeleteRequest,
@@ -1044,20 +1035,20 @@ export default function App() {
   ]);
 
   // 2. Data Action handlers (CRUD)
-
-  const checkInventoryExists = (invNum: string, excludeId?: string) =>
-    exactInventoryNumberTaken(
-      invNum,
-      {
-        warehouseItems,
-        computers,
-        networkDevices,
-        softwareItems,
-        softwareWarehouseInv: getSoftwareWarehouseInv,
-      },
-      excludeId
-    );
   
+  const checkInventoryExists = (invNum: string, excludeId?: string): boolean => {
+    const inv = (invNum || '').trim().toLowerCase();
+    if (!inv) return false;
+    const match = (val?: string) => (val || '').trim().toLowerCase() === inv;
+    
+    if (warehouseItems.some(w => w.id !== excludeId && match(w.inventoryNumber))) return true;
+    if (computers.some(c => c.id !== excludeId && match(c.inventoryNumber))) return true;
+    if (networkDevices.some(n => n.id !== excludeId && match(n.inventoryNumber))) return true;
+    if (softwareItems.some(s => s.id !== excludeId && (match(s.licenseKey) || match(getSoftwareWarehouseInv(s.id))))) return true;
+    
+    return false;
+  };
+
   // Objects CRUD
   const handleAddObject = (name: string, address: string, iconName?: string) => {
     if (checkLicenseBlocked()) return;
@@ -1077,27 +1068,17 @@ export default function App() {
     logActivity('Изменен объект', `Параметры объекта "${name}" изменены`, 'update');
   };
 
+  const handleArchiveObject = (id: string, isArchived: boolean) => {
+    if (checkLicenseBlocked()) return;
+    setObjects(prev => prev.map(o => o.id === id ? { ...o, isArchived } : o));
+    logActivity('Управление Объектами', `Объект "${objects.find(o => o.id === id)?.name}" ${isArchived ? 'архивирован' : 'восстановлен из архива'}`, 'update');
+  };
+
   const handleDeleteObject = (id: string) => {
     if (checkLicenseBlocked()) return;
     const target = objects.find(o => o.id === id);
     if (!target) return;
-    const fallbackName = objects.find(o => o.id !== id)?.name || 'Главный офис';
     setObjects(prev => prev.filter(obj => obj.id !== id));
-    setComputers(prev =>
-      prev.map(c => (c.objectName === target.name ? { ...c, objectName: fallbackName } : c))
-    );
-    setNetworkDevices(prev =>
-      prev.map(n => (n.objectName === target.name ? { ...n, objectName: fallbackName } : n))
-    );
-    setSoftwareItems(prev =>
-      prev.map(s => (s.objectName === target.name ? { ...s, objectName: fallbackName } : s))
-    );
-    setEmployees(prev =>
-      prev.map(e => (e.objectName === target.name ? { ...e, objectName: fallbackName } : e))
-    );
-    setWarehouses(prev =>
-      prev.map(w => (w.objectName === target.name ? { ...w, objectName: fallbackName } : w))
-    );
     logActivity('Удален объект', `Удален объект "${target.name}"`, 'delete');
   };
 
@@ -1128,6 +1109,12 @@ export default function App() {
   };
 
   // Computers CRUD
+  const handleArchiveEmployee = (id: string, isArchived: boolean) => {
+    if (checkLicenseBlocked()) return;
+    setEmployees(prev => prev.map(e => e.id === id ? { ...e, isArchived } : e));
+    logActivity('Управление Персоналом', `Сотрудник "${employees.find(e => e.id === id)?.name}" ${isArchived ? 'архивирован' : 'восстановлен из архива'}`, 'update');
+  };
+
   const returnAssetToWarehouse = (
     inventoryNumber: string,
     name: string,
@@ -1136,64 +1123,60 @@ export default function App() {
     cost: number,
     targetWarehouseName: string
   ) => {
-    // 1. Find if there is a warehouse item matching, stripping suffix only if needed
-    setWarehouseItems(prev => {
-      let baseInv = inventoryNumber;
-      let existingWhIndex = prev.findIndex(w => 
-        w.inventoryNumber === inventoryNumber && 
-        (w.warehouseName || 'Основной склад ИТ') === targetWarehouseName
+    setWarehouseItems((prev) => {
+      const batchKey = getWarehouseBatchInventoryKey(inventoryNumber);
+      const existingWhIndex = prev.findIndex(
+        (w) =>
+          inventoryNumbersMatch(w.inventoryNumber, batchKey) &&
+          (w.warehouseName || 'Основной склад ИТ') === targetWarehouseName &&
+          isActiveWarehouseStockLine(w)
       );
 
-      if (existingWhIndex === -1) {
-        const match = inventoryNumber.match(/^(.*?)-\d+$/);
-        if (match) {
-          const strippedInv = match[1];
-          const strippedIndex = prev.findIndex(w => 
-            w.inventoryNumber === strippedInv && 
-            (w.warehouseName || 'Основной склад ИТ') === targetWarehouseName
-          );
-          if (strippedIndex > -1) {
-            existingWhIndex = strippedIndex;
-            baseInv = strippedInv;
-          }
-        }
-      }
-
       if (existingWhIndex > -1) {
-        // Increment quantity
-        return prev.map((item, idx) => 
-          idx === existingWhIndex 
-            ? { ...item, quantity: item.quantity + 1, status: 'В наличии' as const } 
+        return prev.map((item, idx) =>
+          idx === existingWhIndex
+            ? { ...item, quantity: item.quantity + 1, status: 'В наличии' as const }
             : item
         );
-      } else {
-        // Create new warehouse stock item
-        let whType: WarehouseItemType = 'Другое';
-        if (category === 'Ноутбук' || category === 'ПК') whType = 'Компьютеры';
-        else if (category === 'Монитор' || category === 'Периферия') whType = 'Периферия';
-        else if (category === 'Оргтехника') whType = 'Оргтехника';
-        else if (category === 'Видеонаблюдение') whType = 'Видеонаблюдение';
-        else if (category === 'Расходники') whType = 'Расходные материалы';
-
-        const newWhItem: WarehouseItem = {
-          id: `wh-item-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-          name: name,
-          type: whType,
-          model: model,
-          inventoryNumber: baseInv,
-          quantity: 1,
-          unit: 'шт.',
-          costPerUnit: cost || 0,
-          status: 'В наличии',
-          warehouseName: targetWarehouseName
-        };
-        return [...prev, newWhItem];
       }
+
+      let whType: WarehouseItemType = 'Другое';
+      if (category === 'Ноутбук' || category === 'ПК') whType = 'Компьютеры';
+      else if (category === 'Монитор' || category === 'Периферия') whType = 'Периферия';
+      else if (category === 'Оргтехника') whType = 'Оргтехника';
+      else if (category === 'Видеонаблюдение') whType = 'Видеонаблюдение';
+      else if (category === 'Расходники') whType = 'Расходные материалы';
+      else if (category === 'Сетевое оборудование') whType = 'Сетевое оборудование';
+
+      const newWhItem: WarehouseItem = {
+        id: `wh-item-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        name,
+        type: whType,
+        model,
+        inventoryNumber: batchKey,
+        quantity: 1,
+        unit: 'шт.',
+        costPerUnit: cost || 0,
+        status: 'В наличии',
+        warehouseName: targetWarehouseName,
+      };
+      return [...prev, newWhItem];
     });
   };
 
   const handleReturnToWarehouse = (itemSource: 'computer' | 'network', itemId: string) => {
-    const targetWhName = warehouses[0]?.name || 'Основной склад ИТ';
+    if (itemSource === 'computer') {
+      const comp = computers.find((c) => c.id === itemId);
+      const targetWhName = comp
+        ? resolveWarehouseNameForObject(comp.objectName, warehouses)
+        : warehouses[0]?.name || 'Основной склад ИТ';
+      handleReturnActiveAssetToWarehouse(itemSource, itemId, targetWhName);
+      return;
+    }
+    const dev = networkDevices.find((n) => n.id === itemId);
+    const targetWhName = dev
+      ? resolveWarehouseNameForObject(dev.objectName, warehouses)
+      : warehouses[0]?.name || 'Основной склад ИТ';
     handleReturnActiveAssetToWarehouse(itemSource, itemId, targetWhName);
   };
 
@@ -1210,27 +1193,12 @@ export default function App() {
     }
 
     const targetWhName = targetWarehouseName || warehouses[0]?.name || 'Основной склад ИТ';
-    const linkedWarehouse = warehouses.find(w => w.name === targetWhName);
-    const defaultObjectName = linkedWarehouse?.objectName || objects[0]?.name || 'Главный офис';
+    const stockObjectName = resolveStockObjectForWarehouse(targetWhName, warehouses, objects);
 
     if (itemSource === 'computer') {
-      const comp = computers.find(c => c.id === itemId);
-      if (!comp) return;
+      const comp = computers.find((c) => c.id === itemId);
+      if (!comp || comp.status === 'На складе' || isWrittenOffLifecycleStatus(comp.status)) return;
 
-      // 1. Put back as "На складе" (on stock) instead of removing
-      setComputers(prev => prev.map(c => {
-        if (c.id === itemId) {
-          return {
-            ...c,
-            status: 'На складе',
-            employeeName: 'Склад ИТ',
-            objectName: defaultObjectName
-          };
-        }
-        return c;
-      }));
-
-      // 2. Return to warehouse stock
       returnAssetToWarehouse(
         comp.inventoryNumber,
         comp.deviceType || comp.category,
@@ -1240,50 +1208,66 @@ export default function App() {
         targetWhName
       );
 
+      setComputers((prev) =>
+        prev.map((c) =>
+          c.id === itemId
+            ? {
+                ...c,
+                status: 'На складе',
+                employeeName: 'Склад ИТ',
+                objectName: stockObjectName,
+              }
+            : c
+        )
+      );
+
       logActivity(
-        'Возврат на склад', 
-        `Оборудование "${comp.category} ${comp.model}" (Инв. № ${comp.inventoryNumber}) возвращено на склад "${targetWhName}" (статус изменен на "На складе")`, 
+        'Возврат на склад',
+        `Оборудование "${comp.category} ${comp.model}" (Инв. № ${comp.inventoryNumber}) возвращено на склад "${targetWhName}" (статус «На складе»)`,
         'update'
       );
     } else {
-      // Network devices
-      const dev = networkDevices.find(n => n.id === itemId);
-      if (!dev) return;
+      const dev = networkDevices.find((n) => n.id === itemId);
+      if (!dev || isWrittenOffLifecycleStatus(dev.status)) return;
 
       const normalizedInv = normalizeInventoryNumber(dev.inventoryNumber);
+      const returnQty = 1;
 
-      // 1. Decrement quantity or move to warehouse location
-      if (dev.quantity > 1) {
-        setNetworkDevices(prev => prev.map(n => n.id === itemId ? { ...n, quantity: n.quantity - 1 } : n));
-        
-        // Also ensure there is a network device at the warehouse representing the returned quantity
-        setNetworkDevices(prev => {
-          const whNet = prev.find(
-            n => inventoryNumbersMatch(n.inventoryNumber, normalizedInv) && n.objectName === defaultObjectName
+      if (dev.quantity > returnQty) {
+        setNetworkDevices((prev) => {
+          const stockNet = prev.find(
+            (n) =>
+              n.id !== itemId &&
+              inventoryNumbersMatch(n.inventoryNumber, normalizedInv) &&
+              n.objectName === stockObjectName
           );
-          if (whNet) {
-            return prev.map(n => n.id === whNet.id ? { ...n, quantity: n.quantity + 1, inventoryNumber: normalizedInv } : n);
-          } else {
-            const returnedNet: NetworkDevice = {
-              ...dev,
-              id: `net-wh-ret-${Date.now()}`,
-              quantity: 1,
-              objectName: defaultObjectName,
-              inventoryNumber: normalizedInv,
-            };
-            return [...prev, returnedNet];
+          const decremented = prev.map((n) =>
+            n.id === itemId ? { ...n, quantity: n.quantity - returnQty } : n
+          );
+          if (stockNet) {
+            return decremented.map((n) =>
+              n.id === stockNet.id ? { ...n, quantity: n.quantity + returnQty } : n
+            );
           }
+          const returnedNet: NetworkDevice = {
+            ...dev,
+            id: `net-wh-ret-${Date.now()}`,
+            quantity: returnQty,
+            objectName: stockObjectName,
+            inventoryNumber: normalizedInv,
+          };
+          return [...decremented, returnedNet];
         });
       } else {
-        // Change its location/object to the warehouse's object and sync inventory number
-        setNetworkDevices(prev => prev.map(n => n.id === itemId ? {
-          ...n,
-          objectName: defaultObjectName,
-          inventoryNumber: normalizedInv,
-        } : n));
+        setNetworkDevices((prev) =>
+          prev.map((n) =>
+            n.id === itemId
+              ? { ...n, objectName: stockObjectName, inventoryNumber: normalizedInv }
+              : n
+          )
+        );
       }
 
-      // 2. Return to warehouse stock
       returnAssetToWarehouse(
         normalizedInv,
         dev.deviceName,
@@ -1294,8 +1278,8 @@ export default function App() {
       );
 
       logActivity(
-        'Возврат на склад', 
-        `Сетевой актив "${dev.deviceName}" (Инв. № ${normalizedInv}) возвращен на склад "${targetWhName}"`, 
+        'Возврат на склад',
+        `Сетевой актив "${dev.deviceName}" (Инв. № ${normalizedInv}) возвращен на склад "${targetWhName}"`,
         'update'
       );
     }
@@ -1362,9 +1346,10 @@ export default function App() {
       }).filter(w => w.quantity > 0);
 
       // 2. Increment or add to target ware-item
-      const targetIndex = nextList.findIndex(w => 
-        w.inventoryNumber === sourceItem.inventoryNumber && 
-        (w.warehouseName || 'Основной склад ИТ') === targetWarehouseName
+      const targetIndex = nextList.findIndex(
+        (w) =>
+          inventoryNumbersMatch(w.inventoryNumber, sourceItem.inventoryNumber) &&
+          (w.warehouseName || 'Основной склад ИТ') === targetWarehouseName
       );
 
       if (targetIndex > -1) {
@@ -1417,35 +1402,54 @@ export default function App() {
       alert(`Оборудование с инвентарным номером ${comp.inventoryNumber} уже существует!`);
       return false;
     }
+
+    const prevComp = computers.find((c) => c.id === id);
+
     if (comp.status === 'На складе') {
-      const targetWarehouse = warehouses.find(w => w.objectName === comp.objectName)?.name || 'Основной склад ИТ';
-      returnAssetToWarehouse(
-        comp.inventoryNumber,
-        comp.deviceType || comp.category,
-        comp.category,
-        comp.model,
-        comp.cost || 0,
-        targetWarehouse
+      const targetWarehouse = resolveWarehouseNameForObject(comp.objectName, warehouses);
+      const stockObject = resolveStockObjectForWarehouse(targetWarehouse, warehouses, objects);
+      if (prevComp?.status !== 'На складе') {
+        returnAssetToWarehouse(
+          comp.inventoryNumber,
+          comp.deviceType || comp.category,
+          comp.category,
+          comp.model,
+          comp.cost || 0,
+          targetWarehouse
+        );
+      }
+      setComputers((prev) =>
+        prev.map((c) =>
+          c.id === id
+            ? {
+                ...c,
+                ...comp,
+                status: 'На складе',
+                employeeName: 'Склад ИТ',
+                objectName: stockObject,
+                model: limitEquipmentTitle(comp.model.trim()),
+              }
+            : c
+        )
       );
-      setComputers(prev => prev.filter(c => c.id !== id));
       logActivity(
-        'Возврат на склад', 
-        `Оборудование "${comp.category} ${comp.model}" (Инв. № ${comp.inventoryNumber}) возвращено на склад "${targetWarehouse}" через смену статуса`, 
+        'Возврат на склад',
+        `Оборудование "${comp.category} ${comp.model}" (Инв. № ${comp.inventoryNumber}) возвращено на склад "${targetWarehouse}" через смену статуса`,
         'update'
       );
-      return true;
     } else {
       setComputers(prev => prev.map(c => c.id === id ? { ...c, ...comp, model: limitEquipmentTitle(comp.model.trim()) } : c));
       logActivity('Изменен статус ПК', `Параметры "${comp.category} ${comp.model}" изменены (Статус: ${comp.status})`, 'update');
-      return true;
     }
+    return true;
   };
 
   // Software CRUD
   const handleAddSoftware = (soft: Omit<SoftwareItem, 'id'>): boolean | void => {
     if (checkLicenseBlocked()) return false;
+    const inv = soft.licenseKey || getSoftwareWarehouseInv(`tmp-${Date.now()}`); // fallback to check if custom exists
     if (soft.licenseKey && checkInventoryExists(soft.licenseKey)) {
-      alert(`Лицензия с ключом ${soft.licenseKey} уже существует!`);
+      alert(`ПО с ключом/инвентарным номером ${soft.licenseKey} уже существует!`);
       return false;
     }
     const newSoft: SoftwareItem = {
@@ -1460,7 +1464,7 @@ export default function App() {
   const handleEditSoftware = (id: string, soft: Omit<SoftwareItem, 'id'>): boolean | void => {
     if (checkLicenseBlocked()) return false;
     if (soft.licenseKey && checkInventoryExists(soft.licenseKey, id)) {
-      alert(`Лицензия с ключом ${soft.licenseKey} уже существует!`);
+      alert(`ПО с ключом/инвентарным номером ${soft.licenseKey} уже существует!`);
       return false;
     }
     setSoftwareItems(prev => prev.map(s => s.id === id ? { ...s, ...soft } : s));
@@ -1471,7 +1475,7 @@ export default function App() {
   const handleReturnSoftwareToWarehouse = (id: string, targetWarehouseName?: string) => {
     if (checkLicenseBlocked()) return;
     const soft = softwareItems.find((s) => s.id === id);
-    if (!soft || soft.status === 'Не активирована') return;
+    if (!soft || soft.status === 'Не активирована' || isWrittenOffLifecycleStatus(soft.status)) return;
 
     const targetWhName = targetWarehouseName || warehouses[0]?.name || 'Основной склад ИТ';
     const defaultObjectName =
@@ -1500,9 +1504,7 @@ export default function App() {
       const existing = prev.find(
         (w) =>
           w.type === 'Лицензии ПО' &&
-          (w.inventoryNumber === inv ||
-            (!!soft.licenseKey && w.inventoryNumber === soft.licenseKey) ||
-            w.name === soft.name) &&
+          warehouseItemLinksSoftware(w, soft) &&
           (w.warehouseName || 'Основной склад ИТ') === targetWhName
       );
       if (existing) {
@@ -1520,7 +1522,7 @@ export default function App() {
           inventoryNumber: inv,
           quantity: returnQty,
           unit: 'шт.',
-          costPerUnit: 0,
+          costPerUnit: soft.cost || 0,
           status: 'В наличии' as const,
           warehouseName: targetWhName,
         },
@@ -1539,7 +1541,11 @@ export default function App() {
     if (checkLicenseBlocked()) return;
     const { source, id } = equipmentReturnRequest;
     if (source === 'software') {
-      handleReturnSoftwareToWarehouse(id);
+      const soft = softwareItems.find((s) => s.id === id);
+      const targetWh = soft
+        ? resolveWarehouseNameForObject(soft.objectName, warehouses)
+        : warehouses[0]?.name || 'Основной склад ИТ';
+      handleReturnSoftwareToWarehouse(id, targetWh);
     } else {
       handleReturnToWarehouse(source, id);
     }
@@ -1575,55 +1581,207 @@ export default function App() {
 
   const handleTransferEmployeeEquipment = (sourceEmployeeName: string, targetEmployeeName: string) => {
     if (checkLicenseBlocked()) return;
-    setComputers(prev => prev.map(c => {
-      if (c.employeeName === sourceEmployeeName) {
-        return {
-          ...c,
-          employeeName: targetEmployeeName,
-          status: targetEmployeeName === 'Склад ИТ' ? 'На складе' : c.status
-        };
+
+    if (targetEmployeeName === 'Склад ИТ') {
+      const toReturn = computers.filter(
+        (c) =>
+          c.employeeName === sourceEmployeeName &&
+          c.status !== 'На складе' &&
+          c.status !== 'Списано' &&
+          c.status !== 'На списание'
+      );
+      for (const comp of toReturn) {
+        const targetWh = resolveWarehouseNameForObject(comp.objectName, warehouses);
+        returnAssetToWarehouse(
+          comp.inventoryNumber,
+          comp.deviceType || comp.category,
+          comp.category,
+          comp.model,
+          comp.cost || 0,
+          targetWh
+        );
       }
-      return c;
-    }));
+    }
+
+    setComputers((prev) =>
+      prev.map((c) => {
+        if (c.employeeName !== sourceEmployeeName) return c;
+        if (targetEmployeeName === 'Склад ИТ') {
+          const targetWh = resolveWarehouseNameForObject(c.objectName, warehouses);
+          const stockObject = resolveStockObjectForWarehouse(targetWh, warehouses, objects);
+          return {
+            ...c,
+            employeeName: 'Склад ИТ',
+            status: 'На складе',
+            objectName: stockObject,
+          };
+        }
+        return { ...c, employeeName: targetEmployeeName };
+      })
+    );
     const destName = targetEmployeeName === 'Склад ИТ' ? 'Склад ИТ (в запас)' : `сотруднику "${targetEmployeeName}"`;
-    logActivity('Перемещение оборудования', `Все оборудование сотрудника "${sourceEmployeeName}" передано на ${destName}`, 'update');
+    logActivity(
+      'Перемещение оборудования',
+      `Все оборудование сотрудника "${sourceEmployeeName}" передано на ${destName}`,
+      'update'
+    );
   };
 
   const handleDeleteEmployee = (id: string) => {
     if (checkLicenseBlocked()) return;
-    const target = employees.find(e => e.id === id);
+    const target = employees.find((e) => e.id === id);
     if (!target) return;
 
-    const assignedComputers = computers.filter(c => c.employeeName === target.name);
-    for (const comp of assignedComputers) {
-      if (comp.status === 'На складе') continue;
-      const linkedWh = warehouses.find(w => w.objectName === comp.objectName);
-      returnAssetToWarehouse(
-        comp.inventoryNumber,
-        comp.deviceType || comp.category,
-        comp.category,
-        comp.model,
-        comp.cost || 0,
-        linkedWh?.name || 'Основной склад ИТ'
+    computers
+      .filter(
+        (c) =>
+          c.employeeName === target.name &&
+          c.status !== 'На складе' &&
+          c.status !== 'Списано' &&
+          c.status !== 'На списание'
+      )
+      .forEach((comp) => {
+        const targetWh = resolveWarehouseNameForObject(comp.objectName, warehouses);
+        handleReturnActiveAssetToWarehouse('computer', comp.id, targetWh);
+      });
+
+    softwareItems
+      .filter(
+        (s) =>
+          s.assignedEmployeeName === target.name &&
+          s.status === 'Активна'
+      )
+      .forEach((soft) => {
+        const targetWh = resolveWarehouseNameForObject(soft.objectName, warehouses);
+        handleReturnSoftwareToWarehouse(soft.id, targetWh);
+      });
+
+    setEmployees((prev) => prev.filter((e) => e.id !== id));
+    logActivity('Удален сотрудник', `Удален сотрудник "${target.name}" из штата. Выданное оборудование возвращено на склад.`, 'delete');
+  };
+
+  const handleMarkForWriteOff = (source: 'computer' | 'network' | 'software' | 'warehouse', id: string) => {
+    if (checkLicenseBlocked()) return;
+    let logDetail = '';
+
+    if (source === 'warehouse') {
+      const target = warehouseItems.find((w) => w.id === id);
+      if (!target) return;
+      const softIds = findSoftwareIdsForWarehouseItem(target, softwareItems);
+      if (target.type === 'Лицензии ПО' || softIds.length > 0) {
+        setSoftwareItems((prev) =>
+          prev.map((s) =>
+            softIds.includes(s.id) ? { ...s, status: 'На списание' as const } : s
+          )
+        );
+        setWarehouseItems((prev) =>
+          prev.map((w) => {
+            if (w.id === id) return { ...w, status: 'На списание' as const };
+            const linked = softIds.some((sid) => {
+              const soft = softwareItems.find((s) => s.id === sid);
+              return soft ? warehouseItemLinksSoftware(w, soft) : false;
+            });
+            return linked ? { ...w, status: 'На списание' as const } : w;
+          })
+        );
+        logDetail = `Позиция «${target.name}» и связанные лицензии ПО переведены в статус «На списание»`;
+      } else {
+        const invKey = normalizeInventoryNumber(target.inventoryNumber);
+        const linkedStockIds = new Set(
+          findLinkedStockComputerIds(target, computers, warehouses)
+        );
+        setWarehouseItems((prev) =>
+          prev.map((w) =>
+            isNotLinkedToInventoryKey(w.inventoryNumber, invKey)
+              ? w
+              : { ...w, status: 'На списание' as const }
+          )
+        );
+        setComputers((prev) =>
+          prev.map((c) =>
+            linkedStockIds.has(c.id) || !isNotLinkedToInventoryKey(c.inventoryNumber, invKey)
+              ? { ...c, status: 'На списание' as const }
+              : c
+          )
+        );
+        setNetworkDevices((prev) =>
+          prev.map((nd) =>
+            isNotLinkedToInventoryKey(nd.inventoryNumber, invKey)
+              ? nd
+              : { ...nd, status: 'На списание' as const }
+          )
+        );
+        logDetail = `Позиция «${target.name}» и связанные карточки переведены в статус «На списание»`;
+      }
+    } else if (source === 'network') {
+      const target = networkDevices.find((n) => n.id === id);
+      if (!target) return;
+      const invKey = normalizeInventoryNumber(target.inventoryNumber);
+      setNetworkDevices((prev) =>
+        prev.map((n) =>
+          n.id === id || !isNotLinkedToInventoryKey(n.inventoryNumber, invKey)
+            ? { ...n, status: 'На списание' as const }
+            : n
+        )
       );
+      setWarehouseItems((prev) =>
+        prev.map((w) =>
+          isNotLinkedToInventoryKey(w.inventoryNumber, invKey)
+            ? w
+            : { ...w, status: 'На списание' as const }
+        )
+      );
+      setComputers((prev) =>
+        prev.map((c) =>
+          isNotLinkedToInventoryKey(c.inventoryNumber, invKey)
+            ? c
+            : { ...c, status: 'На списание' as const }
+        )
+      );
+      logDetail = `Сетевое оборудование «${target.deviceName}» и связанные записи переведены в статус «На списание»`;
+    } else if (source === 'software') {
+      const target = softwareItems.find((s) => s.id === id);
+      if (!target) return;
+      setSoftwareItems((prev) =>
+        prev.map((s) => (s.id === id ? { ...s, status: 'На списание' as const } : s))
+      );
+      setWarehouseItems((prev) =>
+        prev.map((w) =>
+          warehouseItemLinksSoftware(w, target)
+            ? { ...w, status: 'На списание' as const }
+            : w
+        )
+      );
+      logDetail = `Лицензия ПО «${target.name}» и связанные позиции склада переведены в статус «На списание»`;
+    } else {
+      const target = computers.find((c) => c.id === id);
+      if (!target) return;
+      const invKey = normalizeInventoryNumber(target.inventoryNumber);
+      setComputers((prev) =>
+        prev.map((c) =>
+          c.id === id || !isNotLinkedToInventoryKey(c.inventoryNumber, invKey)
+            ? { ...c, status: 'На списание' as const }
+            : c
+        )
+      );
+      setWarehouseItems((prev) =>
+        prev.map((w) =>
+          inventoryNumbersMatch(w.inventoryNumber, invKey)
+            ? { ...w, status: 'На списание' as const }
+            : w
+        )
+      );
+      setNetworkDevices((prev) =>
+        prev.map((nd) =>
+          isNotLinkedToInventoryKey(nd.inventoryNumber, invKey)
+            ? nd
+            : { ...nd, status: 'На списание' as const }
+        )
+      );
+      logDetail = `Оборудование «${target.category} ${target.model}» (инв. № ${target.inventoryNumber}) переведено в статус «На списание»`;
     }
 
-    setComputers(prev =>
-      prev.map(c =>
-        c.employeeName === target.name
-          ? { ...c, employeeName: 'Склад ИТ', status: 'На складе' as const }
-          : c
-      )
-    );
-    setSoftwareItems(prev =>
-      prev.map(s =>
-        s.assignedEmployeeName === target.name
-          ? { ...s, assignedEmployeeName: 'Свободная лицензия' }
-          : s
-      )
-    );
-    setEmployees(prev => prev.filter(e => e.id !== id));
-    logActivity('Удален сотрудник', `Удален сотрудник "${target.name}" из штата`, 'delete');
+    logActivity('Помечено на списание', logDetail, 'update');
   };
 
    // Warehouse CRUD and Transactions
@@ -1644,127 +1802,62 @@ export default function App() {
       name: limitEquipmentTitle(item.name.trim()),
       model: limitEquipmentTitle(item.model.trim()),
     };
-    const baseInv = normalizedItem.inventoryNumber.trim();
-    if (!baseInv) {
-      alert('Укажите инвентарный номер.');
-      return false;
-    }
-
     const receiptSpecs = getWarehouseItemSpecs(normalizedItem);
-    const invCtx = {
-      warehouseItems,
-      computers,
-      networkDevices,
-      softwareItems,
-      softwareWarehouseInv: getSoftwareWarehouseInv,
-    };
-
-    const existingIndex = warehouseItems.findIndex((w) =>
-      inventoryNumbersMatch(w.inventoryNumber, baseInv)
-    );
-
-    let preallocatedComputerInv: string[] | null = null;
-    let preallocatedSoftwareKeys: string[] | null = null;
-    let computerRoute: ReturnType<typeof resolveWarehouseComputerRoute> | null = null;
-
-    if (normalizedItem.type === 'Лицензии ПО') {
-      if (existingIndex === -1 && inventoryBaseFamilyTaken(baseInv, invCtx)) {
-        alert(`Инвентарный номер ${baseInv} уже используется в системе.`);
-        return false;
-      }
-      const keySource = baseInv.startsWith('SW-') ? baseInv : baseInv;
-      preallocatedSoftwareKeys = baseInv.startsWith('SW-')
-        ? allocateBatchInventoryNumbers(
-            keySource,
-            softwareItems.map((s) => s.licenseKey),
-            normalizedItem.quantity
-          )
-        : allocateBatchInventoryNumbers(
-            keySource,
-            [
-              ...softwareItems.map((s) => s.licenseKey),
-              ...computers.map((c) => c.inventoryNumber),
-              ...warehouseItems.map((w) => w.inventoryNumber),
-            ],
-            normalizedItem.quantity
-          );
-      if (preallocatedSoftwareKeys.length < normalizedItem.quantity) {
-        alert('Не удалось выделить уникальные ключи для партии лицензий.');
-        return false;
-      }
-    } else if (normalizedItem.type === 'Сетевое оборудование') {
-      if (existingIndex === -1 && inventoryBaseFamilyTaken(baseInv, invCtx)) {
-        alert(`Инвентарный номер ${baseInv} уже используется в системе.`);
-        return false;
-      }
-    } else {
-      computerRoute = resolveWarehouseComputerRoute(normalizedItem);
-      if (!computerRoute) return false;
-
-      preallocatedComputerInv = allocateBatchInventoryNumbers(
-        baseInv,
-        computers.map((c) => c.inventoryNumber),
-        normalizedItem.quantity
-      );
-      if (preallocatedComputerInv.length < normalizedItem.quantity) {
-        alert('Не удалось выделить уникальные инвентарные номера для партии.');
-        return false;
-      }
-      for (const inv of preallocatedComputerInv) {
-        if (exactInventoryNumberTaken(inv, invCtx)) {
-          alert(`Инвентарный номер ${inv} уже занят в системе.`);
-          return false;
-        }
-      }
-      if (existingIndex === -1 && inventoryBaseFamilyTaken(baseInv, invCtx)) {
-        alert(`Инвентарная серия ${baseInv} уже зарегистрирована в оборудовании.`);
-        return false;
-      }
-    }
-
-    if (existingIndex > -1) {
-      const existingItem = warehouseItems[existingIndex];
-      if (existingItem.name !== normalizedItem.name || existingItem.type !== normalizedItem.type) {
-        alert(
-          `Инвентарный номер ${baseInv} уже занят другим оборудованием («${existingItem.name}»). Используйте уникальный номер.`
-        );
-        return false;
-      }
-    } else if (inventoryBaseFamilyTaken(baseInv, invCtx)) {
-      alert(`Оборудование с инвентарным номером ${baseInv} уже существует в системе!`);
-      return false;
-    }
-
+    
     // 1. Add to warehouse array
-    if (existingIndex > -1) {
-      setWarehouseItems(prev => prev.map((w, index) => 
-        index === existingIndex 
-          ? { 
-              ...w, 
-              quantity: w.quantity + normalizedItem.quantity,
-              invoiceInfo: normalizedItem.invoiceInfo || w.invoiceInfo,
-              memoInfo: normalizedItem.memoInfo || w.memoInfo,
-              warrantyInfo: normalizedItem.warrantyInfo || w.warrantyInfo,
-              warehouseName: normalizedItem.warehouseName || w.warehouseName,
-              pdfFiles: [...(w.pdfFiles || []), ...(normalizedItem.pdfFiles || [])].filter((f, idx, self) => self.findIndex(file => file.name === f.name) === idx),
-              serialNumber: normalizedItem.serialNumber || w.serialNumber,
-              cpuModel: normalizedItem.cpuModel || w.cpuModel,
-              ramModel: normalizedItem.ramModel || w.ramModel,
-              hddModel: normalizedItem.hddModel || w.hddModel,
-              gpuModel: normalizedItem.gpuModel || w.gpuModel,
-              motherboardModel: normalizedItem.motherboardModel || w.motherboardModel,
-              powerSupplyModel: normalizedItem.powerSupplyModel || w.powerSupplyModel,
-              caseModel: normalizedItem.caseModel || w.caseModel,
-            }
-          : w
-      ));
-      logActivity('Пополнение запасов', `Пополнение склада: добавлено +${normalizedItem.quantity} шт. для "${normalizedItem.name}"`, 'update');
+    const matchedExisting = warehouseItems.find(
+      (w) =>
+        inventoryNumbersMatch(w.inventoryNumber, normalizedItem.inventoryNumber) &&
+        (w.warehouseName || 'Основной склад ИТ') ===
+          (normalizedItem.warehouseName || 'Основной склад ИТ') &&
+        isActiveWarehouseStockLine(w)
+    );
+    if (matchedExisting) {
+      if (matchedExisting.name !== normalizedItem.name || matchedExisting.type !== normalizedItem.type) {
+        alert(`ОШИБКА: Инвентарный номер ${normalizedItem.inventoryNumber} уже занят другим оборудованием ("${matchedExisting.name}"). Пожалуйста, используйте уникальный номер.`);
+        return false;
+      }
+
+      setWarehouseItems((prev) =>
+        prev.map((w) =>
+          w.id === matchedExisting.id
+            ? {
+                ...w,
+                quantity: w.quantity + normalizedItem.quantity,
+                invoiceInfo: normalizedItem.invoiceInfo || w.invoiceInfo,
+                memoInfo: normalizedItem.memoInfo || w.memoInfo,
+                warrantyInfo: normalizedItem.warrantyInfo || w.warrantyInfo,
+                warehouseName: normalizedItem.warehouseName || w.warehouseName,
+                pdfFiles: [...(w.pdfFiles || []), ...(normalizedItem.pdfFiles || [])].filter(
+                  (f, idx, self) => self.findIndex((file) => file.name === f.name) === idx
+                ),
+                serialNumber: normalizedItem.serialNumber || w.serialNumber,
+                cpuModel: normalizedItem.cpuModel || w.cpuModel,
+                ramModel: normalizedItem.ramModel || w.ramModel,
+                hddModel: normalizedItem.hddModel || w.hddModel,
+                gpuModel: normalizedItem.gpuModel || w.gpuModel,
+                motherboardModel: normalizedItem.motherboardModel || w.motherboardModel,
+                powerSupplyModel: normalizedItem.powerSupplyModel || w.powerSupplyModel,
+                caseModel: normalizedItem.caseModel || w.caseModel,
+              }
+            : w
+        )
+      );
+      logActivity(
+        'Пополнение запасов',
+        `Пополнение склада: добавлено +${normalizedItem.quantity} шт. для "${normalizedItem.name}"`,
+        'update'
+      );
     } else {
+      if (checkInventoryExists(normalizedItem.inventoryNumber)) {
+        alert(`Оборудование с инвентарным номером ${normalizedItem.inventoryNumber} уже существует в системе!`);
+        return false;
+      }
       const newStock: WarehouseItem = {
         name: normalizedItem.name,
         type: normalizedItem.type,
         model: normalizedItem.model,
-        inventoryNumber: baseInv,
+        inventoryNumber: normalizedItem.inventoryNumber,
         quantity: normalizedItem.quantity,
         unit: normalizedItem.unit,
         costPerUnit: normalizedItem.costPerUnit,
@@ -1788,73 +1881,36 @@ export default function App() {
     const defaultObjectName = linkedWarehouse?.objectName || objects[0]?.name || 'Главный офис';
     
     if (normalizedItem.type === 'Сетевое оборудование') {
-      setNetworkDevices(prev => {
-        const existing = prev.find(
-          (n) =>
-            inventoryNumbersMatch(n.inventoryNumber, baseInv) &&
-            n.objectName === defaultObjectName
-        );
-        if (existing) {
-          return prev.map((n) =>
-            n.id === existing.id
-              ? { ...n, quantity: (n.quantity || 1) + normalizedItem.quantity }
-              : n
-          );
-        }
-        const newNet: NetworkDevice = {
-          id: `net-wh-${Date.now()}`,
-          deviceName: normalizedItem.name,
-          type: resolveNetworkDeviceType({ deviceType: normalizedItem.deviceType, name: normalizedItem.name }),
-          objectName: defaultObjectName,
-          ipAddress: '192.168.1.1',
-          quantity: normalizedItem.quantity,
-          inventoryNumber: baseInv,
-          portsCount: 24,
-          workingPorts: Array.from({ length: 24 }, (_, i) => i + 1),
-          damagedPorts: [],
-          pdfFiles: normalizedItem.pdfFiles || [],
-          invoiceInfo: normalizedItem.invoiceInfo || '',
-          memoInfo: normalizedItem.memoInfo || '',
-          warrantyInfo: normalizedItem.warrantyInfo || '',
-          cost: normalizedItem.costPerUnit,
-        };
-        return [...prev, newNet];
-      });
+      const newNet: NetworkDevice = {
+        id: `net-wh-${Date.now()}`,
+        deviceName: normalizedItem.name,
+        type: resolveNetworkDeviceType({ deviceType: normalizedItem.deviceType, name: normalizedItem.name }),
+        objectName: defaultObjectName,
+        ipAddress: '192.168.1.1',
+        quantity: normalizedItem.quantity,
+        inventoryNumber: normalizedItem.inventoryNumber,
+        portsCount: 24,
+        workingPorts: Array.from({ length: 24 }, (_, i) => i + 1),
+        damagedPorts: [],
+        pdfFiles: normalizedItem.pdfFiles || [],
+        invoiceInfo: normalizedItem.invoiceInfo || '',
+        memoInfo: normalizedItem.memoInfo || '',
+        warrantyInfo: normalizedItem.warrantyInfo || '',
+        cost: normalizedItem.costPerUnit,
+      };
+      setNetworkDevices(prev => [...prev, newNet]);
       logActivity('Авто-распределение ТМЦ', `Устройство "${normalizedItem.name}" автоматически распределено в Сетевое оборудование`, 'system');
-    } else if (normalizedItem.type === 'Лицензии ПО') {
-      const licenseKeys = preallocatedSoftwareKeys || [baseInv];
-      const newSoftItems: SoftwareItem[] = [];
-      for (let i = 0; i < normalizedItem.quantity; i++) {
-        const softId = `soft-wh-${Date.now()}-${i}-${Math.floor(Math.random() * 10000)}`;
-        const allocatedKey = licenseKeys[i] || `${baseInv}-${i + 1}`;
-        newSoftItems.push({
-          id: softId,
-          name: normalizedItem.name,
-          category: 'Иное ПО',
-          licenseKey: baseInv.startsWith('SW-') ? '' : allocatedKey,
-          version: normalizedItem.model || '',
-          developer: '',
-          quantity: 1,
-          assignedEmployeeName: 'Свободная лицензия',
-          objectName: defaultObjectName,
-          status: 'Не активирована',
-          purchaseDate: new Date().toISOString().split('T')[0],
-        });
-      }
-      setSoftwareItems((prev) => [...prev, ...newSoftItems]);
-      logActivity(
-        'Авто-распределение ТМЦ',
-        `Лицензии «${normalizedItem.name}» (${normalizedItem.quantity} шт.) добавлены в реестр ПО со статусом «Не активирована»`,
-        'system'
-      );
     } else {
-      const route = computerRoute!;
-      const { category, deviceType, equipmentTab } = route;
-      const invNumbers = preallocatedComputerInv!;
+      const route = resolveWarehouseComputerRoute(normalizedItem);
+      if (!route) return;
 
+      const { category, deviceType, equipmentTab } = route;
+
+      // Since each non-network asset card is tracked as a single asset on ComputersView, we generate individual assets so they can be assigned to different employees!
       const newComputersToAppend: ComputerItem[] = [];
-      for (let i = 0; i < invNumbers.length; i++) {
-        const invNum = invNumbers[i];
+      for (let i = 0; i < normalizedItem.quantity; i++) {
+        const suffix = normalizedItem.quantity > 1 ? `-${i + 1}` : '';
+        const invNum = `${normalizedItem.inventoryNumber}${suffix}`;
         const unitSpecs = buildComputerSpecsFromReceipt(receiptSpecs, i, normalizedItem.quantity);
         
         const newAsset: ComputerItem = {
@@ -1887,157 +1943,216 @@ export default function App() {
   };
 
   const handleWarehouseWriteOff = (
+    id: string,
+    sourceType: 'computer' | 'network' | 'software' | 'warehouse',
     inventoryNumber: string, 
     quantityToWriteOff: number, 
-    reason?: string, 
+    reason: string, 
+    author: string,
+    approver: string,
+    documentNumber?: string,
+    comment?: string,
+    department?: string,
+    objectName?: string,
     technicalPdf?: { name: string; size?: string; content?: string }
   ): boolean => {
     if (checkLicenseBlocked()) return false;
-    const targetItem = findWarehouseItemByInventoryNumber<WarehouseItem>(warehouseItems, inventoryNumber);
-    if (!targetItem || targetItem.quantity < quantityToWriteOff) return false;
-    const resolvedInv = targetItem.inventoryNumber;
 
-    // 1. Create a Write-Off history record to persist in history log!
+    const invKey = normalizeInventoryNumber(inventoryNumber);
+    let targetName = '';
+    let targetType = '';
+    let targetModel = '';
+    let targetUnit = 'шт.';
+    let targetCostPerUnit = 0;
+    let targetWhName = 'Основной склад ИТ';
+    let purgePendingLinked = false;
+
+    if (sourceType === 'computer') {
+      const comp = computers.find(c => c.id === id);
+      if (!comp) return false;
+      targetName = comp.category; targetType = comp.deviceType; targetModel = comp.model; targetCostPerUnit = comp.cost || 0;
+      targetWhName = comp.objectName;
+      purgePendingLinked = true;
+      setComputers(prev => prev.filter(c => c.id !== id));
+    } else if (sourceType === 'network') {
+      const net = networkDevices.find(n => n.id === id);
+      if (!net) return false;
+      targetName = net.deviceName; targetType = net.type; targetModel = net.type; targetCostPerUnit = net.cost || 0;
+      targetWhName = net.objectName;
+      const newQty = (net.quantity || 1) - quantityToWriteOff;
+      purgePendingLinked = newQty <= 0;
+      setNetworkDevices(prev =>
+        prev.flatMap(n => {
+          if (n.id !== id) return [n];
+          if (newQty <= 0) return [];
+          return [{ ...n, quantity: newQty, status: 'В работе' as const }];
+        })
+      );
+    } else if (sourceType === 'software') {
+      const soft = softwareItems.find(s => s.id === id);
+      if (!soft) return false;
+      targetName = soft.name; targetType = soft.category; targetModel = soft.developer || soft.category; targetCostPerUnit = soft.cost || 0; targetUnit = 'лиц.';
+      targetWhName = soft.objectName;
+      const newQty = (soft.quantity || 1) - quantityToWriteOff;
+      purgePendingLinked = newQty <= 0;
+      setSoftwareItems(prev =>
+        prev.flatMap(s => {
+          if (s.id !== id) return [s];
+          if (newQty <= 0) return [];
+          return [{ ...s, quantity: newQty, status: 'Активна' as const }];
+        })
+      );
+    } else if (sourceType === 'warehouse') {
+      const wh = warehouseItems.find(w => w.id === id);
+      if (!wh) return false;
+      targetName = wh.name; targetType = wh.type; targetModel = wh.model; targetCostPerUnit = wh.costPerUnit || 0; targetUnit = wh.unit;
+      targetWhName = wh.warehouseName || 'Основной склад ИТ';
+      const newQty = wh.quantity - quantityToWriteOff;
+      purgePendingLinked = newQty <= 0;
+      setWarehouseItems(prev =>
+        prev.flatMap(w => {
+          if (w.id !== id) return [w];
+          if (newQty <= 0) return [];
+          const nextStatus =
+            w.status === 'На списание' ? ('На списание' as const) : ('В наличии' as const);
+          return [{ ...w, quantity: newQty, status: nextStatus }];
+        })
+      );
+    }
+
+    const purgeOpts = { purgePendingLinked };
+    setWarehouseItems(prev =>
+      purgeWrittenOffRegistry(
+        { warehouseItems: prev, computers, networkDevices, softwareItems },
+        invKey,
+        purgeOpts
+      ).warehouseItems
+    );
+    setComputers(prev =>
+      purgeWrittenOffRegistry(
+        { warehouseItems, computers: prev, networkDevices, softwareItems },
+        invKey,
+        purgeOpts
+      ).computers
+    );
+    setNetworkDevices(prev =>
+      purgeWrittenOffRegistry(
+        { warehouseItems, computers, networkDevices: prev, softwareItems },
+        invKey,
+        purgeOpts
+      ).networkDevices
+    );
+    setSoftwareItems(prev =>
+      purgeWrittenOffRegistry(
+        { warehouseItems, computers, networkDevices, softwareItems: prev },
+        invKey,
+        purgeOpts
+      ).softwareItems
+    );
+
     const newWriteOffRecord: WarehouseWriteOff = {
       id: `wo-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-      inventoryNumber: resolvedInv,
-      name: targetItem.name,
-      type: targetItem.type,
-      model: targetItem.model,
+      inventoryNumber,
+      name: targetName,
+      type: targetType,
+      model: targetModel,
       quantity: quantityToWriteOff,
-      unit: targetItem.unit,
-      costPerUnit: targetItem.costPerUnit,
+      unit: targetUnit,
+      costPerUnit: targetCostPerUnit,
       reason: reason || 'Списание по причине неисправности/амортизации',
       date: new Date().toISOString().split('T')[0],
       pdfFile: technicalPdf,
-      warehouseName: targetItem.warehouseName || 'Основной склад ИТ'
+      warehouseName: targetWhName,
+      author,
+      approver,
+      documentNumber,
+      comment,
+      department,
+      objectName,
+      history: [
+        {
+          date: new Date().toISOString(),
+          action: 'Списание оформлено',
+          user: author,
+        }
+      ]
     };
     
     setWarehouseWriteOffs(prev => [newWriteOffRecord, ...prev]);
 
-    // 2. Reduce stock or delete/mark written off
-    setWarehouseItems(prev => {
-      return prev.map(item => {
-        if (inventoryNumbersMatch(item.inventoryNumber, resolvedInv)) {
-          const newQty = item.quantity - quantityToWriteOff;
-          return {
-            ...item,
-            quantity: newQty,
-            status: newQty === 0 ? 'Списано' : 'В наличии'
-          };
-        }
-        return item;
-      }).filter(item => item.quantity > 0);
-    });
-
-    // 3. Cascade write-off from groups
-    if (targetItem.type === 'Сетевое оборудование') {
-      setNetworkDevices(prev => {
-        let remaining = quantityToWriteOff;
-        return prev.map(dev => {
-          if (inventoryNumbersMatch(dev.inventoryNumber, resolvedInv) && remaining > 0) {
-            const subtract = Math.min(dev.quantity || 1, remaining);
-            remaining -= subtract;
-            return {
-              ...dev,
-              quantity: (dev.quantity || 1) - subtract
-            };
-          }
-          return dev;
-        }).filter(dev => (dev.quantity || 0) > 0);
-      });
-    } else if (targetItem.type === 'Лицензии ПО') {
-      const softIds = new Set(findSoftwareIdsForWarehouseItem(targetItem, softwareItems));
-      setSoftwareItems(prev => {
-        let remaining = quantityToWriteOff;
-        return prev
-          .map(s => {
-            if (!softIds.has(s.id) || remaining <= 0) return s;
-            const subtract = Math.min(s.quantity || 1, remaining);
-            remaining -= subtract;
-            const newQty = (s.quantity || 1) - subtract;
-            return newQty > 0 ? { ...s, quantity: newQty } : null;
-          })
-          .filter((s): s is SoftwareItem => s !== null);
-      });
-    } else {
-      setComputers(prev => {
-        let countRemoved = 0;
-        // Identify individual computer items associated with this inventory number
-        const matchingIdle = prev.filter(c => 
-          matchesBaseInventoryNumber(c.inventoryNumber, resolvedInv)
-          && c.status === 'На складе'
-        );
-        const matchingActive = prev.filter(c => 
-          matchesBaseInventoryNumber(c.inventoryNumber, resolvedInv)
-          && c.status !== 'На складе'
-        );
-
-        const idsToRemove = new Set<string>();
-        for (const comp of matchingIdle) {
-          if (countRemoved < quantityToWriteOff) {
-            idsToRemove.add(comp.id);
-            countRemoved++;
-          }
-        }
-        for (const comp of matchingActive) {
-          if (countRemoved < quantityToWriteOff) {
-            idsToRemove.add(comp.id);
-            countRemoved++;
-          }
-        }
-
-        return prev.filter(c => !idsToRemove.has(c.id));
-      });
-    }
-
-    logActivity('Списание ТМЦ', `Со склада списано ${quantityToWriteOff} ${targetItem.unit} для устройства "${targetItem.name}" (изменения каскадированы во все группы ТМЦ)`, 'delete');
+    logActivity('Списание ТМЦ', `Списано ${quantityToWriteOff} ${targetUnit} для устройства "${targetName}" (Инв. № ${inventoryNumber})`, 'delete');
     return true;
   };
 
   const handleDeployWarehouseAsset = (
-    inventoryNumber: string, 
-    quantity: number, 
-    targetEmployeeName: string, 
+    warehouseItemId: string,
+    inventoryNumber: string,
+    quantity: number,
+    targetEmployeeName: string,
     targetObjectName: string
   ): boolean => {
     if (checkLicenseBlocked()) return false;
-    
-    const whItem = findWarehouseItemByInventoryNumber<WarehouseItem>(warehouseItems, inventoryNumber);
-    if (!whItem || whItem.quantity < quantity) return false;
-    const resolvedInv = whItem.inventoryNumber;
 
-    setWarehouseItems(prev => {
-      return prev.map(item => {
-        if (inventoryNumbersMatch(item.inventoryNumber, resolvedInv)) {
+    const isDeployableWarehouseItem = (item: WarehouseItem) =>
+      item.quantity > 0 &&
+      item.status !== 'Списано' &&
+      item.status !== 'На списание';
+
+    const whItem =
+      warehouseItems.find((item) => item.id === warehouseItemId && isDeployableWarehouseItem(item)) ??
+      warehouseItems.find(
+        (item) =>
+          isDeployableWarehouseItem(item) &&
+          inventoryNumbersMatch(item.inventoryNumber, inventoryNumber)
+      );
+
+    if (!whItem || whItem.quantity < quantity) return false;
+
+    const batchInventoryNumber = whItem.inventoryNumber;
+    const isNetwork = whItem.type === 'Сетевое оборудование';
+    const isSoftwareLicense = whItem.type === 'Лицензии ПО';
+
+    if (!isNetwork && !isSoftwareLicense) {
+      const matchingCompsOnStock = computers.filter(
+        (c) =>
+          matchesBaseInventoryNumber(c.inventoryNumber, batchInventoryNumber) &&
+          c.status === 'На складе'
+      );
+      const countToDeployFromStock = Math.min(matchingCompsOnStock.length, quantity);
+      const remainingToCreate = quantity - countToDeployFromStock;
+      if (remainingToCreate > 0 && !resolveWarehouseComputerRoute(whItem)) {
+        return false;
+      }
+    }
+
+    setWarehouseItems((prev) =>
+      prev
+        .map((item) => {
+          if (item.id !== whItem.id) return item;
           const newQty = item.quantity - quantity;
           return {
             ...item,
             quantity: newQty,
-            status: newQty === 0 ? 'Списано' : 'В наличии'
+            status: newQty === 0 ? ('Списано' as const) : ('В наличии' as const),
           };
-        }
-        return item;
-      }).filter(item => item.quantity > 0);
-    });
+        })
+        .filter((item) => item.quantity > 0)
+    );
 
-    // 3. Update the matching active assets in equipment catalogues
-    const isNetwork = whItem.type === 'Сетевое оборудование';
-    const isSoftwareLicense = whItem.type === 'Лицензии ПО';
     let success = false;
 
     if (isSoftwareLicense) {
       const linkedIds = findSoftwareIdsForWarehouseItem(whItem, softwareItems);
-      const inactive = softwareItems.filter(
-        (s) => linkedIds.includes(s.id) && s.status === 'Не активирована'
-      );
-      const idsToActivate = inactive.slice(0, quantity).map((s) => s.id);
-      let remaining = quantity - idsToActivate.length;
+      const storedSoft =
+        softwareItems.find(
+          (s) => linkedIds.includes(s.id) && s.status === 'Не активирована'
+        ) ||
+        softwareItems.find((s) => linkedIds.includes(s.id));
 
-      if (idsToActivate.length > 0) {
+      if (storedSoft) {
         setSoftwareItems((prev) =>
           prev.map((s) =>
-            idsToActivate.includes(s.id)
+            s.id === storedSoft.id
               ? {
                   ...s,
                   status: 'Активна',
@@ -2049,29 +2164,27 @@ export default function App() {
           )
         );
         success = true;
-      }
-
-      if (remaining > 0) {
-        const stamp = Date.now();
-        const newSoftItems: SoftwareItem[] = Array.from({ length: remaining }, (_, i) => ({
-          id: `soft-deploy-${stamp}-${i}`,
+      } else {
+        const newSoft: SoftwareItem = {
+          id: `soft-deploy-${Date.now()}`,
           name: whItem.name,
-          category: 'Иное ПО' as const,
-          licenseKey: whItem.inventoryNumber.startsWith('SW-') ? '' : `${resolvedInv}-${i + 1}`,
+          category: 'Иное ПО',
+          licenseKey: whItem.inventoryNumber.startsWith('SW-') ? '' : whItem.inventoryNumber,
           version: whItem.model || '',
           developer: '',
-          quantity: 1,
+          quantity,
           assignedEmployeeName: targetEmployeeName,
           objectName: targetObjectName,
-          status: 'Активна' as const,
+          status: 'Активна',
           purchaseDate: new Date().toISOString().split('T')[0],
-        }));
-        setSoftwareItems((prev) => [...prev, ...newSoftItems]);
+          cost: whItem.costPerUnit,
+        };
+        setSoftwareItems((prev) => [...prev, newSoft]);
         success = true;
       }
     } else if (isNetwork) {
-      const matchingNetwork = networkDevices.find(nd =>
-        inventoryNumbersMatch(nd.inventoryNumber, resolvedInv)
+      const matchingNetwork = networkDevices.find((nd) =>
+        inventoryNumbersMatch(nd.inventoryNumber, batchInventoryNumber)
       );
       if (matchingNetwork) {
         if (quantity >= matchingNetwork.quantity) {
@@ -2106,7 +2219,7 @@ export default function App() {
           objectName: targetObjectName,
           ipAddress: '192.168.1.1',
           quantity: quantity,
-          inventoryNumber: resolvedInv,
+          inventoryNumber: batchInventoryNumber,
           portsCount: 24,
           workingPorts: Array.from({ length: 24 }, (_, i) => i + 1),
           damagedPorts: [],
@@ -2120,28 +2233,29 @@ export default function App() {
         success = true;
       }
     } else {
-      // Find matching items currently "На складе" (on-stock)
-      const matchingCompsOnStock = computers.filter(c => 
-        matchesBaseInventoryNumber(c.inventoryNumber, inventoryNumber)
-        && c.status === 'На складе'
+      const matchingCompsOnStock = computers.filter(
+        (c) =>
+          matchesBaseInventoryNumber(c.inventoryNumber, batchInventoryNumber) &&
+          c.status === 'На складе'
       );
 
       const countToDeployFromStock = Math.min(matchingCompsOnStock.length, quantity);
       const remainingToCreate = quantity - countToDeployFromStock;
 
-      const idsToDeploy = countToDeployFromStock > 0 
-        ? matchingCompsOnStock.slice(0, countToDeployFromStock).map(c => c.id) 
-        : [];
+      const idsToDeploy =
+        countToDeployFromStock > 0
+          ? matchingCompsOnStock.slice(0, countToDeployFromStock).map((c) => c.id)
+          : [];
 
-      setComputers(prev => {
-        let updated = prev.map(c => {
+      setComputers((prev) => {
+        let updated = prev.map((c) => {
           if (idsToDeploy.includes(c.id)) {
             return {
               ...c,
               status: 'В работе' as const,
               employeeName: targetEmployeeName,
               objectName: targetObjectName,
-              cost: c.cost || whItem.costPerUnit
+              cost: c.cost || whItem.costPerUnit,
             };
           }
           return c;
@@ -2157,13 +2271,13 @@ export default function App() {
             matchingCompsOnStock.find((c) => c.cpuModel || c.ramModel || c.serialNumber) || null;
 
           const newCompsToAppend: ComputerItem[] = [];
-          const batchInvNumbers = allocateBatchInventoryNumbers(
-            inventoryNumber,
-            prev.map((c) => c.inventoryNumber),
-            remainingToCreate
-          );
-          for (let i = 0; i < batchInvNumbers.length; i++) {
-            const invNum = batchInvNumbers[i];
+          for (let i = 0; i < remainingToCreate; i++) {
+            const suffixesCount = prev.filter((c) =>
+              c.inventoryNumber?.startsWith(`${batchInventoryNumber}-`)
+            ).length;
+            const suffix =
+              quantity > 1 || suffixesCount > 0 ? `-${suffixesCount + i + 1}` : '';
+            const invNum = `${batchInventoryNumber}${suffix}`;
             const unitSpecs = buildComputerSpecsFromReceipt(
               templateSpecs
                 ? {
@@ -2177,8 +2291,8 @@ export default function App() {
                     caseModel: templateSpecs.caseModel,
                   }
                 : whSpecs,
-              i,
-              Math.max(quantity, remainingToCreate)
+              suffixesCount + i,
+              Math.max(quantity, suffixesCount + remainingToCreate)
             );
 
             const newAsset: ComputerItem = {
@@ -2350,6 +2464,7 @@ export default function App() {
             onAdd={handleAddObject}
             onEdit={handleEditObject}
             onDelete={handleDeleteObject}
+            onArchive={handleArchiveObject}
             onViewDetails={handleNavigateDetail}
             currentUser={currentUser}
           />
@@ -2363,7 +2478,7 @@ export default function App() {
             warehouses={warehouses}
             onAdd={handleAddNetwork}
             onEdit={handleEditNetwork}
-            onDelete={(id) => requestDeleteEquipment('network', id)}
+            onMarkForWriteOff={(id) => handleMarkForWriteOff('network', id)}
             onReturnToWarehouse={(id) => requestReturnEquipment('network', id)}
             onViewDetails={handleNavigateDetail}
             currentUser={currentUser}
@@ -2379,7 +2494,7 @@ export default function App() {
             allComputers={computers}
             onAdd={handleAddComputer}
             onEdit={handleEditComputer}
-            onDelete={(id) => requestDeleteEquipment('computer', id)}
+            onMarkForWriteOff={(id) => handleMarkForWriteOff('computer', id)}
             onReturnToWarehouse={(id) => requestReturnEquipment('computer', id)}
             onViewDetails={handleNavigateDetail}
             currentUser={currentUser}
@@ -2395,6 +2510,7 @@ export default function App() {
             onAdd={handleAddEmployee}
             onEdit={handleEditEmployee}
             onDelete={handleDeleteEmployee}
+            onArchive={handleArchiveEmployee}
             onViewDetails={handleNavigateDetail}
             currentUser={currentUser}
             onTransferEquipment={handleTransferEmployeeEquipment}
@@ -2406,7 +2522,7 @@ export default function App() {
             warehouseItems={warehouseItems}
             onReceipt={handleWarehouseReceipt}
             onWriteOff={handleWarehouseWriteOff}
-            onDeleteEquipment={requestDeleteEquipment}
+            onMarkForWriteOff={handleMarkForWriteOff}
             onDeleteWriteOff={handleDeleteWarehouseWriteOff}
             onViewDetails={handleNavigateDetail}
             currentUser={currentUser}
@@ -2527,7 +2643,7 @@ export default function App() {
             allComputers={computers}
             onAdd={handleAddComputer}
             onEdit={handleEditComputer}
-            onDelete={(id) => requestDeleteEquipment('computer', id)}
+            onMarkForWriteOff={(id) => handleMarkForWriteOff('computer', id)}
             onReturnToWarehouse={(id) => requestReturnEquipment('computer', id)}
             onViewDetails={handleNavigateDetail}
             addButtonLabel="Добавить Периферию"
@@ -2547,7 +2663,7 @@ export default function App() {
             allComputers={computers}
             onAdd={handleAddComputer}
             onEdit={handleEditComputer}
-            onDelete={(id) => requestDeleteEquipment('computer', id)}
+            onMarkForWriteOff={(id) => handleMarkForWriteOff('computer', id)}
             onReturnToWarehouse={(id) => requestReturnEquipment('computer', id)}
             onViewDetails={handleNavigateDetail}
             addButtonLabel="Добавить Оргтехнику"
@@ -2567,7 +2683,7 @@ export default function App() {
             allComputers={computers}
             onAdd={handleAddComputer}
             onEdit={handleEditComputer}
-            onDelete={(id) => requestDeleteEquipment('computer', id)}
+            onMarkForWriteOff={(id) => handleMarkForWriteOff('computer', id)}
             onReturnToWarehouse={(id) => requestReturnEquipment('computer', id)}
             onViewDetails={handleNavigateDetail}
             addButtonLabel="Добавить Видеооборудование"
@@ -2587,7 +2703,7 @@ export default function App() {
             allComputers={computers}
             onAdd={handleAddComputer}
             onEdit={handleEditComputer}
-            onDelete={(id) => requestDeleteEquipment('computer', id)}
+            onMarkForWriteOff={(id) => handleMarkForWriteOff('computer', id)}
             onReturnToWarehouse={(id) => requestReturnEquipment('computer', id)}
             onViewDetails={handleNavigateDetail}
             addButtonLabel="Добавить расходники"
@@ -2607,7 +2723,7 @@ export default function App() {
             allComputers={computers}
             onAdd={handleAddComputer}
             onEdit={handleEditComputer}
-            onDelete={(id) => requestDeleteEquipment('computer', id)}
+            onMarkForWriteOff={(id) => handleMarkForWriteOff('computer', id)}
             onReturnToWarehouse={(id) => requestReturnEquipment('computer', id)}
             onViewDetails={handleNavigateDetail}
             addButtonLabel="Добавить другое оборудование"
@@ -2628,10 +2744,11 @@ export default function App() {
             computers={computers}
             onAdd={handleAddSoftware}
             onEdit={handleEditSoftware}
-            onDelete={(id) => requestDeleteEquipment('software', id)}
+            onMarkForWriteOff={(id) => handleMarkForWriteOff('software', id)}
             onReturnToWarehouse={(id) => requestReturnEquipment('software', id)}
             currentUser={currentUser}
             warehouses={warehouses}
+            allowCreate={false}
           />
         );
       default:

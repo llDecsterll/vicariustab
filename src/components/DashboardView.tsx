@@ -60,21 +60,35 @@ export default function DashboardView({
   onViewDetails,
 }: DashboardViewProps) {
   const { t } = useTranslation();
+
+  const isWrittenOffComputer = (c: ComputerItem) =>
+    c.status === 'Списано' || c.status === 'На списание';
+  const isWrittenOffNetwork = (n: NetworkDevice) =>
+    n.status === 'Списано' || n.status === 'На списание';
+  const isWrittenOffWarehouse = (w: WarehouseItem) =>
+    w.status === 'Списано' || w.status === 'На списание' || w.quantity <= 0;
+  const isWrittenOffSoftware = (s: SoftwareItem) =>
+    s.status === 'Списано' || s.status === 'На списание';
+
+  const activeComputers = computers.filter((c) => !isWrittenOffComputer(c));
+  const activeNetworkDevices = networkDevices.filter((n) => !isWrittenOffNetwork(n));
+  const activeWarehouseItems = warehouseItems.filter((w) => !isWrittenOffWarehouse(w));
+  const activeSoftwareItems = softwareItems.filter((s) => !isWrittenOffSoftware(s));
   
   // Warehouse Tab Filter state
   const [warehouseTab, setWarehouseTab] = useState<'Все' | 'Компьютеры' | 'Сетевое оборудование' | 'Периферия' | 'Оргтехника' | 'Видеонаблюдение' | 'Расходные материалы' | 'Другое'>('Все');
 
   // Real-time dynamic calculations representing the exact totals of items in the system
-  const displayTotalPC = computers.length; 
-  const displayEmployeePC = computers.filter(c => c.employeeName && c.employeeName !== 'Склад ИТ' && c.status === 'В работе').length;
+  const displayTotalPC = activeComputers.length; 
+  const displayEmployeePC = activeComputers.filter(c => c.employeeName && c.employeeName !== 'Склад ИТ' && c.status === 'В работе').length;
 
-  const displayTotalNet = networkDevices.reduce((sum, item) => sum + item.quantity, 0);
+  const displayTotalNet = activeNetworkDevices.reduce((sum, item) => sum + item.quantity, 0);
 
-  const warehouseCount = warehouseItems.reduce((sum, item) => sum + item.quantity, 0);
-  const warehouseCostSum = warehouseItems.reduce((sum, item) => sum + (item.quantity * item.costPerUnit), 0);
+  const warehouseCount = activeWarehouseItems.reduce((sum, item) => sum + item.quantity, 0);
+  const warehouseCostSum = activeWarehouseItems.reduce((sum, item) => sum + (item.quantity * item.costPerUnit), 0);
 
   const displayTotalEmployees = employees.length;
-  const displayActiveEmployees = employees.filter(e => computers.some(c => c.employeeName === e.name)).length;
+  const displayActiveEmployees = employees.filter(e => activeComputers.some(c => c.employeeName === e.name && c.status === 'В работе')).length;
 
   // Let's format money to RU ruble style
   const formatRub = (val: number) => {
@@ -82,7 +96,7 @@ export default function DashboardView({
   };
 
   // Filter Warehouse Items for dashboard bottom table
-  const filteredWarehouse = warehouseItems.filter(item => {
+  const filteredWarehouse = activeWarehouseItems.filter(item => {
     if (warehouseTab === 'Все') return true;
     return item.type === warehouseTab;
   });
@@ -188,8 +202,8 @@ export default function DashboardView({
         >
           <div className="space-y-2">
             <span className="text-xs font-semibold text-slate-400 block">{t("ПО и Лицензии")}</span>
-            <div className="text-3xl font-bold text-slate-800">{softwareItems.length}</div>
-            <span className="text-xs text-slate-400 block">{t("Лицензий всего:")}<strong className="text-slate-600">{softwareItems.reduce((sum, item) => sum + (item.quantity || 1), 0)} шт.</strong>
+            <div className="text-3xl font-bold text-slate-800">{activeSoftwareItems.length}</div>
+            <span className="text-xs text-slate-400 block">{t("Лицензий всего:")}<strong className="text-slate-600">{activeSoftwareItems.reduce((sum, item) => sum + (item.quantity || 1), 0)} шт.</strong>
             </span>
           </div>
           <div className="bg-sky-50 text-sky-600 p-3 rounded-xl transition-colors group-hover:bg-sky-100">
@@ -223,8 +237,8 @@ export default function DashboardView({
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-700">
                 {objects.slice(0, 8).map((obj) => {
-                  const displayNet = networkDevices.filter(n => n.objectName === obj.name).reduce((sum, n) => sum + n.quantity, 0);
-                  const displayPC = computers.filter(c => c.objectName === obj.name).length;
+                  const displayNet = activeNetworkDevices.filter(n => n.objectName === obj.name).reduce((sum, n) => sum + n.quantity, 0);
+                  const displayPC = activeComputers.filter(c => c.objectName === obj.name).length;
 
                   return (
                     <tr key={obj.id} className="hover:bg-slate-50 transition-colors text-[13px]">
@@ -275,7 +289,7 @@ export default function DashboardView({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-700">
-                {networkDevices.slice(0, 8).map((device) => (
+                {activeNetworkDevices.slice(0, 8).map((device) => (
                   <tr key={device.id} className="hover:bg-slate-50 transition-colors text-[13px]">
                     <td 
                       className="py-2.5 font-semibold text-blue-600 hover:underline cursor-pointer" 
@@ -327,7 +341,7 @@ export default function DashboardView({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-700">
-                {computers.slice(0, 8).map((comp) => {
+                {activeComputers.slice(0, 8).map((comp) => {
                   let statusClass = '';
                   if (comp.status === 'В работе') statusClass = 'bg-emerald-50 text-emerald-700 border-emerald-200';
                   else if (comp.status === 'На ремонте') statusClass = 'bg-amber-50 text-amber-700 border-amber-250';
@@ -401,7 +415,9 @@ export default function DashboardView({
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-700">
                 {employees.slice(0, 8).map((emp) => {
-                  const itemsCount = computers.filter(c => c.employeeName === emp.name).length;
+                  const itemsCount = activeComputers.filter(
+                    (c) => c.employeeName === emp.name && c.status === 'В работе'
+                  ).length;
                   const badgeText = `${itemsCount} $ед.`;
 
                   return (

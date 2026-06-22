@@ -26,7 +26,7 @@ interface NetworkViewProps {
   warehouses?: CustomWarehouse[];
   onAdd: (device: Omit<NetworkDevice, 'id'>) => boolean | void;
   onEdit: (id: string, device: Omit<NetworkDevice, 'id'>) => boolean | void;
-  onDelete?: (id: string) => void;
+  onMarkForWriteOff?: (id: string) => void;
   onReturnToWarehouse?: (id: string) => void;
   onViewDetails?: (type: 'computer' | 'network' | 'employee' | 'object' | 'warehouse', id: string) => void;
   currentUser?: { role: 'Viewer' | 'Editor' | 'Admin' };
@@ -40,7 +40,7 @@ export default function NetworkView({
   warehouses = [],
   onAdd,
   onEdit,
-  onDelete,
+  onMarkForWriteOff,
   onReturnToWarehouse,
   onViewDetails,
   currentUser,
@@ -60,11 +60,6 @@ export default function NetworkView({
   const handleReturnToWarehouse = (dev: NetworkDevice) => {
     if (!onReturnToWarehouse) return;
     onReturnToWarehouse(dev.id);
-  };
-
-  const handleDeleteDevice = (dev: NetworkDevice) => {
-    if (!onDelete) return;
-    onDelete(dev.id);
   };
 
   // Form states
@@ -298,22 +293,13 @@ export default function NetworkView({
                           <Edit2 size={14} />
                         </button>
                       )}
-                      {!isViewer && onReturnToWarehouse && (
+                      {!isViewer && onReturnToWarehouse && dev.status !== 'На списание' && (
                         <button
                           onClick={() => handleReturnToWarehouse(dev)}
                           className="p-1 hover:bg-emerald-50 rounded text-slate-400 hover:text-emerald-600 transition-colors cursor-pointer"
                           title={t("Вернуть на склад")}
                         >
                           <RotateCcw size={14} />
-                        </button>
-                      )}
-                      {!isViewer && onDelete && (
-                        <button
-                          onClick={() => handleDeleteDevice(dev)}
-                          className="p-1 hover:bg-rose-50 rounded text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
-                          title={t("Удалить")}
-                        >
-                          <Trash2 size={14} />
                         </button>
                       )}
                     </div>

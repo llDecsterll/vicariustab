@@ -7,6 +7,7 @@ import {
   allocateBatchInventoryNumbers,
   exactInventoryNumberTaken,
   getSoftwareWarehouseInv,
+  getWarehouseBatchInventoryKey,
   inventoryBaseFamilyTaken,
   inventoryNumbersMatch,
   findWarehouseItemByInventoryNumber,
@@ -47,5 +48,11 @@ describe('equipmentFields', () => {
   it('findWarehouseItemByInventoryNumber resolves batch base', () => {
     const items = [{ id: 'w1', inventoryNumber: 'ST-0061', quantity: 5 }];
     assert.equal(findWarehouseItemByInventoryNumber(items, 'ST-0061-2')?.id, 'w1');
+  });
+
+  it('getWarehouseBatchInventoryKey strips only trailing batch suffix', () => {
+    assert.equal(getWarehouseBatchInventoryKey('ST-0061-2'), 'ST-0061');
+    assert.equal(getWarehouseBatchInventoryKey('ST-0061'), 'ST-0061');
+    assert.equal(getWarehouseBatchInventoryKey('INV-100'), 'INV-100');
   });
 });
