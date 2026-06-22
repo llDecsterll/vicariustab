@@ -8,7 +8,7 @@
 # 🚀 Vicariustab
 
 <p align="center">
-  <img src="https://img.shields.io/badge/версия-2.0.7-blue?style=for-the-badge" alt="Version">
+  <img src="https://img.shields.io/badge/версия-2.0.15-blue?style=for-the-badge" alt="Version">
   <img src="https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&style=for-the-badge" alt="Docker Ready">
   <img src="https://img.shields.io/badge/Node.js-20+-339933?logo=node.js&style=for-the-badge" alt="Node.js 20">
   <img src="https://img.shields.io/badge/PM2-Supported-blue?style=for-the-badge" alt="PM2">
@@ -22,6 +22,11 @@
 ---
 
 # 📸 Скриншоты интерфейса
+
+<p align="center">
+  <img src="docs/screenshots/ru/00-admin-setup.png" alt="Первоначальная настройка — создание администратора" width="720">
+  <br><em>Первоначальная настройка — создание учётной записи администратора</em>
+</p>
 
 <p align="center">
   <img src="docs/screenshots/ru/01-login.png" alt="Вход в систему Vicariustab" width="720">
@@ -38,7 +43,9 @@
 
 | Отчёты | Настройки |
 | :---: | :---: |
-| <img src="docs/screenshots/ru/07-reports.png" alt="Отчёты" width="420"> | <img src="docs/screenshots/ru/08-settings.png" alt="Настройки СУБД" width="420"> |
+| <img src="docs/screenshots/ru/07-reports.png" alt="Отчёты" width="420"> | <img src="docs/screenshots/ru/08-settings.png" alt="Настройки" width="420"> |
+
+> Пересоздать локально: `npm run build && npm run screenshots` → [`docs/screenshots/ru/`](docs/screenshots/ru/)
 
 
 ---

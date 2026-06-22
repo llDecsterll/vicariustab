@@ -8,7 +8,7 @@
 # 🚀 Vicariustab
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.0.7-blue?style=for-the-badge" alt="Version">
+  <img src="https://img.shields.io/badge/version-2.0.15-blue?style=for-the-badge" alt="Version">
   <img src="https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&style=for-the-badge" alt="Docker Ready">
   <img src="https://img.shields.io/badge/Node.js-20+-339933?logo=node.js&style=for-the-badge" alt="Node.js 20">
   <img src="https://img.shields.io/badge/PM2-Supported-blue?style=for-the-badge" alt="PM2">
@@ -22,6 +22,11 @@
 ---
 
 # 📸 Interface screenshots
+
+<p align="center">
+  <img src="docs/screenshots/en/00-admin-setup.png" alt="Vicariustab initial administrator setup" width="720">
+  <br><em>Initial setup — create administrator account</em>
+</p>
 
 <p align="center">
   <img src="docs/screenshots/en/01-login.png" alt="Vicariustab login screen" width="720">
@@ -38,7 +43,9 @@
 
 | Reports | Settings |
 | :---: | :---: |
-| <img src="docs/screenshots/en/07-reports.png" alt="Reports" width="420"> | <img src="docs/screenshots/en/08-settings.png" alt="Database settings" width="420"> |
+| <img src="docs/screenshots/en/07-reports.png" alt="Reports" width="420"> | <img src="docs/screenshots/en/08-settings.png" alt="Settings" width="420"> |
+
+> Regenerate locally: `npm run build && npm run screenshots` → [`docs/screenshots/en/`](docs/screenshots/en/)
 
 ---
 

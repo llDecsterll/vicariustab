@@ -8,7 +8,7 @@
 # 🚀 Vicariustab
 
 <p align="center">
-  <img src="https://img.shields.io/badge/版本-2.0.7-blue?style=for-the-badge" alt="Version">
+  <img src="https://img.shields.io/badge/版本-2.0.15-blue?style=for-the-badge" alt="Version">
   <img src="https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&style=for-the-badge" alt="Docker Ready">
   <img src="https://img.shields.io/badge/Node.js-20+-339933?logo=node.js&style=for-the-badge" alt="Node.js 20">
   <img src="https://img.shields.io/badge/PM2-Supported-blue?style=for-the-badge" alt="PM2">
@@ -18,6 +18,11 @@
 ---
 
 # 📸 界面截图
+
+<p align="center">
+  <img src="docs/screenshots/zh/00-admin-setup.png" alt="Vicariustab 初始配置 — 创建管理员" width="720">
+  <br><em>初始配置 — 创建管理员账户</em>
+</p>
 
 <p align="center">
   <img src="docs/screenshots/zh/01-login.png" alt="Vicariustab 登录界面" width="720">
@@ -34,7 +39,7 @@
 
 | 报表 | 设置 |
 | :---: | :---: |
-| <img src="docs/screenshots/zh/07-reports.png" alt="报表" width="420"> | <img src="docs/screenshots/zh/08-settings.png" alt="数据库设置" width="420"> |
+| <img src="docs/screenshots/zh/07-reports.png" alt="报表" width="420"> | <img src="docs/screenshots/zh/08-settings.png" alt="设置" width="420"> |
 
 <p align="center">
   <img src="docs/screenshots/zh/03-computers.png" alt="计算机管理" width="720">

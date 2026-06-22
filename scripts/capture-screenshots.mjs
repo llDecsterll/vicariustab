@@ -1,6 +1,6 @@
 /* Release */
 /**
- * Capture Stack UI screenshots for README (ru / en / zh).
+ * Capture Vicariustab UI screenshots for README (ru / en / zh).
  * Run: npm run build && npm run screenshots
  */
 import { spawn } from "child_process";
@@ -11,12 +11,17 @@ import path from "path";
 const PORT = Number(process.env.SCREENSHOT_PORT) || 8768;
 const BASE = `http://127.0.0.1:${PORT}`;
 const ROOT_OUT = path.join(process.cwd(), "docs", "screenshots");
-const SCREENSHOT_DATA_DIR = path.join(process.cwd(), ".screenshot-data");
+const SCREENSHOT_DATA_ROOT = path.join(process.cwd(), ".screenshot-data");
 
 /** Sidebar labels per UI language (from src/utils/i18n.tsx) */
 const LOCALES = {
   ru: {
     workspace: "Инвентаризация оборудования",
+    setup: {
+      login: "admin",
+      email: "admin@company.ru",
+      password: "admin12345",
+    },
     nav: {
       dashboard: "Дашборд",
       equipment: "Оборудование",
@@ -30,6 +35,11 @@ const LOCALES = {
   },
   en: {
     workspace: "Equipment Inventory",
+    setup: {
+      login: "admin",
+      email: "admin@company.ru",
+      password: "admin12345",
+    },
     nav: {
       dashboard: "Dashboard",
       equipment: "Equipment",
@@ -43,6 +53,11 @@ const LOCALES = {
   },
   zh: {
     workspace: "设备盘点管理",
+    setup: {
+      login: "admin",
+      email: "admin@company.ru",
+      password: "admin12345",
+    },
     nav: {
       dashboard: "仪表盘",
       equipment: "设备",
@@ -59,6 +74,7 @@ const LOCALES = {
 const CHROME_PATHS = [
   process.env.CHROME_PATH,
   "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+  "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
   "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
   "/usr/bin/google-chrome",
   "/usr/bin/chromium-browser",
@@ -75,11 +91,16 @@ function wait(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-async function waitForServer(maxMs = 45000) {
+function resetDataDir(dir) {
+  fs.rmSync(dir, { recursive: true, force: true });
+  fs.mkdirSync(dir, { recursive: true });
+}
+
+async function waitForServer(maxMs = 60000) {
   const start = Date.now();
   while (Date.now() - start < maxMs) {
     try {
-      const res = await fetch(`${BASE}/api/update/repo`);
+      const res = await fetch(`${BASE}/api/health`);
       if (res.ok) return;
     } catch {
       // retry
@@ -89,25 +110,18 @@ async function waitForServer(maxMs = 45000) {
   throw new Error(`Server did not start on ${BASE}`);
 }
 
-function startServer() {
-  fs.mkdirSync(SCREENSHOT_DATA_DIR, { recursive: true });
+function startServer(dataDir) {
   const env = {
     ...process.env,
     PORT: String(PORT),
-    STACK_DATA_DIR: SCREENSHOT_DATA_DIR,
+    STACK_DATA_DIR: dataDir,
+    DB_ENCRYPTION_KEY:
+      process.env.DB_ENCRYPTION_KEY || "screenshot-dev-encryption-key-32chars",
+    NODE_ENV: "production",
   };
-  const useDev = process.env.SCREENSHOT_DEV !== "0";
-  if (useDev) {
-    return spawn("npx", ["tsx", "server.ts"], {
-      cwd: process.cwd(),
-      env: { ...env, NODE_ENV: "development" },
-      stdio: ["ignore", "pipe", "pipe"],
-      shell: true,
-    });
-  }
   return spawn("node", ["dist/server.cjs"], {
     cwd: process.cwd(),
-    env: { ...env, NODE_ENV: "production" },
+    env,
     stdio: ["ignore", "pipe", "pipe"],
   });
 }
@@ -130,47 +144,118 @@ async function clickSidebar(page, label) {
   if (!clicked) {
     console.warn(`    [warn] sidebar not found: ${label}`);
   }
-  await wait(1100);
+  await wait(1200);
 }
 
-async function prepareLocalePage(page, lang, workspace) {
-  await page.goto(BASE, { waitUntil: "domcontentloaded", timeout: 60000 });
-  await page.evaluate((locale, ws) => {
-    localStorage.clear();
-    localStorage.setItem("orbit_lang", locale);
-    localStorage.setItem("it_workspace_name", ws);
-  }, lang, workspace);
-  await page.reload({ waitUntil: "domcontentloaded", timeout: 60000 });
-  await wait(1500);
+async function clickEquipmentSub(page, parentLabel, childLabel) {
+  const submenuOpen = await page.$("aside .pl-9");
+  if (!submenuOpen) {
+    await clickSidebar(page, parentLabel);
+  }
+  await wait(500);
+  const clicked = await page.evaluate((text) => {
+    const subs = [...document.querySelectorAll("aside .pl-9 button")];
+    const btn = subs.find((b) => (b.textContent || "").includes(text));
+    if (btn) {
+      btn.scrollIntoView({ block: "center" });
+      btn.click();
+      return true;
+    }
+    return false;
+  }, childLabel);
+  if (!clicked) {
+    console.warn(`    [warn] equipment submenu not found: ${childLabel}`);
+  }
+  await wait(1200);
 }
 
-async function loginIfNeeded(page, outDir, lang, workspace) {
-  await prepareLocalePage(page, lang, workspace);
-  await page.waitForFunction(
-    () => document.querySelector("#loginEmail") || document.querySelector("aside button"),
-    { timeout: 30000 }
-  );
-  await wait(2000);
-
-  const onLogin = await page.$("#loginEmail");
-  if (onLogin) {
-    await page.screenshot({ path: path.join(outDir, "01-login.png"), fullPage: false });
-    console.log("    ✓ 01-login.png");
-
-    await page.click("#loginEmail", { clickCount: 3 });
-    await page.type("#loginEmail", "Admin", { delay: 20 });
-    await page.click("#password", { clickCount: 3 });
-    await page.type("#password", "admin", { delay: 20 });
-    await page.click('form button[type="submit"]');
-    await page.waitForSelector("aside button", { timeout: 15000 });
-    await wait(2500);
-  } else {
-    await page.screenshot({ path: path.join(outDir, "01-login.png"), fullPage: false });
-    console.log("    ✓ 01-login.png (session)");
+async function navigateSidebar(page, labels, isEquipmentChild) {
+  if (isEquipmentChild) {
+    await clickEquipmentSub(page, labels.equipment, labels.child);
+    return;
+  }
+  for (const label of labels) {
+    await clickSidebar(page, label);
   }
 }
 
-async function captureLocale(browser, lang, cfg) {
+async function prepareLocalePage(page, lang, workspace) {
+  await page.goto(BASE, { waitUntil: "networkidle2", timeout: 90000 });
+  await page.evaluate(
+    (locale, ws) => {
+      localStorage.clear();
+      localStorage.setItem("orbit_lang", locale);
+      localStorage.setItem("it_workspace_name", ws);
+    },
+    lang,
+    workspace
+  );
+  await page.reload({ waitUntil: "networkidle2", timeout: 90000 });
+  await wait(1800);
+}
+
+async function isOnSetup(page) {
+  return page.evaluate(() => !document.querySelector("#loginEmail"));
+}
+
+async function fillSetupForm(page, setup) {
+  await page.waitForSelector('form input[type="text"]', { timeout: 30000 });
+  const login = await page.$('form input[type="text"]');
+  const email = await page.$('form input[type="email"]');
+  const passwords = await page.$$('form input[type="password"]');
+  if (!login || !email || passwords.length < 2) {
+    throw new Error("Setup form inputs not found");
+  }
+
+  await login.click({ clickCount: 3 });
+  await login.type(setup.login, { delay: 12 });
+  await email.click({ clickCount: 3 });
+  await email.type(setup.email, { delay: 12 });
+  await passwords[0].click({ clickCount: 3 });
+  await passwords[0].type(setup.password, { delay: 12 });
+  await passwords[1].click({ clickCount: 3 });
+  await passwords[1].type(setup.password, { delay: 12 });
+  await wait(400);
+}
+
+async function submitSetup(page) {
+  await page.click('form button[type="submit"]');
+  await page.waitForSelector("#loginEmail", { timeout: 30000 });
+  await wait(2000);
+}
+
+async function captureSetup(page, outDir, setup) {
+  if (!(await isOnSetup(page))) {
+    throw new Error("Expected first-run setup screen");
+  }
+  await fillSetupForm(page, setup);
+  await page.screenshot({
+    path: path.join(outDir, "00-admin-setup.png"),
+    fullPage: false,
+  });
+  console.log("    ✓ 00-admin-setup.png");
+  await submitSetup(page);
+}
+
+async function captureLogin(page, outDir) {
+  await page.screenshot({
+    path: path.join(outDir, "01-login.png"),
+    fullPage: false,
+  });
+  console.log("    ✓ 01-login.png");
+}
+
+async function login(page, setup) {
+  await page.click("#loginEmail", { clickCount: 3 });
+  await page.type("#loginEmail", setup.login, { delay: 15 });
+  await page.click("#password", { clickCount: 3 });
+  await page.type("#password", setup.password, { delay: 15 });
+  await page.click('form button[type="submit"]');
+  await page.waitForSelector("aside button", { timeout: 30000 });
+  await wait(2800);
+}
+
+async function captureLocale(browser, lang, cfg, dataDir) {
   const outDir = path.join(ROOT_OUT, lang);
   const labels = cfg.nav;
   fs.mkdirSync(outDir, { recursive: true });
@@ -181,12 +266,31 @@ async function captureLocale(browser, lang, cfg) {
   page.on("pageerror", (err) => console.error(`    [page] ${err.message}`));
 
   await page.setViewport({ width: 1440, height: 900, deviceScaleFactor: 1 });
-  await loginIfNeeded(page, outDir, lang, cfg.workspace);
+
+  await prepareLocalePage(page, lang, cfg.workspace);
+  await page.waitForFunction(
+    () =>
+      document.querySelector("#loginEmail") ||
+      document.querySelector('form input[type="email"]'),
+    { timeout: 45000 }
+  );
+
+  await captureSetup(page, outDir, cfg.setup);
+  await captureLogin(page, outDir);
+  await login(page, cfg.setup);
 
   const shots = [
     { file: "02-dashboard.png", nav: [labels.dashboard] },
-    { file: "03-computers.png", nav: [labels.equipment, labels.computers] },
-    { file: "04-network.png", nav: [labels.equipment, labels.network] },
+    {
+      file: "03-computers.png",
+      equipmentChild: true,
+      child: labels.computers,
+    },
+    {
+      file: "04-network.png",
+      equipmentChild: true,
+      child: labels.network,
+    },
     { file: "05-warehouse.png", nav: [labels.warehouse] },
     { file: "06-employees.png", nav: [labels.employees] },
     { file: "07-reports.png", nav: [labels.reports] },
@@ -194,11 +298,18 @@ async function captureLocale(browser, lang, cfg) {
   ];
 
   for (const shot of shots) {
-    for (const label of shot.nav) {
-      await clickSidebar(page, label);
+    if (shot.equipmentChild) {
+      await navigateSidebar(page, { equipment: labels.equipment, child: shot.child }, true);
+    } else {
+      for (const label of shot.nav) {
+        await clickSidebar(page, label);
+      }
     }
-    await wait(500);
-    await page.screenshot({ path: path.join(outDir, shot.file), fullPage: false });
+    await wait(700);
+    await page.screenshot({
+      path: path.join(outDir, shot.file),
+      fullPage: false,
+    });
     console.log(`    ✓ ${shot.file}`);
   }
 
@@ -212,33 +323,38 @@ async function captureAll() {
 
   fs.mkdirSync(ROOT_OUT, { recursive: true });
 
-  const server = startServer();
-  server.stderr?.on("data", (d) => process.stderr.write(d));
+  const browser = await puppeteer.launch({
+    headless: true,
+    executablePath: resolveBrowserPath(),
+    args: [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-dev-shm-usage",
+      "--window-size=1440,900",
+    ],
+  });
 
   try {
-    await waitForServer();
-    console.log("[screenshots] Server ready");
-
-    const browser = await puppeteer.launch({
-      headless: true,
-      executablePath: resolveBrowserPath(),
-      args: [
-        "--no-sandbox",
-        "--disable-setuid-sandbox",
-        "--disable-dev-shm-usage",
-        "--window-size=1440,900",
-      ],
-    });
-
     for (const [lang, cfg] of Object.entries(LOCALES)) {
-      await captureLocale(browser, lang, cfg);
+      const dataDir = path.join(SCREENSHOT_DATA_ROOT, lang);
+      resetDataDir(dataDir);
+
+      const server = startServer(dataDir);
+      server.stderr?.on("data", (d) => process.stderr.write(d));
+
+      try {
+        await waitForServer();
+        console.log(`[screenshots] Server ready (${lang})`);
+        await captureLocale(browser, lang, cfg, dataDir);
+      } finally {
+        server.kill("SIGTERM");
+        await wait(800);
+      }
     }
 
-    await browser.close();
     console.log(`[screenshots] Done → docs/screenshots/{ru,en,zh}/`);
   } finally {
-    server.kill("SIGTERM");
-    await wait(500);
+    await browser.close();
   }
 }
 
