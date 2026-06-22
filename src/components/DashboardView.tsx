@@ -16,15 +16,24 @@ import {
   Warehouse, 
   Plus, 
   ArrowRight, 
-  TrendingUp,
-  Inbox,
-  ArrowUpRight,
-  ArrowDownLeft,
-  Key
+  Key,
+  Monitor,
+  Printer,
+  Camera,
+  Package,
+  Box,
 } from 'lucide-react';
 import { ObjectItem, NetworkDevice, ComputerItem, EmployeeItem, WarehouseItem, SoftwareItem } from '../types';
 import { getDeviceIcon } from '../utils/deviceIcons';
 import { useTranslation } from '../utils/i18n';
+import {
+  countDashboardEquipmentByTab,
+  DASHBOARD_EXTRA_EQUIPMENT_TABS,
+  equipmentTabTitleKey,
+  filterComputersByEquipmentTab,
+  getCategoriesForEquipmentTab,
+  type DashboardExtraEquipmentTab,
+} from '../utils/warehouseRouting';
 
 interface DashboardViewProps {
   objects: ObjectItem[];
@@ -59,7 +68,7 @@ export default function DashboardView({
   onWarehouseWriteOff,
   onViewDetails,
 }: DashboardViewProps) {
-  const { t } = useTranslation();
+  const { t, language } = useTranslation();
 
   const isWrittenOffComputer = (c: ComputerItem) =>
     c.status === 'Списано' || c.status === 'На списание';
@@ -78,9 +87,20 @@ export default function DashboardView({
   // Warehouse Tab Filter state
   const [warehouseTab, setWarehouseTab] = useState<'Все' | 'Компьютеры' | 'Сетевое оборудование' | 'Периферия' | 'Оргтехника' | 'Видеонаблюдение' | 'Расходные материалы' | 'Другое'>('Все');
 
-  // Real-time dynamic calculations representing the exact totals of items in the system
-  const displayTotalPC = activeComputers.length; 
-  const displayEmployeePC = activeComputers.filter(c => c.employeeName && c.employeeName !== 'Склад ИТ' && c.status === 'В работе').length;
+  const pcStats = countDashboardEquipmentByTab(activeComputers, 'computers');
+  const displayTotalPC = pcStats.total;
+  const displayEmployeePC = filterComputersByEquipmentTab(activeComputers, 'computers').filter(
+    (c) => c.employeeName && c.employeeName !== 'Склад ИТ' && c.status === 'В работе'
+  ).length;
+  const displayPcOnWarehouse = pcStats.onWarehouse;
+
+  const equipmentGroupStats = DASHBOARD_EXTRA_EQUIPMENT_TABS.map((tab) => ({
+    tab,
+    ...countDashboardEquipmentByTab(activeComputers, tab),
+  }));
+
+  const dashboardIssuedComputers = filterComputersByEquipmentTab(activeComputers, 'computers');
+  const computerCategories = getCategoriesForEquipmentTab('computers');
 
   const displayTotalNet = activeNetworkDevices.reduce((sum, item) => sum + item.quantity, 0);
 
@@ -88,11 +108,52 @@ export default function DashboardView({
   const warehouseCostSum = activeWarehouseItems.reduce((sum, item) => sum + (item.quantity * item.costPerUnit), 0);
 
   const displayTotalEmployees = employees.length;
-  const displayActiveEmployees = employees.filter(e => activeComputers.some(c => c.employeeName === e.name && c.status === 'В работе')).length;
+  const displayActiveEmployees = employees.filter((e) =>
+    filterComputersByEquipmentTab(activeComputers, 'computers').some(
+      (c) => c.employeeName === e.name && c.status === 'В работе'
+    )
+  ).length;
 
-  // Let's format money to RU ruble style
-  const formatRub = (val: number) => {
-    return new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 }).format(val);
+  const formatMoney = (val: number) => {
+    let loc = 'ru-RU';
+    let cur = 'RUB';
+    let converted = val;
+    if (language === 'en') {
+      loc = 'en-US';
+      cur = 'USD';
+      converted = val / 90;
+    } else if (language === 'zh') {
+      loc = 'zh-CN';
+      cur = 'CNY';
+      converted = val / 12;
+    }
+    return new Intl.NumberFormat(loc, { style: 'currency', currency: cur, maximumFractionDigits: 0 }).format(converted);
+  };
+
+  const equipmentGroupIcon = (tab: DashboardExtraEquipmentTab) => {
+    switch (tab) {
+      case 'peripherals':
+        return Monitor;
+      case 'orgtech':
+        return Printer;
+      case 'surveillance':
+        return Camera;
+      case 'consumables':
+        return Package;
+      default:
+        return Box;
+    }
+  };
+
+  const equipmentGroupStyles: Record<
+    DashboardExtraEquipmentTab,
+    { border: string; bg: string; text: string; hover: string }
+  > = {
+    peripherals: { border: 'hover:border-violet-200', bg: 'bg-violet-50', text: 'text-violet-600', hover: 'group-hover:bg-violet-100' },
+    orgtech: { border: 'hover:border-orange-200', bg: 'bg-orange-50', text: 'text-orange-600', hover: 'group-hover:bg-orange-100' },
+    surveillance: { border: 'hover:border-cyan-200', bg: 'bg-cyan-50', text: 'text-cyan-600', hover: 'group-hover:bg-cyan-100' },
+    consumables: { border: 'hover:border-lime-200', bg: 'bg-lime-50', text: 'text-lime-700', hover: 'group-hover:bg-lime-100' },
+    other_equip: { border: 'hover:border-stone-200', bg: 'bg-stone-100', text: 'text-stone-600', hover: 'group-hover:bg-stone-200' },
   };
 
   // Filter Warehouse Items for dashboard bottom table
@@ -115,7 +176,13 @@ export default function DashboardView({
           <div className="space-y-2">
             <span className="text-xs font-semibold text-slate-400 block">{t("Компьютеры")}</span>
             <div className="text-3xl font-bold text-slate-800">{displayTotalPC}</div>
-            <span className="text-xs text-slate-400 block">{t("У сотрудников:")}<strong className="text-slate-600">{displayEmployeePC}</strong>
+            <span className="text-xs text-slate-400 block">
+              {t("У сотрудников:")}<strong className="text-slate-600">{displayEmployeePC}</strong>
+              {displayPcOnWarehouse > 0 && (
+                <span className="block mt-0.5">
+                  {t("На складе:")}<strong className="text-slate-600">{displayPcOnWarehouse}</strong>
+                </span>
+              )}
             </span>
           </div>
           <div className="bg-blue-50 text-blue-600 p-3 rounded-xl transition-colors group-hover:bg-blue-100">
@@ -150,7 +217,7 @@ export default function DashboardView({
           <div className="space-y-2">
             <span className="text-xs font-semibold text-slate-400 block">{t("Оборудование на складе")}</span>
             <div className="text-3xl font-bold text-slate-800">{warehouseCount}</div>
-            <span className="text-xs text-slate-400 block">{t("На сумму:")}<strong className="text-slate-600">{formatRub(warehouseCostSum)}</strong>
+            <span className="text-xs text-slate-400 block">{t("На сумму:")}<strong className="text-slate-600">{formatMoney(warehouseCostSum)}</strong>
             </span>
           </div>
           <div className="bg-amber-50 text-amber-600 p-3 rounded-xl transition-colors group-hover:bg-amber-100">
@@ -203,13 +270,43 @@ export default function DashboardView({
           <div className="space-y-2">
             <span className="text-xs font-semibold text-slate-400 block">{t("ПО и Лицензии")}</span>
             <div className="text-3xl font-bold text-slate-800">{activeSoftwareItems.length}</div>
-            <span className="text-xs text-slate-400 block">{t("Лицензий всего:")}<strong className="text-slate-600">{activeSoftwareItems.reduce((sum, item) => sum + (item.quantity || 1), 0)} шт.</strong>
+            <span className="text-xs text-slate-400 block">{t("Лицензий всего:")}<strong className="text-slate-600">{activeSoftwareItems.reduce((sum, item) => sum + (item.quantity || 1), 0)} {t("шт.")}</strong>
             </span>
           </div>
           <div className="bg-sky-50 text-sky-600 p-3 rounded-xl transition-colors group-hover:bg-sky-100">
             <Key size={24} />
           </div>
         </div>
+      </div>
+
+      {/* 1b. Equipment groups — strict category breakdown */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+        {equipmentGroupStats.map(({ tab, total, onWarehouse, issued }) => {
+          const Icon = equipmentGroupIcon(tab);
+          const styles = equipmentGroupStyles[tab];
+          const titleKey = equipmentTabTitleKey(tab);
+          return (
+            <div
+              key={tab}
+              className={`bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between transition-all hover:shadow-md cursor-pointer group ${styles.border}`}
+              onClick={() => onNavigate(tab)}
+              title={t("Открыть раздел") + ': ' + t(titleKey)}
+            >
+              <div className="space-y-2">
+                <span className="text-xs font-semibold text-slate-400 block">{t(titleKey)}</span>
+                <div className="text-3xl font-bold text-slate-800">{total}</div>
+                <span className="text-xs text-slate-400 block">
+                  {t("На складе:")}<strong className="text-slate-600">{onWarehouse}</strong>
+                  <span className="mx-1">·</span>
+                  {t("Выдано:")}<strong className="text-slate-600">{issued}</strong>
+                </span>
+              </div>
+              <div className={`${styles.bg} ${styles.text} p-3 rounded-xl transition-colors ${styles.hover}`}>
+                <Icon size={24} />
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       {/* 2. Objects and Network Equipment side-by-side gridding (Row 1) */}
@@ -238,7 +335,10 @@ export default function DashboardView({
               <tbody className="divide-y divide-slate-100 text-slate-700">
                 {objects.slice(0, 8).map((obj) => {
                   const displayNet = activeNetworkDevices.filter(n => n.objectName === obj.name).reduce((sum, n) => sum + n.quantity, 0);
-                  const displayPC = activeComputers.filter(c => c.objectName === obj.name).length;
+                  const displayPC = activeComputers.filter(
+                    (c) =>
+                      c.objectName === obj.name && computerCategories.includes(c.category)
+                  ).length;
 
                   return (
                     <tr key={obj.id} className="hover:bg-slate-50 transition-colors text-[13px]">
@@ -341,7 +441,7 @@ export default function DashboardView({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-700">
-                {activeComputers.slice(0, 8).map((comp) => {
+                {dashboardIssuedComputers.slice(0, 8).map((comp) => {
                   let statusClass = '';
                   if (comp.status === 'В работе') statusClass = 'bg-emerald-50 text-emerald-700 border-emerald-200';
                   else if (comp.status === 'На ремонте') statusClass = 'bg-amber-50 text-amber-700 border-amber-250';
@@ -415,10 +515,10 @@ export default function DashboardView({
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-700">
                 {employees.slice(0, 8).map((emp) => {
-                  const itemsCount = activeComputers.filter(
+                  const itemsCount = filterComputersByEquipmentTab(activeComputers, 'computers').filter(
                     (c) => c.employeeName === emp.name && c.status === 'В работе'
                   ).length;
-                  const badgeText = `${itemsCount} $ед.`;
+                  const badgeText = `${itemsCount} ${t('ед.')}`;
 
                   return (
                     <tr key={emp.id} className="hover:bg-slate-50 transition-colors text-[13px]">
@@ -511,8 +611,8 @@ export default function DashboardView({
                   <td className="py-3 font-mono text-slate-400">{item.inventoryNumber}</td>
                   <td className="py-3 text-center font-mono text-slate-800 font-semibold">{item.quantity}</td>
                   <td className="py-3 text-slate-400">{t(item.unit)}</td>
-                  <td className="py-3 text-right font-mono text-slate-655">{formatRub(item.costPerUnit)}</td>
-                  <td className="py-3 text-right font-mono font-semibold text-slate-800">{formatRub(item.costPerUnit * item.quantity)}</td>
+                  <td className="py-3 text-right font-mono text-slate-655">{formatMoney(item.costPerUnit)}</td>
+                  <td className="py-3 text-right font-mono font-semibold text-slate-800">{formatMoney(item.costPerUnit * item.quantity)}</td>
                   <td className="py-3 text-center">
                     <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">{t("В наличии")}</span>
                   </td>

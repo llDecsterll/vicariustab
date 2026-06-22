@@ -28,6 +28,14 @@ import {
 } from 'lucide-react';
 import { InventoryAudit, ComputerItem, NetworkDevice } from '../types';
 import { useTranslation } from '../utils/i18n';
+import {
+  auditConclusionPdfName,
+  auditStartPdfName,
+  buildAuditConclusionContent,
+  buildAuditEquipmentRows,
+  buildAuditStartOrderContent,
+  isAuditStartPdfName,
+} from '../utils/auditDocuments';
 import ConfirmDeleteModal from './ConfirmDeleteModal';
 
 interface AuditsViewProps {
@@ -68,7 +76,7 @@ export default function AuditsView({
   computers = [],
   networkDevices = [],
 }: AuditsViewProps) {
-  const { t } = useTranslation();
+  const { t, language } = useTranslation();
 
   const [showModal, setShowModal] = useState(false);
   const [title, setTitle] = useState('');
@@ -97,12 +105,12 @@ export default function AuditsView({
 
   // Helper to pre-fill responsive inputs
   const handleOpenAddModal = () => {
-    setTitle('Плановая инвентаризация ТМЦ');
+    setTitle(t('Плановая инвентаризация ТМЦ'));
     setResponsibleUser(employees[0]?.name || 'Иванов И.И.');
-    setSelectedObjectName(objects[0]?.name || 'Головной офис');
+    setSelectedObjectName(objects[0]?.name || t('Все объекты'));
     setControllerUser(employees[1]?.name || employees[0]?.name || 'Сидоров П.П.');
     setConductorUser(employees[0]?.name || 'Иванов И.И.');
-    setStartNotes('Провести плановую сверку компьютерной техники, оргтехники и расходных материалов на объекте.');
+    setStartNotes(t('Провести плановую сверку компьютерной техники, оргтехники и расходных материалов на объекте.'));
     setShowModal(true);
   };
 
@@ -114,8 +122,8 @@ export default function AuditsView({
     const curDate = new Date().toISOString().split('T')[0];
 
     // Filter computers and network devices belonging to the selected object/location
-    const targetLocation = selectedObjectName || 'Все объекты';
-    const isAll = targetLocation === 'Все подразделения и офисы' || targetLocation === 'Все объекты' || !targetLocation;
+    const targetLocation = selectedObjectName || t('Все объекты');
+    const isAll = targetLocation === t('Все подразделения и офисы') || targetLocation === t('Все объекты') || targetLocation === 'Все подразделения и офисы' || targetLocation === 'Все объекты' || !targetLocation;
 
     const relevantComputers = isAll 
       ? computers 
@@ -125,77 +133,33 @@ export default function AuditsView({
       ? networkDevices 
       : networkDevices.filter(n => n.objectName === targetLocation);
 
-    // Build the equipment table
-    let equipmentTable = '';
-    let index = 1;
+    const equipmentRows = buildAuditEquipmentRows(relevantComputers, relevantNetwork, {
+      defaultComputer: t('Компьютер'),
+      defaultNetwork: t('Сетевое'),
+      itAdmin: t('Служба ИТ / Админ'),
+      unassigned: t('Не закреплено'),
+    });
 
-    if (relevantComputers.length === 0 && relevantNetwork.length === 0) {
-      equipmentTable = '   [ На данном объекте нет зарегистрированного оборудования ]\n';
-    } else {
-      equipmentTable += '-----------------------------------------------------------------------------------------\n';
-      equipmentTable += ' №   | Тип/Категория   | Модель / Наименование      | Инв. номер      | На ком числится / Ответственный \n';
-      equipmentTable += '-----------------------------------------------------------------------------------------\n';
-      
-      relevantComputers.forEach(c => {
-        const num = String(index++).padEnd(4);
-        const cat = String(c.category || 'Компьютер').slice(0, 15).padEnd(15);
-        const model = String(c.model).slice(0, 26).padEnd(26);
-        const inv = String(c.inventoryNumber || '-').slice(0, 15).padEnd(15);
-        const resp = String(c.employeeName || 'Не закреплено').slice(0, 31);
-        equipmentTable += ` ${num}| ${cat} | ${model} | ${inv} | ${resp}\n`;
-      });
+    const startContent = buildAuditStartOrderContent(
+      {
+        auditId,
+        date: curDate,
+        workspaceName: workspaceName || '',
+        location: targetLocation,
+        controllerUser,
+        conductorUser,
+        responsibleUser,
+        startNotes,
+        equipmentRows,
+      },
+      language
+    );
 
-      relevantNetwork.forEach(n => {
-        const num = String(index++).padEnd(4);
-        const cat = String(n.type || 'Сетевое').slice(0, 15).padEnd(15);
-        const model = String(n.deviceName).slice(0, 26).padEnd(26);
-        const inv = String(n.id || '-').slice(0, 15).padEnd(15);
-        const resp = 'Служба ИТ / Админ';
-        equipmentTable += ` ${num}| ${cat} | ${model} | ${inv} | ${resp}\n`;
-      });
-      equipmentTable += '-----------------------------------------------------------------------------------------\n';
-    }
-
-    // Generate printable Start Order text content (Приказ о начале)
+    const kbUnit = language === 'ru' ? 'КБ' : 'KB';
     const startPdf = {
-      name: `Акт_начала_ИНВ_${auditId}.pdf`,
-      size: `${(100 + (index * 0.15)).toFixed(1)} КБ`,
-      content: `
-======================================================
-  АКТ О НАЧАЛЕ ИНВЕНТАРИЗАЦИИ № ИНВ-СТ-${auditId}
-======================================================
-Организация: ${workspaceName || 'ООО "Глобал-Консалт ИТ"'}
-Дата начала инвентаризации: ${curDate}
-Место составления: ${targetLocation}
-------------------------------------------------------
-
-Настоящим актом подтверждается запуск инвентаризационной проверки.
-В целях обеспечения контроля сохранности имущества, приказываю:
-
-1. Провести инвентаризацию ТМЦ на объекте: [ ${targetLocation} ]
-2. Для проведения инвентаризации назначить комиссию в составе:
-   - Контролирующий (Председатель комиссии): ${controllerUser || 'Не указан'}
-   - Проводящий инвентаризацию (Аудитор/Исполнитель): ${conductorUser || 'Не указан'}
-
-3. На момент начала инвентаризации на объекте закреплено следующее оборудование:
-
-${equipmentTable}
-
-4. Основание / Распоряжение:
-   "${startNotes || 'Сверить фактическое наличие с записями в базе данных ИТ-учета.'}"
-
-5. Результаты проверки внести в итоговый протокол и ведомости расхождений.
-
-------------------------------------------------------
-Подписи должностных лиц:
-
-Председатель комиссии (Контролирующий): ___________ / ${controllerUser} /
-
-Исполнитель (Проводящий аудит): ___________ / ${conductorUser} /
-
-Ответственный пользователь базы учета: ___________ / ${responsibleUser} /
-======================================================
-      `
+      name: auditStartPdfName(auditId, language),
+      size: `${(100 + equipmentRows.length * 0.15).toFixed(1)} ${kbUnit}`,
+      content: startContent,
     };
 
     onAddAudit(
@@ -220,48 +184,27 @@ ${equipmentTable}
       if (!audit) return;
 
       const curDate = new Date().toISOString().split('T')[0];
-      
-      // Generate printable Conclusion Act text content (Акт заключения) if not uploaded
+      const checkedCount = employees.length * 2 + 15;
+      const kbUnit = language === 'ru' ? 'КБ' : 'KB';
+
       const conclusionPdf = uploadedConclusionPdf || {
-        name: `Акт_заключения_ИНВ_${audit.id}.pdf`,
-        size: '158 КБ',
-        content: `
-======================================================
- АКТ (ЗАКЛЮЧЕНИЕ) О РЕЗУЛЬТАТАХ ИНВЕНТАРИЗАЦИИ № ИНВ-АКТ-${audit.id}
-------------------------------------------------------
-Организация: ${workspaceName || 'ООО "Глобал-Консалт ИТ"'}
-======================================================
-Дата составления акта: ${curDate}
-Объект проверки: ${audit.objectName || 'Все объекты'}
-
-Комиссия в составе:
-   - Председатель комиссии (Контролирует): ${audit.controllerUser || 'Не указан'}
-   - Проводящий инвентаризацию (Проводит): ${audit.conductorUser || 'Не указан'}
-
-Произвела проверку фактического наличия ИТ-оборудования и расходных материалов.
-Настоящим актом подтверждаются следующие результаты:
-
-1. СОСТОЯНИЕ УЧЕТА:
-   - Общее число проверенного оборудования: [ ${employees.length * 2 + 15} ед. проверено ]
-   - Выявлено расхождений (недостачи или излишки): [ ${mismatches} ед. ]
-
-2. ЗАКЛЮЧЕНИЕ И ВЫВОДЫ КОМИССИИ:
-   "${conclusionNotes || 'Инвентаризация успешно завершена. Все обнаруженные ТМЦ соответствуют инвентарным номерам, расхождения устранены.'}"
-
-3. РЕКОМЕНДАЦИИ ПО ИТОГАМ:
-   - При наличии расхождений внести корректировки в сетевые карточки оборудования.
-   - Своевременно списывать непригодные картриджи и дефектные комплектующие.
-
-------------------------------------------------------
-Подписи членов комиссии:
-
-Председатель комиссии (Контроль): ___________ / ${audit.controllerUser || 'Без подписи'} /
-
-Исполнитель (Проводящий аудит): ___________ / ${audit.conductorUser || 'Без подписи'} /
-
-Материально-ответственное лицо: ___________ / ${audit.responsibleUser} /
-======================================================
-        `
+        name: auditConclusionPdfName(audit.id, language),
+        size: `158 ${kbUnit}`,
+        content: buildAuditConclusionContent(
+          {
+            auditId: audit.id,
+            date: curDate,
+            workspaceName: workspaceName || '',
+            objectName: audit.objectName || '',
+            controllerUser: audit.controllerUser || '',
+            conductorUser: audit.conductorUser || '',
+            responsibleUser: audit.responsibleUser,
+            mismatches,
+            checkedCount,
+            conclusionNotes,
+          },
+          language
+        ),
       };
 
       onCompleteAudit(mismatchesModalId, mismatches, conclusionNotes, conclusionPdf);
@@ -317,7 +260,7 @@ ${equipmentTable}
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-1.5">
                     <span className={`px-2.5 py-0.5 rounded-lg text-xs font-bold border ${statusClass}`}>
-                      {audit.status}
+                      {t(audit.status)}
                     </span>
                     {audit.status === 'Завершена' && !isViewer && onDeleteAudit && (
                       <button
@@ -344,7 +287,7 @@ ${equipmentTable}
                   {/* Object Name Block */}
                   <div className="mt-2 text-xs flex items-center gap-1.5 text-indigo-700 font-semibold bg-indigo-50/50 p-1.5 px-2.5 rounded-lg w-max max-w-full">
                     <Building2 size={13} className="shrink-0" />
-                    <span>Объект проведения: {audit.objectName || 'Все объекты'}</span>
+                    <span>{t("Объект проведения:")} {audit.objectName || t('Все объекты')}</span>
                   </div>
                 </div>
 
@@ -354,14 +297,14 @@ ${equipmentTable}
                     <span className="text-[10px] text-slate-400 font-bold uppercase block">{t("Кто проводит:")}</span>
                     <div className="flex items-center gap-1 text-slate-700 font-medium">
                       <User size={12} className="text-slate-405" />
-                      <span>{audit.conductorUser || audit.responsibleUser || 'Не указан'}</span>
+                      <span>{audit.conductorUser || audit.responsibleUser || t('Не указан')}</span>
                     </div>
                   </div>
                   <div className="space-y-1 sm:border-l sm:border-slate-150 sm:pl-3">
                     <span className="text-[10px] text-slate-400 font-bold uppercase block">{t("Кто контролирует:")}</span>
                     <div className="flex items-center gap-1 text-slate-700 font-medium">
                       <Users size={12} className="text-slate-405" />
-                      <span>{audit.controllerUser || 'Комиссия УК'}</span>
+                      <span>{audit.controllerUser || t('Комиссия УК')}</span>
                     </div>
                   </div>
                 </div>
@@ -408,12 +351,12 @@ ${equipmentTable}
                   ) : (
                     <div className="flex flex-wrap gap-2">
                       {audit.pdfFiles.map((pdf, idx) => {
-                        const isStart = pdf.name.includes('начале') || pdf.name.includes('СТ');
+                        const isStart = isAuditStartPdfName(pdf.name);
                         return (
                           <button
                             key={idx}
                             onClick={() => setPreviewDoc({
-                              title: isStart ? 'Приказ о начале инвентаризации' : 'Акт заключения инвентаризации',
+                              title: isStart ? t('Приказ о начале инвентаризации') : t('Акт заключения инвентаризации'),
                               type: isStart ? 'start_order' : 'conclusion_act',
                               audit: audit,
                               customContent: pdf.content
@@ -438,7 +381,7 @@ ${equipmentTable}
                   <button
                     onClick={() => {
                       setMismatchesModalId(audit.id);
-                      setConclusionNotes('В ходе инвентаризации несоответствий не обнаружено (или оперативно исправлено). Все единицы ТМЦ совпадают.');
+                      setConclusionNotes(t('В ходе инвентаризации несоответствий не обнаружено (или оперативно исправлено). Все единицы ТМЦ совпадают.'));
                     }}
                     className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs flex items-center justify-center gap-1.5"
                   >
@@ -556,7 +499,7 @@ ${equipmentTable}
 
               <div className="p-3 bg-amber-50/50 border border-amber-200/50 rounded-xl">
                 <span className="text-[10px] text-amber-900 font-bold uppercase block mb-1">{t("Печатная форма:")}</span>
-                <p className="text-[10px] text-amber-800 leading-relaxed">{t("Будет автоматически сформирован")}<strong>"Приказ о проведении инвентаризации"</strong>{t("с закреплением ответственной комиссии и контролирующих лиц в машиносчитываемом акте.")}</p>
+                <p className="text-[10px] text-amber-800 leading-relaxed">{t("Будет автоматически сформирован")} <strong>{t("Приказ о начале инвентаризации")}</strong> {t("с закреплением ответственной комиссии и контролирующих лиц в машиносчитываемом акте.")}</p>
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-50">
@@ -646,7 +589,7 @@ ${equipmentTable}
                         const file = e.target.files?.[0];
                         if (file) {
                           if (!file.name.toLowerCase().endsWith('.pdf')) {
-                            alert('Пожалуйста, выберите файл в формате PDF!');
+                            alert(t('Пожалуйста, выберите файл в формате PDF!'));
                             return;
                           }
                           const reader = new FileReader();
@@ -670,7 +613,10 @@ ${equipmentTable}
               </div>
 
               <div className="p-3 bg-emerald-50/50 border border-emerald-200/50 rounded-xl text-[10px] text-emerald-800">
-                <strong>{uploadedConclusionPdf ? 'Собственный акт во вложении:' : 'Автоматическая привязка:'}</strong> {uploadedConclusionPdf ? 'Ваш подписанный PDF-документ будет сохранен в качестве официального отчета о завершении инвентаризации.' : 'К карточке инвентаризации будет привязан официальный документ Акт инвентаризационного заключения с подписями председателя комиссии и исполнителей.'}
+                <strong>{uploadedConclusionPdf ? t('Собственный акт во вложении:') : t('Автоматическая привязка:')}</strong>{' '}
+                {uploadedConclusionPdf
+                  ? t('Ваш подписанный PDF-документ будет сохранен в качестве официального отчета о завершении инвентаризации.')
+                  : t('К карточке инвентаризации будет привязан официальный документ Акт инвентаризационного заключения с подписями председателя комиссии и исполнителей.')}
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-50">
@@ -721,7 +667,7 @@ ${equipmentTable}
               <div>
                 <h3 className="font-bold text-sm text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
                   <FileText className="text-blue-500" size={16} />
-                  Печатный документ: {previewDoc.title}
+                  {t("Печатный документ:")} {previewDoc.title}
                 </h3>
                 <span className="text-[10px] text-slate-400 block">{t("Предварительный просмотр печатной формы компании")}</span>
               </div>
@@ -750,7 +696,7 @@ ${equipmentTable}
                 
                 {/* Official Stamp in the printed document */}
                 <div className="mt-8 p-4 border border-dashed border-slate-300 bg-slate-50 rounded text-[10px] uppercase font-bold tracking-wider leading-relaxed">
-                  <strong>ШТАМП ОРГАНИЗАЦИИ [ {workspaceName ? workspaceName.toUpperCase() : 'ООО "ГЛОБАЛ-КОНСАЛТ ИТ"'} ] И СИСТЕМНАЯ СВЕРКА:</strong><br/>
+                  <strong>{t("ШТАМП ОРГАНИЗАЦИИ")} [ {workspaceName ? workspaceName.toUpperCase() : 'ООО "ГЛОБАЛ-КОНСАЛТ ИТ"'} ] {t("И СИСТЕМНАЯ СВЕРКА:")}</strong><br/>
                   <span className="text-[9px] font-normal text-slate-500 lowercase normal-case">{t("Система учета ИТ-оборудования Equipment Management Pro. Документ подписан электронной цифровой подписью комиссионных инспекторов.")}</span>
                 </div>
               </div>
@@ -758,7 +704,7 @@ ${equipmentTable}
 
             {/* Bottom Actions footer */}
             <div className="bg-slate-50 px-6 py-3 border-t border-slate-150 flex justify-between items-center font-sans text-[10px] text-slate-400">
-              <span>Документ зарегистрирован в журнале аудита ИНВ-{previewDoc.audit.id}</span>
+              <span>{t("Документ зарегистрирован в журнале аудита")} ИНВ-{previewDoc.audit.id}</span>
               <button
                 onClick={() => setPreviewDoc(null)}
                 className="px-4 py-1.5 bg-slate-150 hover:bg-slate-200 text-slate-700 font-bold rounded-lg transition-colors cursor-pointer"
@@ -772,13 +718,13 @@ ${equipmentTable}
         preview={
           deleteTarget
             ? {
-                title: 'Удаление инвентаризации',
-                subtitle: 'Запись об инвентаризации будет удалена. Это действие необратимо.',
+                title: t('Удаление инвентаризации'),
+                subtitle: t('Запись об инвентаризации будет удалена. Это действие необратимо.'),
                 itemName: deleteTarget.title,
                 detailLabel: 'ID',
                 detailValue: deleteTarget.id,
                 cascadeLines: [],
-                confirmLabel: 'Удалить',
+                confirmLabel: t('Удалить'),
               }
             : null
         }

@@ -21,6 +21,8 @@ import {
   type EquipmentTab,
   getCategoriesForEquipmentTab,
   getCategoryFilterLabel,
+  isVideoCameraDevice,
+  isVideoRecorderDevice,
 } from '../utils/warehouseRouting';
 import EquipmentGroupFilters, { HARDWARE_STATUS_FILTER_OPTIONS } from './EquipmentGroupFilters';
 import ModalCloseButton from './ModalCloseButton';
@@ -717,7 +719,7 @@ export default function ComputersView({
                   (() => {
                     const isVideo = category === 'Видеонаблюдение';
                     if (isVideo) {
-                      if (deviceType !== 'Видеокамера') {
+                      if (!isVideoCameraDevice({ category, deviceType })) {
                         return null;
                       }
                       return (
@@ -732,7 +734,7 @@ export default function ComputersView({
                           >
                             <option value="none">{t("Без привязки к устройству")}</option>
                             {(allComputers || computers)
-                              .filter(c => c.category === 'Видеонаблюдение' && c.deviceType === 'Видеорегистратор')
+                              .filter((c) => isVideoRecorderDevice(c))
                               .map(c => (
                                 <option key={c.id} value={c.id}>
                                   {c.model} ({c.inventoryNumber})

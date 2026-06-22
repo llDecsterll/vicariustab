@@ -213,7 +213,7 @@ export function resolveWarehouseComputerRoute(item: {
         category: 'Видеонаблюдение',
         deviceType:
           dt === 'Видеорегистратор' || nameLower.includes('nvr') || nameLower.includes('dvr')
-            ? 'DVR/NVR'
+            ? 'Видеорегистратор'
             : 'Видеокамера',
         equipmentTab: 'surveillance',
       };
@@ -259,14 +259,88 @@ export function equipmentTabLabel(tab: EquipmentTab): string {
     case 'orgtech':
       return 'Принтеры';
     case 'surveillance':
-      return 'Видеонаблюдение';
+      return 'Камеры СКУД';
     case 'consumables':
       return 'Расходники';
     case 'other_equip':
-      return 'Другое оборудование';
+      return 'Прочее оборудование';
     default:
       return tab;
   }
+}
+
+/** i18n dictionary key for dashboard / sidebar equipment group title */
+export function equipmentTabTitleKey(tab: EquipmentTab): string {
+  return equipmentTabLabel(tab);
+}
+
+export function isComputerWrittenOff(c: ComputerItem): boolean {
+  return c.status === 'Списано' || c.status === 'На списание';
+}
+
+/** Count registry items for an equipment group (includes stock «На складе», excludes write-off). */
+export function countDashboardEquipmentByTab(
+  computers: ComputerItem[],
+  tab: EquipmentTab
+): { total: number; onWarehouse: number; issued: number } {
+  const categories = getCategoriesForEquipmentTab(tab);
+  let onWarehouse = 0;
+  let issued = 0;
+  for (const c of computers) {
+    if (isComputerWrittenOff(c)) continue;
+    if (!categories.includes(c.category)) continue;
+    if (c.status === 'На складе') onWarehouse += 1;
+    else issued += 1;
+  }
+  return { total: onWarehouse + issued, onWarehouse, issued };
+}
+
+export const DASHBOARD_EXTRA_EQUIPMENT_TABS = [
+  'peripherals',
+  'orgtech',
+  'surveillance',
+  'consumables',
+  'other_equip',
+] as const satisfies readonly EquipmentTab[];
+
+export type DashboardExtraEquipmentTab = (typeof DASHBOARD_EXTRA_EQUIPMENT_TABS)[number];
+
+/** Video recorder (NVR/DVR) — matches legacy deviceType values. */
+export function isVideoRecorderDevice(item: {
+  category?: string;
+  deviceType?: string;
+}): boolean {
+  if (item.category !== 'Видеонаблюдение') return false;
+  const dt = (item.deviceType || '').toLowerCase();
+  return (
+    dt === 'видеорегистратор' ||
+    dt === 'dvr/nvr' ||
+    dt.includes('регистратор') ||
+    dt.includes('nvr') ||
+    dt.includes('dvr')
+  );
+}
+
+export function isVideoCameraDevice(item: {
+  category?: string;
+  deviceType?: string;
+}): boolean {
+  if (item.category !== 'Видеонаблюдение') return false;
+  if (isVideoRecorderDevice(item)) return false;
+  const dt = (item.deviceType || '').toLowerCase();
+  return (
+    dt === 'видеокамера' ||
+    dt.includes('камер') ||
+    dt.includes('camera') ||
+    dt === '' ||
+    dt === 'другое'
+  );
+}
+
+export function listVideoRecorderComputers(computers: ComputerItem[]): ComputerItem[] {
+  return computers.filter(
+    (c) => c.category === 'Видеонаблюдение' && isVideoRecorderDevice(c)
+  );
 }
 
 /** Derive lifecycle status for network devices (no explicit status field on model). */

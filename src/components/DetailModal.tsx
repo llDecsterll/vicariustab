@@ -49,6 +49,7 @@ import {
   hasAnyComputerSpecs,
   matchesBaseInventoryNumber,
 } from '../utils/equipmentFields';
+import { isVideoCameraDevice, isVideoRecorderDevice } from '../utils/warehouseRouting';
 import ModalCloseButton from './ModalCloseButton';
 
 interface DetailModalProps {
@@ -918,7 +919,7 @@ export default function DetailModal({
                       (() => {
                         const isVideo = item.category === 'Видеонаблюдение';
                         if (isVideo) {
-                          if (item.deviceType !== 'Видеокамера') {
+                          if (!isVideoCameraDevice(item)) {
                             return null;
                           }
                           return (
@@ -934,7 +935,7 @@ export default function DetailModal({
                               >
                                 <option value="none">{t("Без привязки к устройству")}</option>
                                 {computers
-                                  .filter(pc => pc.category === 'Видеонаблюдение' && pc.deviceType === 'Видеорегистратор')
+                                  .filter((pc) => isVideoRecorderDevice(pc))
                                   .map(pc => (
                                     <option key={pc.id} value={pc.id}>{pc.model} ({pc.inventoryNumber})</option>
                                   ))
