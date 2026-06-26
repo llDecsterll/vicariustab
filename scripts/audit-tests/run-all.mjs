@@ -16,6 +16,8 @@ const tests = [
   'unit-validation.mjs',
   'unit-warehouse-excel.mjs',
   'unit-writeoff.mjs',
+  'unit-restore-writeoff.mjs',
+  'unit-warehouse-full-lifecycle.mjs',
   'unit-routing.mjs',
   'unit-backup-license.mjs',
   'unit-license-server.mjs',
@@ -31,8 +33,11 @@ for (const file of tests) {
   console.log(`\n=== ${file} ===`);
   const code = await new Promise((resolve) => {
     const nodeArgs =
+      file === 'unit-lifecycle.mjs' ||
       file === 'unit-warehouse-excel.mjs' ||
       file === 'unit-writeoff.mjs' ||
+      file === 'unit-restore-writeoff.mjs' ||
+      file === 'unit-warehouse-full-lifecycle.mjs' ||
       file === 'unit-routing.mjs' ||
       file === 'unit-license-server.mjs'
         ? ['--import', 'tsx/esm', '--test', filePath]

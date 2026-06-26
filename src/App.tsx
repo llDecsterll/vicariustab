@@ -72,8 +72,10 @@ import {
   matchesBaseInventoryNumber,
   mergeWarehouseReceiptSpecs,
   normalizeInventoryNumber,
+  normalizePositiveInt,
   remapBatchInventoryNumber,
   allocateNextSplitPartIndex,
+  repairDuplicateComputerInventoryNumbers,
 } from './utils/equipmentFields';
 import { Copy, Check, Mail } from 'lucide-react';
 import { copyTextToClipboard } from './utils/clipboard';
@@ -105,12 +107,13 @@ import ConfirmReturnModal from './components/ConfirmReturnModal';
 import {
   buildDeletePreview,
   filterSoftwareForEquipmentView,
-  findLinkedStockComputerIds,
   findSoftwareIdsForWarehouseItem,
   pickStockComputerIdsForWriteOff,
+  reduceWarehouseQtyForComputerWriteOff,
+  reduceWarehouseQtyByInventoryMatch,
+  countRegistryUnitsForWarehouseBatch,
   getSoftwareWarehouseInv,
   isActiveWarehouseStockLine,
-  isNotLinkedToInventoryKey,
   isWrittenOffLifecycleStatus,
   purgeWrittenOffRegistry,
   warehouseItemLinksSoftware,
@@ -428,6 +431,18 @@ export default function App() {
     });
   }, [warehouseItems]);
 
+  // Авто-исправление точных дублей инв. № у карточек оборудования (ошибочные выдачи со склада)
+  useEffect(() => {
+    setComputers((prev) => {
+      const repaired = repairDuplicateComputerInventoryNumbers(prev, {
+        warehouseItems,
+        networkDevices,
+        softwareItems,
+      });
+      return repaired;
+    });
+  }, [computers, warehouseItems, networkDevices, softwareItems]);
+
   const loadDataFromServer = useCallback(async (): Promise<boolean> => {
     if (!getStoredSessionToken()) return false;
     const result = await apiFetch<Record<string, unknown>>('/api/data');
@@ -590,12 +605,19 @@ export default function App() {
   };
 
   const getWorkspacePayload = useCallback(
-    (usersOverride?: SystemUser[]) => ({
+    (usersOverride?: SystemUser[]) => {
+      const repairedWarehouseItems = repairWarehousePendingDuplicates(warehouseItems);
+      const repairedComputers = repairDuplicateComputerInventoryNumbers(computers, {
+        warehouseItems: repairedWarehouseItems,
+        networkDevices,
+        softwareItems,
+      });
+      return {
       objects,
       networkDevices,
-      computers,
+      computers: repairedComputers,
       employees,
-      warehouseItems: repairWarehousePendingDuplicates(warehouseItems),
+      warehouseItems: repairedWarehouseItems,
       activities,
       audits,
       softwareItems,
@@ -625,7 +647,8 @@ export default function App() {
       max_time: localStorage.getItem('it_max_time') || '',
       tamper_flag: localStorage.getItem('it_tamper_flag') || '',
       ...getLicenseSecuritySnapshot(),
-    }),
+    };
+    },
     [
       objects,
       networkDevices,
@@ -655,7 +678,12 @@ export default function App() {
   const pushWorkspaceToServer = useCallback(
     async (usersOverride?: SystemUser[]): Promise<boolean> => {
       if (!isLoadedFromServer || !isLoggedIn || !getStoredSessionToken()) return false;
-      const result = await persistWorkspaceState(getWorkspacePayload(usersOverride), dataRevisionRef.current);
+      const payload = getWorkspacePayload(usersOverride);
+      const repairedComputers = payload.computers;
+      if (repairedComputers !== computers) {
+        setComputers(repairedComputers);
+      }
+      const result = await persistWorkspaceState(payload, dataRevisionRef.current);
       if (result.ok === true) {
         setDataRevision(result.revision);
         dataRevisionRef.current = result.revision;
@@ -672,7 +700,7 @@ export default function App() {
       setSaveError(msg);
       return false;
     },
-    [getWorkspacePayload, isLoadedFromServer, isLoggedIn, t]
+    [getWorkspacePayload, isLoadedFromServer, isLoggedIn, computers, t]
   );
 
   const handleDocumentHeaderPersist = useCallback(() => {
@@ -1085,43 +1113,44 @@ export default function App() {
           )
         );
         setWarehouseItems((prev) =>
-          prev.map((w) => {
-            if (w.id === id) return { ...w, status: 'На списание' as const };
-            const linked = softIds.some((sid) => {
-              const soft = softwareItems.find((s) => s.id === sid);
-              return soft ? warehouseItemLinksSoftware(w, soft) : false;
-            });
-            return linked ? { ...w, status: 'На списание' as const } : w;
-          })
+          prev.map((w) =>
+            w.id === id ? { ...w, status: 'На списание' as const } : w
+          )
         );
         logDetail = `Позиция «${target.name}» и связанные лицензии ПО переведены в статус «На списание»`;
       } else {
-        const invKey = normalizeInventoryNumber(target.inventoryNumber);
-        const linkedStockIds = new Set(
-          findLinkedStockComputerIds(target, computers, warehouses)
+        const markQty = normalizePositiveInt(target.quantity);
+        const stockIds = new Set(
+          pickStockComputerIdsForWriteOff(target, computers, warehouses, markQty)
         );
         setWarehouseItems((prev) =>
           prev.map((w) =>
-            isNotLinkedToInventoryKey(w.inventoryNumber, invKey)
-              ? w
-              : { ...w, status: 'На списание' as const }
+            w.id === id ? { ...w, status: 'На списание' as const } : w
           )
         );
         setComputers((prev) =>
           prev.map((c) =>
-            linkedStockIds.has(c.id) || !isNotLinkedToInventoryKey(c.inventoryNumber, invKey)
-              ? { ...c, status: 'На списание' as const }
-              : c
+            stockIds.has(c.id) ? { ...c, status: 'На списание' as const } : c
           )
         );
-        setNetworkDevices((prev) =>
-          prev.map((nd) =>
-            isNotLinkedToInventoryKey(nd.inventoryNumber, invKey)
-              ? nd
-              : { ...nd, status: 'На списание' as const }
-          )
-        );
-        logDetail = `Позиция «${target.name}» и связанные карточки переведены в статус «На списание»`;
+        if (target.type === 'Сетевое оборудование') {
+          const lineKey = getWarehouseLineInventoryKey(target.inventoryNumber);
+          const matchingNet = networkDevices.find(
+            (n) =>
+              inventoryNumbersMatch(n.inventoryNumber, lineKey) &&
+              n.status !== 'Списано'
+          );
+          if (matchingNet) {
+            setNetworkDevices((prev) =>
+              prev.map((n) =>
+                n.id === matchingNet.id
+                  ? { ...n, status: 'На списание' as const }
+                  : n
+              )
+            );
+          }
+        }
+        logDetail = `Позиция «${target.name}» переведена в статус «На списание»`;
       }
     } else if (source === 'network') {
       const target = networkDevices.find((n) => n.id === id);
@@ -1813,6 +1842,64 @@ export default function App() {
       });
     }
 
+    if (isSoftware) {
+      setSoftwareItems((prev) => {
+        const linkedSoft = prev.find((s) => warehouseItemLinksSoftware(source, s));
+        if (!linkedSoft) return prev;
+
+        if (options.splitIntoUnits) {
+          const splitSoftLines: SoftwareItem[] = newLines.map((line, i) => ({
+            ...linkedSoft,
+            id: `soft-split-${Date.now()}-${i}-${Math.floor(Math.random() * 10000)}`,
+            licenseKey:
+              line.inventoryNumber.startsWith('SW-') || !linkedSoft.licenseKey
+                ? linkedSoft.licenseKey
+                : line.inventoryNumber,
+            quantity: 1,
+            status: 'Не активирована' as const,
+          }));
+          const remainingQty = (linkedSoft.quantity || 1) - splitQty;
+          return [
+            ...prev
+              .map((s) =>
+                s.id === linkedSoft.id
+                  ? remainingQty > 0
+                    ? { ...s, quantity: remainingQty }
+                    : null
+                  : s
+              )
+              .filter((s): s is SoftwareItem => s !== null),
+            ...splitSoftLines,
+          ];
+        }
+
+        const splitLine = newLines[0];
+        const splitSoft: SoftwareItem = {
+          ...linkedSoft,
+          id: `soft-split-${Date.now()}`,
+          licenseKey:
+            splitLine.inventoryNumber.startsWith('SW-') || !linkedSoft.licenseKey
+              ? linkedSoft.licenseKey
+              : splitLine.inventoryNumber,
+          quantity: splitQty,
+          status: 'Не активирована',
+        };
+        const remainingQty = (linkedSoft.quantity || 1) - splitQty;
+        return [
+          ...prev
+            .map((s) =>
+              s.id === linkedSoft.id
+                ? remainingQty > 0
+                  ? { ...s, quantity: remainingQty }
+                  : null
+                : s
+            )
+            .filter((s): s is SoftwareItem => s !== null),
+          splitSoft,
+        ];
+      });
+    }
+
     const newInvSummary = newLines.map((l) => l.inventoryNumber).join(', ');
     logActivity(
       'Разделение партии ТМЦ',
@@ -1840,6 +1927,7 @@ export default function App() {
     const splitLineKey = getWarehouseLineInventoryKey(splitItem.inventoryNumber);
     const mergeQty = splitItem.quantity;
     const isNetwork = splitItem.type === 'Сетевое оборудование';
+    const isSoftware = splitItem.type === 'Лицензии ПО';
 
     const stockComputerCards = computers
       .filter(
@@ -1958,6 +2046,42 @@ export default function App() {
             id: `net-merge-${Date.now()}`,
             inventoryNumber: rootBase,
             quantity: mergeQty,
+          },
+        ];
+      });
+    }
+
+    if (isSoftware) {
+      setSoftwareItems((prev) => {
+        const splitSoft = prev.find((s) => warehouseItemLinksSoftware(splitItem, s));
+        if (!splitSoft) return prev;
+        const parentWh =
+          parentBefore ||
+          ({
+            ...splitItem,
+            inventoryNumber: rootBase,
+            type: 'Лицензии ПО' as const,
+          } as WarehouseItem);
+        const parentSoft = prev.find(
+          (s) => s.id !== splitSoft.id && warehouseItemLinksSoftware(parentWh, s)
+        );
+        const withoutSplitSoft = prev.filter((s) => s.id !== splitSoft.id);
+        if (parentSoft) {
+          return withoutSplitSoft.map((s) =>
+            s.id === parentSoft.id
+              ? { ...s, quantity: (s.quantity || 1) + mergeQty }
+              : s
+          );
+        }
+        return [
+          ...withoutSplitSoft,
+          {
+            ...splitSoft,
+            id: `soft-merge-${Date.now()}`,
+            licenseKey:
+              rootBase.startsWith('SW-') || !splitSoft.licenseKey ? splitSoft.licenseKey : rootBase,
+            quantity: mergeQty,
+            status: 'Не активирована' as const,
           },
         ];
       });
@@ -2476,44 +2600,147 @@ export default function App() {
       logActivity('Поступление ТМЦ', `Принят на баланс склада товар "${normalizedItem.name}" в количестве ${normalizedItem.quantity} ${normalizedItem.unit}`, 'create');
     }
 
-    // 2. Automatically distribute to computers or network catalogs!
+    // 2. Sync registry catalogs (computers / network / software)
+    const isReplenishment = Boolean(matchedExisting);
+    const receiptDelta = normalizedItem.quantity;
+    const targetWhQty = isReplenishment
+      ? (matchedExisting!.quantity + receiptDelta)
+      : receiptDelta;
+
     const targetWhName = normalizedItem.warehouseName;
     const linkedWarehouse = warehouses.find(w => w.name === targetWhName);
     const defaultObjectName = linkedWarehouse?.objectName || objects[0]?.name || 'Главный офис';
-    
+
     if (normalizedItem.type === 'Сетевое оборудование') {
-      const newNet: NetworkDevice = {
-        id: `net-wh-${Date.now()}`,
-        deviceName: normalizedItem.name,
-        type: resolveNetworkDeviceType({ deviceType: normalizedItem.deviceType, name: normalizedItem.name }),
-        objectName: defaultObjectName,
-        ipAddress: '192.168.1.1',
-        quantity: normalizedItem.quantity,
-        inventoryNumber: normalizedItem.inventoryNumber,
-        portsCount: 24,
-        workingPorts: Array.from({ length: 24 }, (_, i) => i + 1),
-        damagedPorts: [],
-        pdfFiles: normalizedItem.pdfFiles || [],
-        invoiceInfo: normalizedItem.invoiceInfo || '',
-        memoInfo: normalizedItem.memoInfo || '',
-        warrantyInfo: normalizedItem.warrantyInfo || '',
-        cost: normalizedItem.costPerUnit,
-      };
-      setNetworkDevices(prev => [...prev, newNet]);
+      const existingNet = networkDevices.find(
+        (nd) =>
+          inventoryNumbersMatch(nd.inventoryNumber, normalizedItem.inventoryNumber) &&
+          nd.objectName === defaultObjectName
+      );
+      if (existingNet) {
+        setNetworkDevices((prev) =>
+          prev.map((nd) =>
+            nd.id === existingNet.id
+              ? {
+                  ...nd,
+                  quantity: (nd.quantity || 1) + receiptDelta,
+                  cost: normalizedItem.costPerUnit || nd.cost,
+                }
+              : nd
+          )
+        );
+      } else {
+        const newNet: NetworkDevice = {
+          id: `net-wh-${Date.now()}`,
+          deviceName: normalizedItem.name,
+          type: resolveNetworkDeviceType({ deviceType: normalizedItem.deviceType, name: normalizedItem.name }),
+          objectName: defaultObjectName,
+          ipAddress: '192.168.1.1',
+          quantity: receiptDelta,
+          inventoryNumber: normalizedItem.inventoryNumber,
+          portsCount: 24,
+          workingPorts: Array.from({ length: 24 }, (_, i) => i + 1),
+          damagedPorts: [],
+          pdfFiles: normalizedItem.pdfFiles || [],
+          invoiceInfo: normalizedItem.invoiceInfo || '',
+          memoInfo: normalizedItem.memoInfo || '',
+          warrantyInfo: normalizedItem.warrantyInfo || '',
+          cost: normalizedItem.costPerUnit,
+        };
+        setNetworkDevices(prev => [...prev, newNet]);
+      }
       logActivity('Авто-распределение ТМЦ', `Устройство "${normalizedItem.name}" автоматически распределено в Сетевое оборудование`, 'system');
+    } else if (normalizedItem.type === 'Лицензии ПО') {
+      const whRef: WarehouseItem = {
+        id: matchedExisting?.id || `wh-ref-${Date.now()}`,
+        name: normalizedItem.name,
+        type: 'Лицензии ПО',
+        model: normalizedItem.model,
+        inventoryNumber: normalizedItem.inventoryNumber,
+        quantity: targetWhQty,
+        unit: normalizedItem.unit,
+        costPerUnit: normalizedItem.costPerUnit,
+        status: 'В наличии',
+        warehouseName: normalizedItem.warehouseName || 'Основной склад ИТ',
+      };
+      const linkedSoft = softwareItems.find((s) => warehouseItemLinksSoftware(whRef, s));
+      if (linkedSoft) {
+        setSoftwareItems((prev) =>
+          prev.map((s) =>
+            s.id === linkedSoft.id
+              ? {
+                  ...s,
+                  quantity: (s.quantity || 1) + receiptDelta,
+                  cost: normalizedItem.costPerUnit || s.cost,
+                }
+              : s
+          )
+        );
+      } else {
+        setSoftwareItems((prev) => [
+          ...prev,
+          {
+            id: `soft-wh-${Date.now()}`,
+            name: normalizedItem.name,
+            category: 'Иное ПО',
+            licenseKey: normalizedItem.inventoryNumber.startsWith('SW-') ? '' : normalizedItem.inventoryNumber,
+            version: normalizedItem.model || '',
+            developer: '',
+            quantity: receiptDelta,
+            assignedEmployeeName: '',
+            objectName: defaultObjectName,
+            status: 'Не активирована',
+            purchaseDate: new Date().toISOString().split('T')[0],
+            cost: normalizedItem.costPerUnit,
+          },
+        ]);
+      }
+      logActivity(
+        'Авто-распределение ТМЦ',
+        `Лицензия «${normalizedItem.name}» (${receiptDelta} лиц.) добавлена в реестр ПО`,
+        'system'
+      );
     } else {
       const route = resolveWarehouseComputerRoute(normalizedItem);
-      if (!route) return;
+      if (!route) return true;
 
       const { category, deviceType, equipmentTab } = route;
 
-      // Since each non-network asset card is tracked as a single asset on ComputersView, we generate individual assets so they can be assigned to different employees!
+      const existingUnits = countRegistryUnitsForWarehouseBatch(
+        normalizedItem.inventoryNumber,
+        computers,
+        networkDevices,
+        softwareItems
+      );
+      const cardsToAdd = isReplenishment
+        ? Math.max(0, targetWhQty - existingUnits)
+        : receiptDelta;
+
+      if (cardsToAdd <= 0) return true;
+
+      const registryInv: string[] = [];
+      for (const w of warehouseItems) {
+        if (w.inventoryNumber?.trim()) registryInv.push(w.inventoryNumber.trim());
+      }
+      for (const c of computers) {
+        if (c.inventoryNumber?.trim()) registryInv.push(c.inventoryNumber.trim());
+      }
+      for (const n of networkDevices) {
+        if (n.inventoryNumber?.trim()) registryInv.push(n.inventoryNumber.trim());
+      }
+      const unitInvNumbers = allocateBatchInventoryNumbers(
+        normalizedItem.inventoryNumber,
+        registryInv,
+        cardsToAdd
+      );
+
       const newComputersToAppend: ComputerItem[] = [];
-      for (let i = 0; i < normalizedItem.quantity; i++) {
-        const suffix = normalizedItem.quantity > 1 ? `-${i + 1}` : '';
-        const invNum = `${normalizedItem.inventoryNumber}${suffix}`;
-        const unitSpecs = buildComputerSpecsFromReceipt(receiptSpecs, i, normalizedItem.quantity);
-        
+      for (let i = 0; i < cardsToAdd; i++) {
+        const invNum =
+          unitInvNumbers[i] ||
+          `${normalizedItem.inventoryNumber}${cardsToAdd > 1 ? `-${i + 1}` : ''}`;
+        const unitSpecs = buildComputerSpecsFromReceipt(receiptSpecs, i, cardsToAdd);
+
         const newAsset: ComputerItem = {
           id: `comp-wh-${Date.now()}-${i}-${Math.floor(Math.random() * 10000)}`,
           category,
@@ -2538,7 +2765,7 @@ export default function App() {
       setComputers(prev => [...prev, ...newComputersToAppend]);
       logActivity(
         'Авто-распределение ТМЦ',
-        `Товар "${normalizedItem.name}" (${normalizedItem.quantity} шт.) добавлен в группу «${equipmentTabLabel(equipmentTab)}» со статусом «На складе»`,
+        `Товар "${normalizedItem.name}" (${cardsToAdd} шт.) добавлен в группу «${equipmentTabLabel(equipmentTab)}» со статусом «На складе»`,
         'system'
       );
     }
@@ -2866,8 +3093,8 @@ export default function App() {
   ): boolean => {
     if (checkLicenseBlocked()) return false;
 
-    const qty = Math.floor(quantityToWriteOff);
-    if (!Number.isFinite(qty) || qty < 1) return false;
+    const qty = normalizePositiveInt(quantityToWriteOff);
+    if (qty < 1) return false;
 
     let resolvedInvKey = normalizeInventoryNumber(inventoryNumber);
     let targetName = '';
@@ -2877,6 +3104,7 @@ export default function App() {
     let targetCostPerUnit = 0;
     let targetWhName = 'Основной склад ИТ';
     let purgePendingLinked = false;
+    let warehouseRemainingQty = 0;
 
     let nextWarehouseItems = warehouseItems;
     let nextComputers = computers;
@@ -2892,8 +3120,11 @@ export default function App() {
       targetModel = comp.model;
       targetCostPerUnit = comp.cost || 0;
       targetWhName = comp.objectName;
-      purgePendingLinked = true;
+      purgePendingLinked = false;
       nextComputers = computers.filter(c => c.id !== id);
+      if (comp.status === 'На складе' || comp.status === 'На списание') {
+        nextWarehouseItems = reduceWarehouseQtyForComputerWriteOff(warehouseItems, comp, 1);
+      }
     } else if (sourceType === 'network') {
       const net = networkDevices.find(n => n.id === id);
       if (!net) return false;
@@ -2910,6 +3141,20 @@ export default function App() {
         if (newQty <= 0) return [];
         return [{ ...n, quantity: newQty, status: 'В работе' as const }];
       });
+      const linkedWh = warehouseItems.find(
+        (w) =>
+          w.quantity > 0 &&
+          w.status !== 'Списано' &&
+          inventoryNumbersMatch(w.inventoryNumber, net.inventoryNumber)
+      );
+      if (linkedWh) {
+        nextWarehouseItems = reduceWarehouseQtyByInventoryMatch(
+          warehouseItems,
+          net.inventoryNumber,
+          qty,
+          linkedWh.warehouseName
+        );
+      }
     } else if (sourceType === 'software') {
       const soft = softwareItems.find(s => s.id === id);
       if (!soft) return false;
@@ -2927,20 +3172,33 @@ export default function App() {
         if (newQty <= 0) return [];
         return [{ ...s, quantity: newQty, status: 'Активна' as const }];
       });
+      const linkedWh = warehouseItems.find((w) =>
+        w.quantity > 0 && w.status !== 'Списано' && warehouseItemLinksSoftware(w, soft)
+      );
+      if (linkedWh) {
+        nextWarehouseItems = reduceWarehouseQtyByInventoryMatch(
+          warehouseItems,
+          linkedWh.inventoryNumber,
+          qty,
+          linkedWh.warehouseName
+        );
+      }
     } else if (sourceType === 'warehouse') {
       const wh = warehouseItems.find(w => w.id === id);
       if (!wh) return false;
+      const whQty = normalizePositiveInt(wh.quantity);
       resolvedInvKey = normalizeInventoryNumber(
         getSplitRootInventoryNumber(wh.inventoryNumber, wh.splitFromInventoryNumber)
       );
-      if (qty > wh.quantity) return false;
+      if (qty > whQty) return false;
       targetName = wh.name;
       targetType = wh.type;
       targetModel = wh.model;
       targetCostPerUnit = wh.costPerUnit || 0;
       targetUnit = wh.unit || 'шт.';
       targetWhName = wh.warehouseName || 'Основной склад ИТ';
-      const newQty = wh.quantity - qty;
+      const newQty = whQty - qty;
+      warehouseRemainingQty = newQty;
       purgePendingLinked = newQty <= 0;
 
       const stockIdsToRemove = pickStockComputerIdsForWriteOff(
@@ -2955,9 +3213,10 @@ export default function App() {
       }
 
       if (wh.type === 'Сетевое оборудование') {
+        const whLineKey = getWarehouseLineInventoryKey(wh.inventoryNumber);
         const net = networkDevices.find(
           (n) =>
-            inventoryNumbersMatch(n.inventoryNumber, wh.inventoryNumber) &&
+            inventoryNumbersMatch(n.inventoryNumber, whLineKey) &&
             (n.status === 'На складе' || n.status === 'В работе' || !n.status)
         );
         if (net) {
@@ -3002,7 +3261,12 @@ export default function App() {
         softwareItems: nextSoftwareItems,
       },
       resolvedInvKey,
-      { purgePendingLinked }
+      {
+        purgePendingLinked,
+        exactInventoryMatch:
+          sourceType === 'computer' ||
+          (sourceType === 'warehouse' && warehouseRemainingQty > 0),
+      }
     );
 
     setWarehouseItems(repairWarehousePendingDuplicates(purged.warehouseItems));
@@ -3082,13 +3346,14 @@ export default function App() {
     const deployQuantity = targetComputerIds?.length || quantity;
 
     const batchInventoryNumber = whItem.inventoryNumber;
+    const lineKey = getWarehouseLineInventoryKey(whItem.inventoryNumber);
     const isNetwork = whItem.type === 'Сетевое оборудование';
     const isSoftwareLicense = whItem.type === 'Лицензии ПО';
 
     if (!isNetwork && !isSoftwareLicense) {
       const matchingCompsOnStock = computers.filter(
         (c) =>
-          matchesBaseInventoryNumber(c.inventoryNumber, batchInventoryNumber) &&
+          matchesBaseInventoryNumber(c.inventoryNumber, lineKey) &&
           c.status === 'На складе'
       );
       const countToDeployFromStock = Math.min(matchingCompsOnStock.length, quantity);
@@ -3106,7 +3371,7 @@ export default function App() {
           return {
             ...item,
             quantity: newQty,
-            status: newQty === 0 ? ('Списано' as const) : ('В наличии' as const),
+            status: 'В наличии' as const,
           };
         })
         .filter((item) => item.quantity > 0)
@@ -3123,19 +3388,39 @@ export default function App() {
         softwareItems.find((s) => linkedIds.includes(s.id));
 
       if (storedSoft) {
-        setSoftwareItems((prev) =>
-          prev.map((s) =>
-            s.id === storedSoft.id
-              ? {
-                  ...s,
-                  status: 'Активна',
-                  assignedEmployeeName: targetEmployeeName,
-                  objectName: targetObjectName,
-                  assignedDeviceId: undefined,
-                }
-              : s
-          )
-        );
+        const softTotal = storedSoft.quantity || 1;
+        if (deployQuantity >= softTotal) {
+          setSoftwareItems((prev) =>
+            prev.map((s) =>
+              s.id === storedSoft.id
+                ? {
+                    ...s,
+                    status: 'Активна',
+                    assignedEmployeeName: targetEmployeeName,
+                    objectName: targetObjectName,
+                    assignedDeviceId: undefined,
+                  }
+                : s
+            )
+          );
+        } else {
+          setSoftwareItems((prev) => [
+            ...prev.map((s) =>
+              s.id === storedSoft.id
+                ? { ...s, quantity: softTotal - deployQuantity }
+                : s
+            ),
+            {
+              ...storedSoft,
+              id: `soft-deploy-${Date.now()}`,
+              quantity: deployQuantity,
+              status: 'Активна',
+              assignedEmployeeName: targetEmployeeName,
+              objectName: targetObjectName,
+              assignedDeviceId: undefined,
+            },
+          ]);
+        }
         success = true;
       } else {
         const newSoft: SoftwareItem = {
@@ -3157,7 +3442,7 @@ export default function App() {
       }
     } else if (isNetwork) {
       const matchingNetwork = networkDevices.find((nd) =>
-        inventoryNumbersMatch(nd.inventoryNumber, batchInventoryNumber)
+        inventoryNumbersMatch(nd.inventoryNumber, lineKey)
       );
       if (matchingNetwork) {
         if (quantity >= matchingNetwork.quantity) {
@@ -3208,7 +3493,7 @@ export default function App() {
     } else {
       const matchingCompsOnStock = computers.filter(
         (c) =>
-          matchesBaseInventoryNumber(c.inventoryNumber, batchInventoryNumber) &&
+          matchesBaseInventoryNumber(c.inventoryNumber, lineKey) &&
           c.status === 'На складе'
       );
 
@@ -3254,20 +3539,32 @@ export default function App() {
           const templateSpecs =
             matchingCompsOnStock.find((c) => c.cpuModel || c.ramModel || c.serialNumber) || null;
 
+          const registryInv: string[] = [];
+          for (const w of warehouseItems) {
+            if (w.inventoryNumber?.trim()) registryInv.push(w.inventoryNumber.trim());
+          }
+          for (const c of updated) {
+            if (c.inventoryNumber?.trim()) registryInv.push(c.inventoryNumber.trim());
+          }
+          for (const n of networkDevices) {
+            if (n.inventoryNumber?.trim()) registryInv.push(n.inventoryNumber.trim());
+          }
+          const unitInvNumbers = allocateBatchInventoryNumbers(
+            lineKey,
+            registryInv,
+            remainingToCreate
+          );
+
           const newCompsToAppend: ComputerItem[] = [];
           for (let i = 0; i < remainingToCreate; i++) {
-            const suffixesCount = prev.filter((c) =>
-              c.inventoryNumber?.startsWith(`${batchInventoryNumber}-`)
-            ).length;
-            const suffix =
-              deployQty > 1 || suffixesCount > 0 ? `-${suffixesCount + i + 1}` : '';
-            const invNum = `${batchInventoryNumber}${suffix}`;
+            const invNum = unitInvNumbers[i];
+            if (!invNum) continue;
             const unitSpecs = buildComputerSpecsFromReceipt(
               templateSpecs
                 ? mergeWarehouseReceiptSpecs(whSpecs, getWarehouseItemSpecs(templateSpecs))
                 : whSpecs,
-              suffixesCount + i,
-              Math.max(deployQty, suffixesCount + remainingToCreate)
+              i,
+              remainingToCreate
             );
 
             const newAsset: ComputerItem = {

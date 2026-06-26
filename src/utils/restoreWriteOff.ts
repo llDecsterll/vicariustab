@@ -11,7 +11,7 @@ import type {
   WarehouseItemType,
   WarehouseWriteOff,
 } from '../types';
-import { inventoryNumbersMatch, matchesBaseInventoryNumber } from './equipmentFields';
+import { allocateBatchInventoryNumbers, inventoryNumbersMatch, matchesBaseInventoryNumber, normalizeInventoryNumber } from './equipmentFields';
 import type { EquipmentDeleteSource } from './equipmentDelete';
 import {
   resolveNetworkDeviceType,
@@ -82,34 +82,22 @@ export function inferWriteOffSourceType(wo: WarehouseWriteOff): EquipmentDeleteS
   return 'warehouse';
 }
 
-function allocateRestoredInventoryNumbers(
-  baseInv: string,
-  computers: ComputerItem[],
-  count: number
-): string[] {
-  const linked = computers
-    .filter((c) => matchesBaseInventoryNumber(c.inventoryNumber, baseInv))
-    .map((c) => (c.inventoryNumber || '').trim());
-  const used = new Set(linked);
-  const result: string[] = [];
-  if (count === 1 && !used.has(baseInv)) {
-    return [baseInv];
-  }
-  if (!used.has(baseInv) && linked.length === 0 && count > 0) {
-    result.push(baseInv);
-    used.add(baseInv);
-  }
-  let n = 1;
-  while (result.length < count) {
-    const candidate = `${baseInv}-${n}`;
-    if (!used.has(candidate)) {
-      result.push(candidate);
-      used.add(candidate);
-    }
-    n += 1;
-    if (n > 9999) break;
-  }
-  return result.slice(0, count);
+function bumpWarehouseFromWriteOffAct(
+  wo: WarehouseWriteOff,
+  warehouseItems: WarehouseItem[]
+): WarehouseItem[] {
+  const inv = (wo.inventoryNumber || '').trim();
+  if (!inv) return warehouseItems;
+  const whName = wo.warehouseName || 'Основной склад ИТ';
+  const qty = Math.max(1, Math.floor(wo.quantity));
+  const { items } = mergeWarehouseOnRestore(
+    warehouseItems,
+    inv,
+    whName,
+    qty,
+    wo.costPerUnit
+  );
+  return repairWarehousePendingDuplicates(items);
 }
 
 function appendStockComputerCards(
@@ -126,9 +114,12 @@ function appendStockComputerCards(
   });
   if (!route) return [];
 
-  const invNumbers = allocateRestoredInventoryNumbers(
+  const registryInv: string[] = computers
+    .map((c) => c.inventoryNumber?.trim())
+    .filter((v): v is string => Boolean(v));
+  const invNumbers = allocateBatchInventoryNumbers(
     item.inventoryNumber,
-    computers,
+    registryInv,
     quantity
   );
   return invNumbers.map((invNum, i) => ({
@@ -280,7 +271,11 @@ function restoreComputerLine(
 ): RestoreWriteOffResult {
   const inv = (wo.inventoryNumber || '').trim();
   if (!inv) return { ...ctx, ok: false, errorKey: 'restore_missing_inventory' };
-  if (ctx.computers.some((c) => inventoryNumbersMatch(c.inventoryNumber, inv))) {
+  if (
+    ctx.computers.some(
+      (c) => normalizeInventoryNumber(c.inventoryNumber) === normalizeInventoryNumber(inv)
+    )
+  ) {
     return { ...ctx, ok: false, errorKey: 'restore_inventory_exists' };
   }
 
@@ -309,6 +304,7 @@ function restoreComputerLine(
 
   return {
     ...ctx,
+    warehouseItems: bumpWarehouseFromWriteOffAct(wo, ctx.warehouseItems),
     computers: [...ctx.computers, computer],
     ok: true,
   };
@@ -360,7 +356,12 @@ function restoreNetworkLine(
     });
   }
 
-  return { ...ctx, networkDevices, ok: true };
+  return {
+    ...ctx,
+    warehouseItems: bumpWarehouseFromWriteOffAct(wo, ctx.warehouseItems),
+    networkDevices,
+    ok: true,
+  };
 }
 
 function restoreSoftwareLine(
@@ -412,7 +413,12 @@ function restoreSoftwareLine(
     });
   }
 
-  return { ...ctx, softwareItems, ok: true };
+  return {
+    ...ctx,
+    warehouseItems: bumpWarehouseFromWriteOffAct(wo, ctx.warehouseItems),
+    softwareItems,
+    ok: true,
+  };
 }
 
 export function applyWriteOffRestore(

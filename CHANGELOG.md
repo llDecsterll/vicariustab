@@ -1,5 +1,34 @@
 # Changelog
 
+## [2.0.17] — 2026-06-22
+
+### Fixed
+- Partial warehouse write-off (e.g. 2 of 5) no longer removes entire batch; qty normalization and line-key scoping.
+- Deploy from split warehouse lines matches by `getWarehouseLineInventoryKey`, not root inventory only.
+- Cancel partial write-off restores linked computer cards (`cancelPendingWriteOff.ts`).
+- Split pending lines (`/рN`) no longer merge incorrectly (`warehousePendingMerge.ts`).
+
+### Added
+- `warehouseLifecycleEngine.ts` — pure lifecycle simulator for all 31 equipment subtypes.
+- Audit tests: `unit-warehouse-full-lifecycle.mjs` (32), `unit-restore-writeoff.mjs` (13).
+- Sidebar navigation to **Кибербезопасность** (`SecurityView`).
+- Integration test: Viewer role gets 403 on `POST /api/data`.
+
+### Testing
+- Full audit suite ~109 tests; `test:unit` 99 tests.
+- `run-all.mjs`: tsx loader for lifecycle and restore suites.
+
+### Documentation
+- Updated `docs/RELEASE_AUDIT_v2.0.16.md`, `AGENTS.md`.
+
+---
+
+## [2.0.16] — 2026-06-22
+
+- Initial public release baseline (warehouse write-off UI, v2.0.16 audit).
+
+---
+
 ## [2.0.15] — 2026-06-18
 
 ### Fixed

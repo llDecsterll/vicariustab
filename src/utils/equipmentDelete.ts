@@ -7,11 +7,16 @@ import type {
   WarehouseItemType,
 } from '../types';
 import {
+  getSplitRootInventoryNumber,
+  getWarehouseLineInventoryKey,
   inventoryNumbersMatch,
+  matchesBaseInventoryNumber,
   normalizeInventoryNumber,
   getSoftwareWarehouseInv,
   getWarehouseBatchInventoryKey,
   isActiveWarehouseStockLine,
+  isWrittenOffLifecycleStatus,
+  purgeWrittenOffRegistry,
 } from './equipmentFields';
 
 export {
@@ -39,43 +44,26 @@ export interface EquipmentDeleteContext {
   warehouses?: CustomWarehouse[];
 }
 
-/** Stock registry cards linked to a warehouse line (by inv. batch or same model at stock object). */
+/** Stock registry cards linked to a warehouse line (by line inv. key, not whole root batch). */
 export function findLinkedStockComputerIds(
   item: WarehouseItem,
   computers: ComputerItem[],
-  warehouses: CustomWarehouse[] = []
+  _warehouses: CustomWarehouse[] = []
 ): string[] {
   if (!WAREHOUSE_COMPUTER_TYPES.includes(item.type)) return [];
 
-  const ids: string[] = [];
-  const baseInv = item.inventoryNumber;
+  const lineKey = getWarehouseLineInventoryKey(item.inventoryNumber);
+  if (!lineKey) return [];
 
+  const ids: string[] = [];
   for (const c of computers) {
     if (c.status !== 'На складе') continue;
-    if (inventoryNumbersMatch(c.inventoryNumber, baseInv)) {
+    if (matchesBaseInventoryNumber(c.inventoryNumber, lineKey)) {
       ids.push(c.id);
     }
   }
 
-  let remaining = item.quantity - ids.length;
-  if (remaining <= 0) return ids;
-
-  const wh = warehouses.find(
-    (w) => w.name === (item.warehouseName || 'Основной склад ИТ')
-  );
-  const stockObject = wh?.objectName;
-
-  for (const c of computers) {
-    if (remaining <= 0) break;
-    if (c.status !== 'На складе') continue;
-    if (ids.includes(c.id)) continue;
-    if (c.model !== item.model) continue;
-    if (stockObject && c.objectName !== stockObject) continue;
-    ids.push(c.id);
-    remaining--;
-  }
-
-  return ids;
+  return ids.slice(0, Math.max(0, item.quantity));
 }
 
 /** Stock registry cards to remove on partial/full warehouse write-off (suffix order). */
@@ -88,10 +76,10 @@ export function pickStockComputerIdsForWriteOff(
   const take = Math.max(0, Math.floor(quantity));
   if (take === 0) return [];
   const linkedIds = findLinkedStockComputerIds(item, computers, warehouses);
-  const baseInv = item.inventoryNumber;
+  const lineKey = getWarehouseLineInventoryKey(item.inventoryNumber);
   const suffixRank = (inv: string): number => {
     const cur = (inv || '').trim();
-    if (cur === baseInv) return 0;
+    if (cur === lineKey) return 0;
     const m = cur.match(/-(\d+)$/);
     return m ? parseInt(m[1], 10) : 999;
   };
@@ -103,6 +91,96 @@ export function pickStockComputerIdsForWriteOff(
     )
     .slice(0, take)
     .map((c) => c.id);
+}
+
+/** Уменьшить складскую строку на 1 при списании карточки ПК со склада / из очереди. */
+export function reduceWarehouseQtyForComputerWriteOff(
+  items: WarehouseItem[],
+  computer: Pick<ComputerItem, 'inventoryNumber' | 'status'>,
+  qty = 1
+): WarehouseItem[] {
+  if (computer.status !== 'На складе' && computer.status !== 'На списание') {
+    return items;
+  }
+  const take = Math.max(1, Math.floor(qty));
+  const inv = (computer.inventoryNumber || '').trim();
+  if (!inv) return items;
+
+  const findLineForComputer = (): WarehouseItem | undefined => {
+    const matchesLine = (w: WarehouseItem) =>
+      w.quantity > 0 &&
+      matchesBaseInventoryNumber(inv, getWarehouseLineInventoryKey(w.inventoryNumber));
+
+    if (computer.status === 'На списание') {
+      return items.find((w) => w.status === 'На списание' && matchesLine(w));
+    }
+    return items.find(
+      (w) => w.status !== 'Списано' && w.status !== 'На списание' && matchesLine(w)
+    );
+  };
+
+  const targetLine = findLineForComputer();
+  if (!targetLine) return items;
+
+  return items.flatMap((w) => {
+    if (w.id !== targetLine.id) return [w];
+    const newQty = w.quantity - take;
+    if (newQty <= 0) return [];
+    const nextStatus =
+      w.status === 'На списание' ? ('На списание' as const) : ('В наличии' as const);
+    return [{ ...w, quantity: newQty, status: nextStatus }];
+  });
+}
+
+/** Count registry cards/units linked to a warehouse batch inv. */
+export function countRegistryUnitsForWarehouseBatch(
+  inventoryNumber: string,
+  computers: ComputerItem[],
+  networkDevices: NetworkDevice[] = [],
+  softwareItems: SoftwareItem[] = []
+): number {
+  const compUnits = computers.filter((c) =>
+    matchesBaseInventoryNumber(c.inventoryNumber, inventoryNumber)
+  ).length;
+  const netUnits = networkDevices
+    .filter((n) => inventoryNumbersMatch(n.inventoryNumber, inventoryNumber))
+    .reduce((sum, n) => sum + (n.quantity || 1), 0);
+  const softUnits = softwareItems
+    .filter(
+      (s) =>
+        inventoryNumbersMatch(s.licenseKey, inventoryNumber) ||
+        getSoftwareWarehouseInv(s.id) === inventoryNumber.trim()
+    )
+    .reduce((sum, s) => sum + (s.quantity || 1), 0);
+  return compUnits + netUnits + softUnits;
+}
+
+/** Decrease warehouse stock line qty by inv match (network/software/computer finalize). */
+export function reduceWarehouseQtyByInventoryMatch(
+  items: WarehouseItem[],
+  inventoryNumber: string,
+  qty: number,
+  warehouseName?: string
+): WarehouseItem[] {
+  const take = Math.max(1, Math.floor(qty));
+  const whName = warehouseName || 'Основной склад ИТ';
+  const target = items.find(
+    (w) =>
+      w.quantity > 0 &&
+      w.status !== 'Списано' &&
+      inventoryNumbersMatch(w.inventoryNumber, inventoryNumber) &&
+      (w.warehouseName || 'Основной склад ИТ') === whName
+  );
+  if (!target) return items;
+
+  return items.flatMap((w) => {
+    if (w.id !== target.id) return [w];
+    const newQty = w.quantity - take;
+    if (newQty <= 0) return [];
+    const nextStatus =
+      w.status === 'На списание' ? ('На списание' as const) : ('В наличии' as const);
+    return [{ ...w, quantity: newQty, status: nextStatus }];
+  });
 }
 
 export interface EquipmentDeletePreview {

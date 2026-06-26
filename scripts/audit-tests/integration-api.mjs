@@ -125,16 +125,86 @@ describe('integration API', () => {
       t.skip('No session');
       return;
     }
+
     const getRes = await fetch(`${BASE}/api/data`, {
       headers: { 'X-Session-Token': token },
     });
     const current = await getRes.json();
+    const revision = current._revision;
+    const viewerLogin = 'audit_viewer';
+    const viewerPassword = 'audit_viewer_8';
     const users = Array.isArray(current.users) ? [...current.users] : [];
-    const viewer = users.find((u) => u.role === 'Viewer');
-    if (!viewer) {
-      t.skip('No viewer user in seed');
+    const viewerIdx = users.findIndex((u) => u.login === viewerLogin);
+    const viewerUser = {
+      id: viewerIdx >= 0 ? users[viewerIdx].id : 'audit-viewer-user',
+      name: 'Audit Viewer',
+      email: 'viewer@audit.local',
+      role: 'Viewer',
+      login: viewerLogin,
+      password: viewerPassword,
+      passwordSet: true,
+      isCustom: true,
+    };
+    if (viewerIdx >= 0) {
+      users[viewerIdx] = { ...users[viewerIdx], ...viewerUser };
+    } else {
+      users.push(viewerUser);
+    }
+
+    const seedPayload = { ...current, users };
+    delete seedPayload._revision;
+    const seedRes = await fetch(`${BASE}/api/data`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Session-Token': token,
+        'X-Data-Revision': String(revision),
+      },
+      body: JSON.stringify(seedPayload),
+    });
+    if (!seedRes.ok) {
+      t.skip(`Could not seed viewer user (${seedRes.status})`);
       return;
     }
-    t.skip('Viewer credential login not seeded in audit test — manual role matrix check documented');
+
+    const viewerAuth = await fetch(`${BASE}/api/auth/authenticate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        login: viewerLogin,
+        password: viewerPassword,
+        deviceFingerprint: 'audit-viewer',
+      }),
+    });
+    if (!viewerAuth.ok) {
+      t.skip('Viewer login failed after seed');
+      return;
+    }
+    const viewerToken = (await viewerAuth.json()).sessionToken;
+
+    const viewerGet = await fetch(`${BASE}/api/data`, {
+      headers: { 'X-Session-Token': viewerToken },
+    });
+    assert.ok(viewerGet.ok);
+    const viewerData = await viewerGet.json();
+
+    const writePayload = {
+      ...viewerData,
+      workspaceName: `ViewerWriteBlocked-${Date.now()}`,
+    };
+    delete writePayload._revision;
+
+    const writeRes = await fetch(`${BASE}/api/data`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Session-Token': viewerToken,
+        'X-Data-Revision': String(viewerData._revision),
+      },
+      body: JSON.stringify(writePayload),
+    });
+    assert.equal(writeRes.status, 403);
+    const body = await writeRes.json();
+    assert.equal(body.code, 'READ_ONLY');
   });
 });

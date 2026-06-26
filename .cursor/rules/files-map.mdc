@@ -1,0 +1,34 @@
+---
+description: Полная карта файлов Vicariustab v2.0.16 — все модули и тесты
+globs: product/**
+alwaysApply: false
+---
+
+# Карта файлов Vicariustab
+
+Версия **2.0.16** · Полный каталог: `product/docs/FILES_INDEX.md`
+
+## Точки входа
+
+- `server.ts` — Express API
+- `src/App.tsx` — UI state + CRUD
+- `src/main.tsx` — React bootstrap
+- `src/types.ts` — доменные типы
+
+## Склад / списание (критичный путь)
+
+`WarehouseView.tsx` → `App.tsx` handlers → `markPendingWriteOff.ts` · `cancelPendingWriteOff.ts` · `restoreWriteOff.ts` · `warehousePendingMerge.ts` · `warehouseExcel.ts`
+
+## Лицензия (gated)
+
+`license.ts`: `isLicensedProduct` · `canUseWarehouseExcel` · `canUseBackup` · `canUseSystemUpdate`  
+Server: `apiAuth.ts` → `requireActivatedLicense` · `requireValidLicenseForWrite`
+
+## Тесты (27 unit + 40 audit)
+
+`scripts/audit-tests/unit-{equipment,lifecycle,validation,warehouse-excel,writeoff,routing,backup-license}.mjs`  
+`integration-api.mjs` · `security.mjs` · `load-concurrent.mjs`
+
+## Документация
+
+`AGENTS.md` · `docs/FILES_INDEX.md` · `docs/RELEASE_AUDIT_v2.0.16.md`

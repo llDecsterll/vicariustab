@@ -199,19 +199,9 @@ export function applyCancelPendingWriteOff(
     if (!target || target.status !== 'На списание') {
       return { ok: false, warehouseItems, computers, networkDevices, softwareItems };
     }
-    const invKey = normalizeInventoryNumber(target.inventoryNumber);
     computers = computers.map((c) =>
-      c.status === 'На списание' &&
-      (c.id === id || !isNotLinkedToInventoryKey(c.inventoryNumber, invKey))
-        ? { ...c, status: computerStatusAfterCancel(c, stockObjects) }
-        : c
+      c.id === id ? { ...c, status: computerStatusAfterCancel(c, stockObjects) } : c
     );
-    warehouseItems = warehouseItems.map((w) =>
-      w.status === 'На списание' && inventoryNumbersMatch(w.inventoryNumber, invKey)
-        ? { ...w, status: 'В наличии' as const }
-        : w
-    );
-    networkDevices = unmarkNetworkByInv(networkDevices, invKey, stockObjects);
     label = `Оборудование «${target.category} ${target.model}» возвращено с очереди списания`;
   }
 

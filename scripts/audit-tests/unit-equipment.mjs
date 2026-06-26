@@ -12,6 +12,7 @@ import {
   inventoryNumbersMatch,
   findWarehouseItemByInventoryNumber,
   mergeWarehouseReceiptSpecs,
+  repairDuplicateComputerInventoryNumbers,
 } from '../../src/utils/equipmentFields.ts';
 
 describe('equipmentFields', () => {
@@ -64,5 +65,21 @@ describe('equipmentFields', () => {
     );
     assert.equal(merged.serialNumber, 'SN-12345');
     assert.equal(merged.cpuModel, 'Intel i7');
+  });
+
+  it('repairDuplicateComputerInventoryNumbers reassigns duplicate deploy cards', () => {
+    const computers = [
+      { id: 'comp-deploy-a', inventoryNumber: 'ST-0001' },
+      { id: 'comp-deploy-b', inventoryNumber: 'ST-0001' },
+    ];
+    const fixed = repairDuplicateComputerInventoryNumbers(computers, {
+      warehouseItems: [{ id: 'wh-1', inventoryNumber: 'ST-0001' }],
+      networkDevices: [],
+      softwareItems: [],
+    });
+    const invs = fixed.map((c) => c.inventoryNumber);
+    assert.equal(new Set(invs).size, invs.length);
+    assert.ok(invs.includes('ST-0001'));
+    assert.ok(invs.includes('ST-0001-1'));
   });
 });

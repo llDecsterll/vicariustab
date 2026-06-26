@@ -2,6 +2,7 @@ import type { NetworkDevice, SoftwareItem, WarehouseItem } from '../types';
 import {
   getSplitRootInventoryNumber,
   inventoryNumbersMatch,
+  isSplitWarehouseInventoryNumber,
   normalizeInventoryNumber,
 } from './equipmentFields';
 import { isNotLinkedToInventoryKey } from './equipmentDelete';
@@ -69,6 +70,11 @@ export function repairWarehousePendingDuplicates(
 
     const inStock = group.filter((w) => w.status === 'В наличии');
     const pending = group.filter((w) => w.status === 'На списание');
+
+    // Не сливать валидные split/pending строки (/рN) с остатком — только legacy-дубли с одним инв. №
+    if (pending.some((w) => isSplitWarehouseInventoryNumber(w.inventoryNumber))) {
+      continue;
+    }
 
     if (inStock.length >= 1 && pending.length >= 1) {
       const target = inStock[0];

@@ -1589,10 +1589,7 @@ export default function WarehouseView({
       sourceType: 'warehouse' as const,
       name: w.name,
       model: w.model,
-      inventoryNumber:
-        getSplitRootInventoryNumber(w.inventoryNumber, w.splitFromInventoryNumber) ||
-        w.inventoryNumber ||
-        '',
+      inventoryNumber: w.inventoryNumber || '',
       quantity: w.quantity || 1,
       unit: w.unit || 'шт.',
       cost: w.costPerUnit || 0,

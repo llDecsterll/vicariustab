@@ -10,6 +10,10 @@ import {
   isActiveWarehouseStockLine,
   purgeWrittenOffRegistry,
 } from '../../src/utils/equipmentFields.ts';
+import {
+  countRegistryUnitsForWarehouseBatch,
+  reduceWarehouseQtyByInventoryMatch,
+} from '../../src/utils/equipmentDelete.ts';
 
 describe('warehouse lifecycle helpers', () => {
   it('getWarehouseBatchInventoryKey collapses batch suffix for warehouse line', () => {
@@ -111,5 +115,50 @@ describe('warehouse lifecycle helpers', () => {
     const purged = purgeWrittenOffRegistry(base, inv, { purgePendingLinked: true });
     assert.equal(purged.warehouseItems.length, 0);
     assert.equal(purged.computers.length, 0);
+  });
+
+  it('countRegistryUnitsForWarehouseBatch counts computers and network qty', () => {
+    const total = countRegistryUnitsForWarehouseBatch(
+      'ST-0300',
+      [
+        { id: 'c1', inventoryNumber: 'ST-0300', status: 'На складе' },
+        { id: 'c2', inventoryNumber: 'ST-0300-1', status: 'В работе' },
+      ],
+      [{ id: 'n1', inventoryNumber: 'ST-0300', quantity: 2 }],
+      []
+    );
+    assert.equal(total, 4);
+  });
+
+  it('reduceWarehouseQtyByInventoryMatch decrements linked warehouse line', () => {
+    const items = [
+      {
+        id: 'wh-1',
+        inventoryNumber: 'NET-001',
+        quantity: 5,
+        status: 'В наличии',
+        warehouseName: 'Основной склад ИТ',
+      },
+    ];
+    const next = reduceWarehouseQtyByInventoryMatch(items, 'NET-001', 2, 'Основной склад ИТ');
+    assert.equal(next.length, 1);
+    assert.equal(next[0].quantity, 3);
+  });
+
+  it('replenishment adds only missing registry cards', () => {
+    const existingUnits = countRegistryUnitsForWarehouseBatch(
+      'ST-0400',
+      [
+        { id: 'c1', inventoryNumber: 'ST-0400', status: 'На складе' },
+        { id: 'c2', inventoryNumber: 'ST-0400-1', status: 'На складе' },
+        { id: 'c3', inventoryNumber: 'ST-0400-2', status: 'В работе' },
+      ],
+      [],
+      []
+    );
+    const targetWhQty = 5;
+    const cardsToAdd = Math.max(0, targetWhQty - existingUnits);
+    assert.equal(existingUnits, 3);
+    assert.equal(cardsToAdd, 2);
   });
 });

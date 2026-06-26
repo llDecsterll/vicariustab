@@ -177,6 +177,13 @@ export function normalizeInventoryNumber(inventoryNumber: string | undefined | n
   return trimmed || 'NET-EQ';
 }
 
+/** Positive integer for write-off / mark-pending quantity (avoids NaN → full-batch mark). */
+export function normalizePositiveInt(value: unknown, fallback = 1): number {
+  const n = Math.floor(Number(value));
+  if (!Number.isFinite(n) || n < 1) return fallback;
+  return n;
+}
+
 /** Synthetic warehouse inv. number for software stored on stock (shared client + server). */
 export function getSoftwareWarehouseInv(softwareId: string): string {
   return `SW-${softwareId.slice(-8).toUpperCase()}`;
@@ -652,7 +659,7 @@ export function purgeWrittenOffRegistry(
     softwareItems: SoftwareItem[];
   },
   inventoryKey: string,
-  options: { purgePendingLinked?: boolean } = {}
+  options: { purgePendingLinked?: boolean; exactInventoryMatch?: boolean } = {}
 ): {
   warehouseItems: WarehouseItem[];
   computers: ComputerItem[];
@@ -660,24 +667,31 @@ export function purgeWrittenOffRegistry(
   softwareItems: SoftwareItem[];
 } {
   const invKey = normalizeInventoryNumber(inventoryKey);
-  const { purgePendingLinked = false } = options;
+  const { purgePendingLinked = false, exactInventoryMatch = false } = options;
+
+  const matchesKey = (itemInv: string | undefined | null): boolean => {
+    if (exactInventoryMatch) {
+      return normalizeInventoryNumber(itemInv) === invKey;
+    }
+    return inventoryNumbersMatch(itemInv, invKey);
+  };
 
   const warehouseItems = items.warehouseItems.filter((w) => {
-    if (!inventoryNumbersMatch(w.inventoryNumber, invKey)) return true;
+    if (!matchesKey(w.inventoryNumber)) return true;
     if (w.quantity <= 0 || w.status === 'Списано') return false;
     if (purgePendingLinked && w.status === 'На списание') return false;
     return true;
   });
 
   const computers = items.computers.filter((c) => {
-    if (!inventoryNumbersMatch(c.inventoryNumber, invKey)) return true;
+    if (!matchesKey(c.inventoryNumber)) return true;
     if (c.status === 'Списано') return false;
     if (purgePendingLinked && c.status === 'На списание') return false;
     return true;
   });
 
   const networkDevices = items.networkDevices.filter((n) => {
-    if (!inventoryNumbersMatch(n.inventoryNumber, invKey)) return true;
+    if (!matchesKey(n.inventoryNumber)) return true;
     if (n.status === 'Списано' || (n.quantity ?? 1) <= 0) return false;
     if (purgePendingLinked && n.status === 'На списание') return false;
     return true;
@@ -687,7 +701,7 @@ export function purgeWrittenOffRegistry(
     const linkedToInvWh = items.warehouseItems.some(
       (w) =>
         warehouseItemLinksSoftwareForPurge(w, s) &&
-        inventoryNumbersMatch(w.inventoryNumber, invKey)
+        matchesKey(w.inventoryNumber)
     );
     if (!linkedToInvWh) return true;
     if (s.status === 'Списано' || (s.quantity ?? 1) <= 0) return false;
@@ -757,6 +771,53 @@ function matchesTextFields(query: string, fields: (string | undefined | null)[])
   const q = query.trim().toLowerCase();
   if (!q) return false;
   return fields.some((field) => field && field.toLowerCase().includes(q));
+}
+
+/**
+ * Reassign exact duplicate computer inventory numbers (keeps first card, fixes the rest).
+ * Repairs bad deploy batches so server validation can succeed.
+ */
+export function repairDuplicateComputerInventoryNumbers<
+  T extends { id?: string; inventoryNumber?: string | null },
+>(
+  computers: T[],
+  ctx: Omit<InventoryRegistryContext, 'computers'>
+): T[] {
+  const seen = new Set<string>();
+  let changed = false;
+  const result: T[] = [];
+
+  for (const computer of computers) {
+    const inv = (computer.inventoryNumber || '').trim();
+    if (!inv || inv.toUpperCase() === 'NET-EQ') {
+      result.push(computer);
+      continue;
+    }
+
+    const key = inv.toLowerCase();
+    if (!seen.has(key)) {
+      seen.add(key);
+      result.push(computer);
+      continue;
+    }
+
+    const base = getSplitRootInventoryNumber(inv);
+    const allNums = collectRegistryInventoryNumbers({
+      ...ctx,
+      computers: result,
+    });
+    const [newInv] = allocateBatchInventoryNumbers(base, allNums, 1);
+    if (!newInv) {
+      result.push(computer);
+      continue;
+    }
+
+    changed = true;
+    seen.add(newInv.toLowerCase());
+    result.push({ ...computer, inventoryNumber: newInv });
+  }
+
+  return changed ? result : computers;
 }
 
 export function computerMatchesSearch(computer: ComputerItem, query: string): boolean {
