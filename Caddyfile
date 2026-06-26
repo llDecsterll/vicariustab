@@ -1,0 +1,24 @@
+# Vicariustab — HTTPS reverse proxy (Let's Encrypt)
+# Set STACK_DOMAIN and ACME_EMAIL in docker-compose.caddy.yml / .env
+{
+	email {$ACME_EMAIL:vicariustab@icloud.com}
+}
+
+{$STACK_DOMAIN:localhost} {
+	encode gzip zstd
+
+	reverse_proxy vicariustab-app:8080 {
+		header_up Host {host}
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+		header_up X-Forwarded-Host {host}
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Frame-Options "SAMEORIGIN"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+	}
+}

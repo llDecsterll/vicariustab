@@ -1,0 +1,48 @@
+# Stack + Caddy (HTTPS / external domain / Let's Encrypt)
+#
+# 1. Point DNS A-record: your-domain.com → server IP
+# 2. In .env: STACK_DOMAIN=your-domain.com
+# 3. Run:
+#    docker compose -f docker-compose.yml -f docker-compose.caddy.yml up -d --build
+#
+# With MySQL:
+#    docker compose -f docker-compose.yml -f docker-compose.mysql.yml -f docker-compose.caddy.yml up -d --build
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: stack_caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      STACK_DOMAIN: ${STACK_DOMAIN:?Set STACK_DOMAIN in .env, e.g. stack.example.com}
+      ACME_EMAIL: ${STACK_TLS_EMAIL:-vicariustab@icloud.com}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - vicariustab-app
+    networks:
+      - stack_net
+
+  vicariustab-app:
+    ports: !reset []
+    expose:
+      - "8080"
+    environment:
+      TRUST_PROXY: "true"
+      STACK_FORCE_HTTPS: "false"
+      STACK_DOMAIN: ${STACK_DOMAIN}
+      STACK_PUBLIC_URL: https://${STACK_DOMAIN}
+    networks:
+      - stack_net
+
+networks:
+  stack_net:
+
+volumes:
+  caddy_data:
+  caddy_config:

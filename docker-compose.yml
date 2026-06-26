@@ -1,0 +1,29 @@
+# Release
+services:
+  vicariustab-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: vicariustab_app
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      NODE_ENV: production
+      PORT: "8080"
+      STACK_DATA_DIR: /app/data
+      DB_HOST_GATEWAY: host.docker.internal
+      DB_ENCRYPTION_KEY: ${DB_ENCRYPTION_KEY:-change-me-in-production}
+      GITHUB_UPDATE_REPO: https://github.com/llDecsterll/vicariustab.git
+    volumes:
+      - vicariustab_data:/app/data
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  vicariustab_data:

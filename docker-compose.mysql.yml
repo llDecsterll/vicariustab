@@ -1,0 +1,46 @@
+# Release — Stack + MySQL в одной Docker-сети (рекомендуется для Ubuntu Server)
+# Запуск: docker compose -f docker-compose.yml -f docker-compose.mysql.yml up -d --build
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: stack_mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-StackRoot2026!}
+      MYSQL_DATABASE: stack_db
+      MYSQL_USER: stack_user
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-StackUser2026!}
+    volumes:
+      - stack_mysql_data:/var/lib/mysql
+    command: >
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+      --bind-address=0.0.0.0
+    networks:
+      - stack_net
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${MYSQL_ROOT_PASSWORD:-StackRoot2026!}"]
+      interval: 10s
+      timeout: 5s
+      retries: 8
+      start_period: 30s
+
+  vicariustab-app:
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      STACK_DEFAULT_DB_TYPE: mysql
+      STACK_DEFAULT_DB_HOST: mysql
+      STACK_DEFAULT_DB_PORT: "3306"
+      STACK_DEFAULT_DB_NAME: stack_db
+      STACK_DEFAULT_DB_USER: stack_user
+      STACK_DEFAULT_DB_PASSWORD: ${MYSQL_PASSWORD:-StackUser2026!}
+    networks:
+      - stack_net
+
+networks:
+  stack_net:
+
+volumes:
+  stack_mysql_data:

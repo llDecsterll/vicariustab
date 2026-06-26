@@ -1,0 +1,519 @@
+/*
+ * Strict warehouse → equipment group routing.
+ * Warehouse receipt type is the source of truth for sidebar groups.
+ */
+import type {
+  ComputerCategory,
+  ComputerItem,
+  ComputerStatus,
+  CustomWarehouse,
+  NetworkDevice,
+  NetworkDeviceType,
+  ObjectItem,
+  WarehouseItem,
+  WarehouseItemType,
+  WarehouseWriteOff,
+} from '../types';
+import { inventoryNumbersMatch, isActiveWarehouseStockLine } from './equipmentFields';
+
+/** Warehouse name linked to an object location (fallback: first warehouse). */
+export function resolveWarehouseNameForObject(
+  objectName: string | undefined,
+  warehouses: CustomWarehouse[],
+  fallback = 'Основной склад ИТ'
+): string {
+  if (objectName) {
+    const linked = warehouses.find((w) => w.objectName === objectName);
+    if (linked) return linked.name;
+  }
+  return warehouses[0]?.name || fallback;
+}
+
+export const DEFAULT_WAREHOUSE_NAME = 'Основной склад ИТ';
+
+export function createDefaultWarehouse(objects: ObjectItem[]): CustomWarehouse {
+  return {
+    id: 'wh-1',
+    name: DEFAULT_WAREHOUSE_NAME,
+    objectName: objects[0]?.name || 'Главный офис',
+    description: 'Основной склад для ИТ-оборудования компании',
+  };
+}
+
+function warehouseCatalogSignature(list: CustomWarehouse[]): string {
+  return list
+    .map((w) => `${w.id}\t${w.name}\t${w.objectName}`)
+    .sort()
+    .join('\n');
+}
+
+export function warehouseCatalogsEqual(a: CustomWarehouse[], b: CustomWarehouse[]): boolean {
+  return warehouseCatalogSignature(a) === warehouseCatalogSignature(b);
+}
+
+/**
+ * Restore warehouse catalog from stock lines after upgrades / legacy server payloads
+ * that omitted the `warehouses` array or stored only warehouseName on items.
+ */
+export function reconcileWarehouses(
+  warehouses: CustomWarehouse[],
+  warehouseItems: WarehouseItem[],
+  objects: ObjectItem[],
+  warehouseWriteOffs: WarehouseWriteOff[] = []
+): CustomWarehouse[] {
+  const defaultWh = createDefaultWarehouse(objects);
+  let list: CustomWarehouse[] =
+    warehouses.length > 0
+      ? warehouses.map((w) => ({ ...w }))
+      : [defaultWh];
+
+  if (!list.some((w) => w.id === defaultWh.id)) {
+    const hasDefaultName = list.some((w) => w.name === defaultWh.name);
+    if (!hasDefaultName) list = [defaultWh, ...list];
+  }
+
+  const referencedNames = new Set<string>();
+  for (const item of warehouseItems) {
+    const name = item.warehouseName?.trim();
+    if (name) referencedNames.add(name);
+  }
+  for (const row of warehouseWriteOffs) {
+    const name = row.warehouseName?.trim();
+    if (name) referencedNames.add(name);
+  }
+
+  for (const name of referencedNames) {
+    if (list.some((w) => w.name === name)) continue;
+    const objectFromSameName = objects.find((o) => o.name === name)?.name;
+    list.push({
+      id: `wh-rec-${name.replace(/\s+/g, '-').slice(0, 24)}-${list.length}`,
+      name,
+      objectName: objectFromSameName || objects[0]?.name || defaultWh.objectName,
+      description: '',
+      isCustom: true,
+    });
+  }
+
+  // Fix default warehouse object link when seed used «Главный офис» but data has «Головной офис»
+  list = list.map((w) => {
+    if (w.id !== defaultWh.id && w.name !== defaultWh.name) return w;
+    const objectExists = objects.some((o) => o.name === w.objectName);
+    if (objectExists || objects.length === 0) return w;
+    return { ...w, objectName: objects[0]!.name };
+  });
+
+  return list;
+}
+
+/** Stock object for a named warehouse. */
+export function resolveStockObjectForWarehouse(
+  warehouseName: string,
+  warehouses: CustomWarehouse[],
+  objects: ObjectItem[],
+  fallback = 'Главный офис'
+): string {
+  return (
+    warehouses.find((w) => w.name === warehouseName)?.objectName ||
+    objects[0]?.name ||
+    fallback
+  );
+}
+
+export type EquipmentTab =
+  | 'computers'
+  | 'peripherals'
+  | 'orgtech'
+  | 'surveillance'
+  | 'consumables'
+  | 'other_equip';
+
+export interface WarehouseComputerRoute {
+  category: ComputerCategory;
+  deviceType: string;
+  equipmentTab: EquipmentTab;
+}
+
+export const WAREHOUSE_TYPE_TAB: Record<WarehouseItemType, EquipmentTab | 'network' | 'software'> = {
+  Компьютеры: 'computers',
+  'Сетевое оборудование': 'network',
+  Периферия: 'peripherals',
+  Оргтехника: 'orgtech',
+  Видеонаблюдение: 'surveillance',
+  'Расходные материалы': 'consumables',
+  'Лицензии ПО': 'software',
+  Другое: 'other_equip',
+};
+
+/** Map sidebar tab → allowed computer categories */
+export function filterComputersByEquipmentTab(
+  computers: ComputerItem[],
+  tab: EquipmentTab
+): ComputerItem[] {
+  const active = computers.filter(
+    (c) =>
+      c.status !== 'На складе' &&
+      c.status !== 'Списано' &&
+      c.status !== 'На списание'
+  );
+  switch (tab) {
+    case 'computers':
+      return active.filter((c) => c.category === 'Ноутбук' || c.category === 'ПК');
+    case 'peripherals':
+      return active.filter((c) => c.category === 'Монитор' || c.category === 'Периферия');
+    case 'orgtech':
+      return active.filter((c) => c.category === 'Оргтехника');
+    case 'surveillance':
+      return active.filter((c) => c.category === 'Видеонаблюдение');
+    case 'consumables':
+      return active.filter((c) => c.category === 'Расходники');
+    case 'other_equip':
+      return active.filter((c) => c.category === 'Другое');
+    default:
+      return active;
+  }
+}
+
+export function getCategoriesForEquipmentTab(tab: EquipmentTab): ComputerCategory[] {
+  switch (tab) {
+    case 'computers':
+      return ['ПК', 'Ноутбук'];
+    case 'peripherals':
+      return ['Монитор', 'Периферия'];
+    case 'orgtech':
+      return ['Оргтехника'];
+    case 'surveillance':
+      return ['Видеонаблюдение'];
+    case 'consumables':
+      return ['Расходники'];
+    case 'other_equip':
+      return ['Другое'];
+    default:
+      return [];
+  }
+}
+
+export function getCategoryFilterLabel(category: ComputerCategory): string {
+  switch (category) {
+    case 'Ноутбук':
+      return 'Ноутбуки';
+    case 'ПК':
+      return 'Персональные компьютеры (ПК)';
+    case 'Монитор':
+      return 'Мониторы';
+    case 'Периферия':
+      return 'Периферия';
+    case 'Оргтехника':
+      return 'Оргтехника';
+    case 'Видеонаблюдение':
+      return 'Видеонаблюдение';
+    case 'Расходники':
+      return 'Расходники';
+    case 'Другое':
+      return 'Другое';
+    default:
+      return category;
+  }
+}
+
+export function getEquipmentTabForCategory(category: ComputerCategory): EquipmentTab {
+  switch (category) {
+    case 'Ноутбук':
+    case 'ПК':
+      return 'computers';
+    case 'Монитор':
+    case 'Периферия':
+      return 'peripherals';
+    case 'Оргтехника':
+      return 'orgtech';
+    case 'Видеонаблюдение':
+      return 'surveillance';
+    case 'Расходники':
+      return 'consumables';
+    default:
+      return 'other_equip';
+  }
+}
+
+function normalizeDeviceType(deviceType: string | undefined, fallback: string): string {
+  const dt = (deviceType || fallback).trim();
+  return dt || fallback;
+}
+
+/** Strict route: warehouse group + device type → category & equipment tab */
+export function resolveWarehouseComputerRoute(item: {
+  type: WarehouseItemType;
+  deviceType?: string;
+  name?: string;
+  model?: string;
+}): WarehouseComputerRoute | null {
+  const tab = WAREHOUSE_TYPE_TAB[item.type];
+  if (tab === 'network' || tab === 'software') return null;
+
+  const nameLower = `${item.name || ''} ${item.model || ''}`.toLowerCase();
+  const dt = normalizeDeviceType(item.deviceType, item.name || 'Оборудование');
+
+  switch (item.type) {
+    case 'Компьютеры': {
+      const isLaptop =
+        dt === 'Ноутбук' ||
+        nameLower.includes('ноутбук') ||
+        nameLower.includes('laptop') ||
+        nameLower.includes('macbook');
+      if (dt === 'Моноблок') {
+        return { category: 'ПК', deviceType: 'Моноблок', equipmentTab: 'computers' };
+      }
+      if (dt === 'Неттоп') {
+        return { category: 'ПК', deviceType: 'Неттоп', equipmentTab: 'computers' };
+      }
+      return {
+        category: isLaptop ? 'Ноутбук' : 'ПК',
+        deviceType: isLaptop ? 'Ноутбук' : dt === 'Сервер' ? 'Сервер' : 'ПК',
+        equipmentTab: 'computers',
+      };
+    }
+    case 'Периферия':
+      return {
+        category: dt === 'Монитор' || nameLower.includes('монитор') ? 'Монитор' : 'Периферия',
+        deviceType: dt === 'Монитор' ? 'Монитор' : dt,
+        equipmentTab: 'peripherals',
+      };
+    case 'Оргтехника': {
+      let orgDevice = dt;
+      if (dt === 'Другое' || !dt) {
+        if (nameLower.includes('мфу')) orgDevice = 'МФУ';
+        else if (nameLower.includes('принтер')) orgDevice = 'Принтер';
+        else if (nameLower.includes('сканер')) orgDevice = 'Сканер';
+        else orgDevice = 'МФУ';
+      }
+      return {
+        category: 'Оргтехника',
+        deviceType: orgDevice,
+        equipmentTab: 'orgtech',
+      };
+    }
+    case 'Видеонаблюдение':
+      return {
+        category: 'Видеонаблюдение',
+        deviceType:
+          dt === 'Видеорегистратор' || nameLower.includes('nvr') || nameLower.includes('dvr')
+            ? 'Видеорегистратор'
+            : 'Видеокамера',
+        equipmentTab: 'surveillance',
+      };
+    case 'Расходные материалы':
+      return {
+        category: 'Расходники',
+        deviceType:
+          dt === 'Картриджи' || nameLower.includes('картридж')
+            ? 'Картриджи'
+            : dt === 'Провода' || nameLower.includes('провод') || nameLower.includes('кабел')
+              ? 'Провода'
+              : dt,
+        equipmentTab: 'consumables',
+      };
+    case 'Другое':
+    default:
+      return {
+        category: 'Другое',
+        deviceType: dt,
+        equipmentTab: 'other_equip',
+      };
+  }
+}
+
+export function resolveNetworkDeviceType(item: {
+  deviceType?: string;
+  name?: string;
+}): NetworkDeviceType {
+  const raw = `${item.deviceType || ''} ${item.name || ''}`.toLowerCase();
+  if (raw.includes('маршрутиз') || raw.includes('router') || raw.includes('роутер')) {
+    return 'Маршрутизатор';
+  }
+  if (raw.includes('точка') || raw.includes('access point') || raw.includes('wifi')) {
+    return 'Точка доступа';
+  }
+  if (raw.includes('коммут') || raw.includes('switch')) {
+    return 'Коммутатор';
+  }
+  return 'Коммутатор';
+}
+
+export function equipmentTabLabel(tab: EquipmentTab): string {
+  switch (tab) {
+    case 'computers':
+      return 'Компьютеры';
+    case 'peripherals':
+      return 'Периферия';
+    case 'orgtech':
+      return 'Принтеры';
+    case 'surveillance':
+      return 'Камеры СКУД';
+    case 'consumables':
+      return 'Расходники';
+    case 'other_equip':
+      return 'Прочее оборудование';
+    default:
+      return tab;
+  }
+}
+
+/** i18n dictionary key for dashboard / sidebar equipment group title */
+export function equipmentTabTitleKey(tab: EquipmentTab): string {
+  return equipmentTabLabel(tab);
+}
+
+export function isComputerWrittenOff(c: ComputerItem): boolean {
+  return c.status === 'Списано' || c.status === 'На списание';
+}
+
+/** Count registry items for an equipment group (includes stock «На складе», excludes write-off). */
+export function countDashboardEquipmentByTab(
+  computers: ComputerItem[],
+  tab: EquipmentTab
+): { total: number; onWarehouse: number; issued: number } {
+  const categories = getCategoriesForEquipmentTab(tab);
+  let onWarehouse = 0;
+  let issued = 0;
+  for (const c of computers) {
+    if (isComputerWrittenOff(c)) continue;
+    if (!categories.includes(c.category)) continue;
+    if (c.status === 'На складе') onWarehouse += 1;
+    else issued += 1;
+  }
+  return { total: onWarehouse + issued, onWarehouse, issued };
+}
+
+/** Count network devices for dashboard KPI (stock vs issued, by quantity). */
+export function countDashboardNetworkEquipment(
+  devices: NetworkDevice[],
+  warehouseItems: WarehouseItem[] = [],
+  warehouses: CustomWarehouse[] = []
+): { total: number; onWarehouse: number; issued: number } {
+  let onWarehouse = 0;
+  let issued = 0;
+  for (const d of devices) {
+    if (d.status === 'Списано' || d.status === 'На списание') continue;
+    const qty = d.quantity || 1;
+    const displayStatus =
+      warehouses.length > 0
+        ? getNetworkDeviceDisplayStatus(d, warehouseItems, warehouses)
+        : d.status === 'На складе'
+          ? 'На складе'
+          : 'В работе';
+    if (displayStatus === 'На складе') onWarehouse += qty;
+    else issued += qty;
+  }
+  return { total: onWarehouse + issued, onWarehouse, issued };
+}
+
+export const DASHBOARD_EXTRA_EQUIPMENT_TABS = [
+  'peripherals',
+  'orgtech',
+  'surveillance',
+  'consumables',
+  'other_equip',
+] as const satisfies readonly EquipmentTab[];
+
+export type DashboardExtraEquipmentTab = (typeof DASHBOARD_EXTRA_EQUIPMENT_TABS)[number];
+
+/** Video recorder (NVR/DVR) — matches legacy deviceType values. */
+export function isVideoRecorderDevice(item: {
+  category?: string;
+  deviceType?: string;
+}): boolean {
+  if (item.category !== 'Видеонаблюдение') return false;
+  const dt = (item.deviceType || '').toLowerCase();
+  return (
+    dt === 'видеорегистратор' ||
+    dt === 'dvr/nvr' ||
+    dt.includes('регистратор') ||
+    dt.includes('nvr') ||
+    dt.includes('dvr')
+  );
+}
+
+export function isVideoCameraDevice(item: {
+  category?: string;
+  deviceType?: string;
+}): boolean {
+  if (item.category !== 'Видеонаблюдение') return false;
+  if (isVideoRecorderDevice(item)) return false;
+  const dt = (item.deviceType || '').toLowerCase();
+  return (
+    dt === 'видеокамера' ||
+    dt.includes('камер') ||
+    dt.includes('camera') ||
+    dt === '' ||
+    dt === 'другое'
+  );
+}
+
+export function listVideoRecorderComputers(computers: ComputerItem[]): ComputerItem[] {
+  return computers.filter(
+    (c) => c.category === 'Видеонаблюдение' && isVideoRecorderDevice(c)
+  );
+}
+
+/** Derive lifecycle status for network devices (no explicit status field on model). */
+export function getNetworkDeviceDisplayStatus(
+  device: NetworkDevice,
+  warehouseItems: WarehouseItem[],
+  warehouses: CustomWarehouse[],
+  objects: ObjectItem[] = []
+): ComputerStatus {
+  if (device.status === 'На списание' || device.status === 'Списано') {
+    return device.status;
+  }
+  const whItem = warehouseItems.find(
+    (w) =>
+      inventoryNumbersMatch(w.inventoryNumber, device.inventoryNumber) &&
+      w.quantity > 0 &&
+      w.type === 'Сетевое оборудование' &&
+      w.status !== 'Списано' &&
+      w.status !== 'На списание'
+  );
+  if (whItem) {
+    const whName = whItem.warehouseName || warehouses[0]?.name || DEFAULT_WAREHOUSE_NAME;
+    const stockObject = resolveStockObjectForWarehouse(whName, warehouses, objects);
+    if (device.objectName === stockObject) {
+      return 'На складе';
+    }
+    // Legacy payloads: stock batch exists but warehouse catalog was missing on server
+    if (whItem.warehouseName && !warehouses.some((w) => w.name === whItem.warehouseName)) {
+      return 'На складе';
+    }
+  }
+  return 'В работе';
+}
+
+export function filterNetworkDevicesForEquipmentView(
+  devices: NetworkDevice[],
+  warehouseItems: WarehouseItem[],
+  warehouses: CustomWarehouse[]
+): NetworkDevice[] {
+  return devices.filter((d) => {
+    if (d.status === 'На списание' || d.status === 'Списано') return false;
+    return getNetworkDeviceDisplayStatus(d, warehouseItems, warehouses) !== 'На складе';
+  });
+}
+
+/** Stock registry row already represented by an active warehouse batch line. */
+export function isStockRegistryDuplicateOfWarehouseBatch(
+  item: { inventoryNumber?: string | null },
+  warehouseItems: WarehouseItem[]
+): boolean {
+  return warehouseItems.some(
+    (w) =>
+      inventoryNumbersMatch(w.inventoryNumber, item.inventoryNumber) &&
+      w.quantity > 0 &&
+      isActiveWarehouseStockLine(w)
+  );
+}
+
+export const NETWORK_CATEGORY_FILTER_OPTIONS: { value: NetworkDeviceType | 'Все'; label: string }[] = [
+  { value: 'Все', label: 'Все категории' },
+  { value: 'Коммутатор', label: 'Коммутаторы' },
+  { value: 'Маршрутизатор', label: 'Маршрутизаторы' },
+  { value: 'Точка доступа', label: 'Точки доступа' },
+  { value: 'Другое', label: 'Другое' },
+];

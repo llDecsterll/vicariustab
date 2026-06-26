@@ -1,0 +1,933 @@
+﻿<p align="center">
+  <strong>Языки документации / Documentation languages / 文档语言</strong><br>
+  <a href="README.md">English</a> ·
+  <a href="README.ru.md"><b>Русский</b></a> ·
+  <a href="README.zh-CN.md">中文</a>
+</p>
+
+# 🚀 Vicariustab
+
+<p align="center">
+  <img src="https://img.shields.io/badge/версия-2.0.15-blue?style=for-the-badge" alt="Version">
+  <img src="https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&style=for-the-badge" alt="Docker Ready">
+  <img src="https://img.shields.io/badge/Node.js-20+-339933?logo=node.js&style=for-the-badge" alt="Node.js 20">
+  <img src="https://img.shields.io/badge/PM2-Supported-blue?style=for-the-badge" alt="PM2">
+  <img src="https://img.shields.io/badge/License-Commercial-orange?style=for-the-badge" alt="License">
+</p>
+
+<p align="center">
+  <strong>Современная система учёта IT-инфраструктуры, оборудования, лицензий и складских ресурсов</strong>
+</p>
+
+---
+
+# 📸 Скриншоты интерфейса
+
+<p align="center">
+  <img src="docs/screenshots/ru/00-admin-setup.png" alt="Первоначальная настройка — создание администратора" width="720">
+  <br><em>Первоначальная настройка — создание учётной записи администратора</em>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/ru/01-login.png" alt="Вход в систему Vicariustab" width="720">
+  <br><em>Экран авторизации</em>
+</p>
+
+| Дашборд | Сетевое оборудование |
+| :---: | :---: |
+| <img src="docs/screenshots/ru/02-dashboard.png" alt="Дашборд Vicariustab" width="420"> | <img src="docs/screenshots/ru/04-network.png" alt="Сетевое оборудование" width="420"> |
+
+| Склад ИТ | Сотрудники |
+| :---: | :---: |
+| <img src="docs/screenshots/ru/05-warehouse.png" alt="Склад ИТ" width="420"> | <img src="docs/screenshots/ru/06-employees.png" alt="Сотрудники" width="420"> |
+
+| Отчёты | Настройки |
+| :---: | :---: |
+| <img src="docs/screenshots/ru/07-reports.png" alt="Отчёты" width="420"> | <img src="docs/screenshots/ru/08-settings.png" alt="Настройки" width="420"> |
+
+<p align="center">
+  <img src="docs/screenshots/ru/03-computers.png" alt="Учёт компьютеров" width="720">
+  <br><em>Компьютеры и оборудование</em>
+</p>
+
+
+
+---
+
+## 📋 Содержание
+
+- [Скриншоты интерфейса](#-скриншоты-интерфейса)
+- [О проекте](#-о-проекте)
+- [Основные возможности](#-основные-возможности)
+- [Лицензирование](#-лицензирование)
+- [Технологический стек](#-технологический-стек)
+- [Системные требования](#-системные-требования)
+- [Установка](#-установка)
+  - [Подготовка сервера](#подготовка-сервера)
+  - [Docker Compose](#-вариант-1-docker-compose-рекомендуется)
+  - [Docker + MySQL](#-вариант-2-docker--mysql-в-одной-сети)
+  - [Docker + PostgreSQL](#-вариант-3-docker--postgresql)
+  - [Host-сеть для нативной СУБД](#-вариант-4-host-сеть--нативная-субд-на-ubuntu)
+  - [Привязка домена и HTTPS](#-привязка-домена-и-https-автоматически)
+  - [PM2](#-вариант-5-нативная-установка-pm2)
+- [Первый запуск](#-первый-запуск)
+- [Настройка базы данных](#-настройка-базы-данных)
+  - [MySQL](#mysql)
+  - [PostgreSQL](#postgresql)
+- [Подключение СУБД](#-подключение-субд-в-Vicariustab)
+- [Структура проекта](#-структура-проекта)
+- [Переменные окружения](#-переменные-окружения)
+- [Обновление системы](#-обновление-системы)
+- [Устранение неполадок](#-устранение-неполадок)
+- [Авторское право](#-авторское-право)
+- [Контакты](#-контакты)
+
+---
+
+# 📖 О проекте
+
+**Vicariustab** — профессиональная веб-система централизованного учёта и инвентаризации IT-активов предприятия.
+
+Платформа предназначена для:
+
+- системных администраторов;
+- IT-отделов;
+- материально ответственных лиц;
+- технических служб предприятий;
+- государственных и коммерческих организаций.
+
+Система позволяет вести полный учёт:
+
+- компьютеров;
+- серверов;
+- сетевого оборудования;
+- оргтехники;
+- комплектующих;
+- лицензий;
+- складских запасов;
+- расходных материалов;
+- аудита и журнала изменений.
+
+Все данные хранятся централизованно и доступны через веб-интерфейс из любого современного браузера. Интерфейс поддерживает **русский**, **английский** и **китайский** языки.
+
+Репозиторий: [github.com/llDecsterll/vicariustab](https://github.com/llDecsterll/vicariustab)
+
+---
+
+# ✨ Основные возможности
+
+## 🖥 Учёт оборудования
+
+- ПК и ноутбуки
+- Серверы
+- Принтеры и МФУ
+- Коммутаторы и маршрутизаторы
+- Комплектующие
+- История эксплуатации и перемещений
+
+## 🌐 Сетевая инфраструктура
+
+- Учёт IP-адресов
+- Патч-панели
+- Маршрутизаторы
+- Сетевая топология
+- Карта подключений
+
+## 📦 Складской учёт
+
+- Приход и списание
+- Инвентаризация
+- Остатки на складе
+- Картриджи
+- Расходные материалы
+- Лицензии программного обеспечения
+
+## 👥 Управление ответственными лицами
+
+- Закрепление техники за сотрудниками
+- Привязка оборудования к отделам
+- История перемещений
+- Контроль материальной ответственности
+
+## 📊 Отчёты и аудит
+
+- Дашборд с аналитикой
+- Журнал активности
+- Инвентаризационные проверки
+- Учёт гарантий
+
+## 🔐 Безопасность
+
+- AES-256-CBC шифрование данных
+- **Хеширование паролей scrypt** (пароли не хранятся в открытом виде)
+- **Серверная аутентификация** — вход без учётной записи невозможен
+- **Обязательная первоначальная настройка** — нет демо-доступа и предустановленных пользователей
+- Защищённое хранение параметров подключения к СУБД
+- Автоматическое переподключение и мониторинг состояния БД
+- Резервное копирование с исключением лицензионных полей
+- Ролевой доступ (Admin / Editor / Viewer)
+- Работа в распределённой инфраструктуре (Docker, PM2, MySQL, PostgreSQL)
+
+---
+
+# 🔑 Лицензирование
+
+Система использует механизм аппаратно-привязанной активации.
+
+### Ознакомительный период
+
+- 30 дней бесплатного использования
+- Отсчёт начинается после первого запуска
+
+### Перенос базы на другой компьютер
+
+Ключ активации **привязан к MAC-адресу** конкретной установки (Ed25519, формат `UTKIN-...`).
+
+> **Важно:** после восстановления резервной копии базы на **новом компьютере** продукт нужно **активировать повторно** — ключом, выданным на MAC этого сервера. Официальные резервные копии **не содержат** ключ активации (JSON-экспорт и зашифрованный `.enc`).
+
+| Способ переноса | Ключ активации |
+|-----------------|----------------|
+| **JSON-экспорт** (Настройки → резервная копия платформы) | **Исключается** — не копируется в файл |
+| **Скачать копию / Восстановить** (.enc, AES-256-CBC) | **Удаляется** при экспорте и импорте |
+| Ручное копирование `db.json` | **Не рекомендуется** — может содержать старый MAC и ключ |
+
+На **новом компьютере** после официального восстановления:
+
+- действует **пробный период** (или лицензия, уже активированная на этом ПК ранее);
+- **старый ключ активации не переносится** — для постоянной работы нужен **новый ключ** на MAC нового сервера;
+- **два ключа одновременно не требуются** — только ключ для нового оборудования.
+
+---
+
+# 🛠 Технологический стек
+
+| Компонент | Технология |
+|-----------|------------|
+| Frontend | React 19, TypeScript, Tailwind CSS 4, Motion |
+| Backend | Node.js 20, Express |
+| API | REST (Express) |
+| База данных | JSON (файл) / MySQL 8 / PostgreSQL 16 |
+| Сборка | Vite 6, esbuild |
+| Контейнеризация | Docker, Docker Compose |
+| Процесс-менеджер | PM2 |
+| Шифрование | AES-256-CBC |
+| Reverse proxy | Nginx, Caddy (опционально) |
+
+---
+
+# 💻 Системные требования
+
+| Ресурс | Минимум | Рекомендуется |
+|--------|---------|---------------|
+| ОС | Ubuntu 20.04+ / Debian 11+ | Ubuntu 22.04 LTS |
+| CPU | 1 ядро | 2 ядра |
+| RAM | 1 GB | 2 GB (+ СУБД на том же сервере) |
+| Диск | 10 GB свободно | 20 GB |
+| Сеть | Порт 8080 (HTTP) | 443 (HTTPS через прокси) |
+| Браузер | Chrome, Firefox, Edge (актуальные версии) | — |
+
+---
+
+# 🚀 Установка
+
+## Подготовка сервера
+
+```bash
+cd ~
+
+sudo apt update && sudo apt upgrade -y
+sudo apt install -y git curl ca-certificates
+```
+
+При необходимости очистите старую копию:
+
+```bash
+rm -rf vicariustab
+```
+
+---
+
+## Клонирование репозитория
+
+```bash
+git clone https://github.com/llDecsterll/vicariustab.git
+
+cd vicariustab
+
+cp .env.example .env
+```
+
+> **Важно:** откройте `.env` и задайте надёжный `DB_ENCRYPTION_KEY` — длинная случайная строка для шифрования данных.
+
+---
+
+# 🐳 Вариант 1: Docker Compose (Рекомендуется)
+
+Подходит для быстрого старта с хранением данных в JSON (том Docker).
+
+## Установка Docker
+
+```bash
+sudo apt update
+
+sudo apt install -y docker.io docker-compose-v2
+
+sudo usermod -aG docker $USER
+```
+
+Перезайдите в SSH-сессию.
+
+---
+
+## Запуск проекта
+
+```bash
+docker compose build --no-cache
+
+docker compose up -d
+```
+
+Проверка статуса:
+
+```bash
+docker compose ps
+docker compose logs -f vicariustab-app
+```
+
+После завершения сборки система будет доступна в браузере:
+
+```text
+http://IP_СЕРВЕРА:8080
+```
+
+При **первом запуске** откроется мастер **«Первоначальная настройка»** — создайте учётную запись администратора. Подробнее: [Первый запуск](#-первый-запуск).
+
+Данные сохраняются в Docker-томе `vicariustab_data` → `/app/data/`.
+
+---
+
+# 🐳 Вариант 2: Docker + MySQL в одной сети
+
+**Рекомендуется для production** — приложение и MySQL в одном Compose, без ручной настройки сети.
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.mysql.yml up -d --build
+```
+
+| Параметр | Значение |
+|----------|----------|
+| Хост | `mysql` |
+| База данных | `stack_db` |
+| Пользователь | `stack_user` |
+| Порт | `3306` |
+
+Пароли задаются в `.env` (`MYSQL_PASSWORD`, `MYSQL_ROOT_PASSWORD`) — см. `.env.example`.
+
+Vicariustab автоматически подключается к БД при первом запуске (переменные `STACK_DEFAULT_DB_*`).
+
+---
+
+# 🐳 Вариант 3: Docker + PostgreSQL
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d --build
+```
+
+| Параметр | Значение |
+|----------|----------|
+| Хост | `postgres` |
+| База данных | `stack_db` |
+| Пользователь | `stack_user` |
+| Порт | `5432` |
+
+---
+
+# 🐳 Вариант 4: Host-сеть + нативная СУБД на Ubuntu
+
+Если MySQL или PostgreSQL установлены **на самом сервере** и слушают `127.0.0.1`, используйте режим host-сети — тогда `localhost` в контейнере = localhost Ubuntu:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.host.yml up -d --build
+```
+
+В настройках СУБД укажите хост **`localhost`**.
+
+---
+
+# 🌐 Привязка домена и HTTPS (автоматически)
+
+Чтобы открывать Vicariustab по публичному адресу (`https://stack.example.com`), используйте встроенный скрипт — он запишет `.env`, поднимет Docker и Caddy с сертификатом Let's Encrypt.
+
+### Требования
+
+- VPS с публичным IP (Ubuntu 20.04+)
+- Docker и Docker Compose
+- DNS **A-запись**: домен → IP сервера
+- Порты **80** и **443** доступны из интернета
+
+### Интерактивный запуск
+
+```bash
+cd vicariustab
+npm run setup:domain
+```
+
+Скрипт запросит **домен** и **email владельца домена** (для Let's Encrypt), проверит DNS и запустит контейнеры.
+
+### Запуск с параметрами
+
+```bash
+node scripts/setup-domain.mjs \
+  --domain stack.example.com \
+  --email admin@example.com \
+  --ufw \
+  --yes
+```
+
+| Опция | Описание |
+|--------|----------|
+| `--mysql` | Запуск вместе с MySQL |
+| `--ufw` | Открыть порты 80/443 в файерволе (Linux) |
+| `--check-only` | Только проверки, без запуска Docker |
+| `--skip-dns` | Пропустить проверку DNS |
+
+С MySQL:
+
+```bash
+node scripts/setup-domain.mjs --domain stack.example.com --email admin@example.com --mysql --ufw -y
+```
+
+После успешного завершения откройте **`https://ваш-домен`** и выполните [первый запуск](#-первый-запуск).
+
+> **Вручную:** см. [`DOCKER.md`](./DOCKER.md) и `docker-compose.caddy.yml`.  
+> **Keyserver** на сервере не нужен — лицензионные ключи выдаёт правообладатель локально.
+
+Обновление скриншотов для README:
+
+```bash
+npm run build && npm run screenshots
+```
+
+---
+
+# ⚙ Вариант 5: Нативная установка (PM2)
+
+## Установка Node.js 20
+
+```bash
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+
+sudo apt install -y nodejs build-essential
+```
+
+---
+
+## Установка зависимостей
+
+```bash
+cp .env.example .env
+
+npm install
+
+npm run build
+```
+
+---
+
+## Установка PM2
+
+```bash
+sudo npm install -g pm2
+```
+
+---
+
+## Запуск приложения
+
+Откройте `.env` и задайте надёжный `DB_ENCRYPTION_KEY` перед запуском (обязательно в production):
+
+```bash
+nano .env
+```
+
+**Рекомендуется** — готовый конфиг PM2 (`deploy/ecosystem.config.cjs`; `.env` читается сервером при старте):
+
+```bash
+pm2 start deploy/ecosystem.config.cjs --env production
+```
+
+**Альтернатива** — ручной запуск:
+
+```bash
+PORT=8080 NODE_ENV=production DB_ENCRYPTION_KEY="your-long-random-secret" pm2 start dist/server.cjs --name "vicariustab-system"
+```
+
+> Приложение читает `.env` из корня проекта при запуске. Docker Compose также использует `.env` для подстановки переменных.
+
+---
+
+## Автозапуск после перезагрузки
+
+```bash
+pm2 startup systemd
+```
+
+Выполните команду, которую покажет PM2.
+
+После этого:
+
+```bash
+pm2 save
+```
+
+---
+
+# 👤 Первый запуск
+
+После установки в Vicariustab **нет учётных записей**. Доступ к системе закрыт до создания администратора.
+
+### Шаг 1 — Первоначальная настройка (один раз)
+
+При первом открытии приложения отображается форма **«Первоначальная настройка»**:
+
+| Поле | Требования |
+|------|------------|
+| **Логин** | Не менее 3 символов; буквы, цифры, `.`, `-`, `_` |
+| **Пароль** | Не менее **8 символов** |
+| **Email** | Корректный адрес электронной почты |
+
+После успешного создания выполняется переход на **экран входа**.
+
+### Шаг 2 — Вход в систему
+
+Используйте логин и пароль, заданные при настройке. Проверка выполняется **на сервере**; встроенных демо-аккаунтов нет.
+
+### Стартовые данные рабочей области
+
+При первоначальной настройке автоматически создаются демонстрационные данные (как при «чистой» установке раньше):
+
+- объекты и филиалы;
+- сотрудники;
+- компьютеры и периферия;
+- склад ИТ и номенклатура;
+- сетевое оборудование;
+- лицензии ПО;
+- примеры инвентаризаций и записей журнала активности.
+
+Это позволяет сразу изучить интерфейс. Данные можно изменить или удалить.
+
+### Управление пользователями
+
+- **Нет предустановленных учётных записей** (katya, ivan, admin и т.п.).
+- Новые пользователи создаются только **администратором** в **Настройки** → **Управление пользователями**.
+- В форме добавления сотрудника для пароля указано **«Не менее 8 символов»**; то же правило действует на сервере.
+- Пароли хранятся в виде **scrypt-хешей** и не передаются в браузер.
+
+### Разработка (локально)
+
+```bash
+cp .env.example .env   # опционально; в dev PORT по умолчанию 3000, если не задан
+npm install
+npm run dev
+```
+
+> `npm run dev` запускает TypeScript-сервер через **tsx** (уже в `devDependencies`, отдельно ставить не нужно).
+
+Откройте `http://localhost:3000` (или порт из `.env`). Для проверки «чистой» установки удалите файлы данных и перезапустите сервер:
+
+```bash
+rm -f db.json store_meta.json sessions_store.enc db_config.json
+```
+
+Если меняли `DB_ENCRYPTION_KEY`, обязательно удалите `sessions_store.enc` — иначе в логах будет предупреждение о расшифровке сессий (сервер продолжит работу).
+
+Если браузер показывает старый экран входа — очистите данные сайта для `localhost` (или откройте в режиме инкognito).
+
+### Проверка установки (smoke-тесты)
+
+После сборки запустите сервер и проверьте API:
+
+```bash
+npm run build
+PORT=8080 DB_ENCRYPTION_KEY="your-long-random-secret" npm start
+```
+
+В другом терминале:
+
+```bash
+npm run verify http://127.0.0.1:8080
+npm run verify:install http://127.0.0.1:8080
+npm run lint
+npm run check:i18n
+npm run test:unit
+```
+
+Полный набор audit-тестов (сервер должен быть запущен):
+
+```bash
+npm run test:audit
+```
+
+Ожидается: `ALL TESTS PASSED`, `INSTALL CHECKS PASSED` и отсутствие ошибок i18n.
+
+---
+
+# 🗄 Настройка базы данных
+
+Используйте эти инструкции, если СУБД установлена **на Ubuntu отдельно** (не в Docker Compose).
+
+## MySQL
+
+### Установка
+
+```bash
+sudo apt update
+
+sudo apt install -y mysql-server
+
+sudo systemctl enable mysql
+sudo systemctl start mysql
+```
+
+### Доступ из Docker (bind-address)
+
+Если Vicariustab работает в Docker (bridge-режим), MySQL должен принимать подключения не только с `127.0.0.1`:
+
+```bash
+sudo nano /etc/mysql/mysql.conf.d/mysqld.cnf
+```
+
+Измените:
+
+```ini
+bind-address = 0.0.0.0
+```
+
+```bash
+sudo systemctl restart mysql
+```
+
+### Создание БД
+
+```sql
+CREATE DATABASE stack_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+CREATE USER 'stack_user'@'%' IDENTIFIED BY 'StrongSecPassword@2026';
+
+GRANT ALL PRIVILEGES ON stack_db.* TO 'stack_user'@'%';
+
+FLUSH PRIVILEGES;
+```
+
+### Firewall (при необходимости)
+
+```bash
+sudo ufw allow 3306/tcp
+sudo ufw reload
+```
+
+---
+
+## PostgreSQL
+
+### Установка
+
+```bash
+sudo apt update
+
+sudo apt install -y postgresql postgresql-contrib
+```
+
+### Сетевой доступ
+
+```bash
+sudo nano /etc/postgresql/*/main/postgresql.conf
+```
+
+```ini
+listen_addresses = '*'
+```
+
+```bash
+sudo nano /etc/postgresql/*/main/pg_hba.conf
+```
+
+Добавьте в конец:
+
+```text
+host    all    all    0.0.0.0/0    scram-sha-256
+```
+
+```bash
+sudo systemctl restart postgresql
+```
+
+### Создание пользователя и базы
+
+```sql
+CREATE USER stack_user WITH PASSWORD 'StrongSecPassword@2026';
+
+CREATE DATABASE stack_db OWNER stack_user;
+```
+
+---
+
+# 🔗 Подключение СУБД в Vicariustab
+
+После запуска и **входа администратора** откройте:
+
+```text
+http://SERVER_IP:8080
+```
+
+### Переход в настройки
+
+**Настройки** → вкладка **«Параметры СУБД (MySQL / PostgreSQL)»**
+
+### Настройки подключения
+
+| Параметр | Docker + MySQL | Docker bridge + нативная СУБД | Host-сеть / PM2 |
+|----------|----------------|------------------------------|-----------------|
+| Тип БД | MySQL / PostgreSQL | MySQL / PostgreSQL | MySQL / PostgreSQL |
+| Хост | `mysql` или `postgres` | `172.17.0.1` или `host.docker.internal` | `localhost` |
+| База данных | `stack_db` | `stack_db` | `stack_db` |
+| Пользователь | `stack_user` | `stack_user` | `stack_user` |
+| Порт MySQL | `3306` | `3306` | `3306` |
+| Порт PostgreSQL | `5432` | `5432` | `5432` |
+
+> **Важно:** `localhost` внутри Docker-контейнера — это **не** сервер Ubuntu. Для нативной СУБД используйте `172.17.0.1`, host-сеть или Compose с MySQL.
+
+### Проверка и миграция
+
+1. Нажмите **«Проверить соединение»** — при успехе отобразится рабочий хост.
+2. Нажмите **«Применить СУБД и мигрировать»**.
+
+Система автоматически:
+
+- создаст таблицы;
+- выполнит миграции;
+- зашифрует настройки подключения;
+- перенесёт существующие данные из JSON;
+- настроит автоматическое подключение и мониторинг.
+
+---
+
+# 📂 Структура проекта
+
+```text
+vicariustab/
+│
+├── src/                          # React-интерфейс
+│   ├── components/               # Модули: компьютеры, сеть, склад, настройки…
+│   ├── utils/                    # Лицензия, i18n, обновления
+│   └── config/                   # Версия, репозиторий обновлений
+├── server/                       # API, хеширование паролей, seed-данные
+│   ├── apiAuth.ts                # Middleware auth + license gate
+│   ├── dataStore.ts              # JSON/SQL persistence
+│   ├── sessionEngine.ts          # Сессии и уведомления
+│   ├── updateEngine.ts           # GitHub auto-update
+│   ├── licenseCore.ts            # Серверная проверка лицензии
+│   └── workspaceSeed.json        # Стартовые данные при первом запуске
+├── server.ts                     # Express API, СУБД, шифрование
+├── Dockerfile
+├── docker-compose.yml            # Только приложение
+├── docker-compose.mysql.yml      # + MySQL
+├── docker-compose.postgres.yml   # + PostgreSQL
+├── docker-compose.host.yml       # Host-сеть
+├── docker-compose.ssl.yml        # SSL (опционально)
+├── docker-compose.caddy.yml      # Caddy (опционально)
+├── nginx.conf
+├── deploy/
+│   └── ecosystem.config.cjs      # PM2 для production
+├── scripts/
+│   ├── dev-server.mjs            # npm run dev
+│   ├── check-i18n.mjs            # npm run check:i18n
+│   ├── verify-flow.mjs           # npm run verify — лицензия, auth, update
+│   ├── verify-install.mjs        # npm run verify:install — health/setup
+│   ├── setup-domain.mjs          # npm run setup:domain — домен + HTTPS
+│   └── capture-screenshots.mjs   # npm run screenshots — скриншоты README
+├── docs/screenshots/
+│   ├── ru/                       # Скриншоты (README.ru.md)
+│   ├── en/                       # Screenshots (README.md)
+│   └── zh/                       # 截图 (README.zh-CN.md)
+├── package.json
+├── .env.example
+├── README.md                     # English
+├── README.ru.md                  # Русский
+├── README.zh-CN.md               # 中文
+├── DOCKER.md                     # Расширенное руководство (RU)
+└── COPYRIGHT.md
+```
+
+---
+
+# 🔧 Переменные окружения
+
+| Переменная | Описание |
+|------------|----------|
+| `PORT` | HTTP-порт приложения (по умолчанию 3000, в Docker — 8080) |
+| `NODE_ENV` | `production` / `development` |
+| `DB_ENCRYPTION_KEY` | Ключ AES-256 для шифрования данных и учётных данных СУБД |
+| `STACK_DATA_DIR` | Каталог данных (`db.json`, `db_config.json`); в Docker: `/app/data` |
+| `DB_HOST_GATEWAY` | Алиас хоста для доступа к СУБД из Docker |
+| `GITHUB_UPDATE_REPO` | URL репозитория для проверки обновлений |
+| `STACK_DEFAULT_DB_TYPE` | Автоподключение: тип СУБД (`mysql` / `postgres`) |
+| `STACK_DEFAULT_DB_HOST` | Автоподключение: хост |
+| `STACK_DEFAULT_DB_PORT` | Автоподключение: порт |
+| `STACK_DEFAULT_DB_NAME` | Автоподключение: имя базы |
+| `STACK_DEFAULT_DB_USER` | Автоподключение: пользователь |
+| `STACK_DEFAULT_DB_PASSWORD` | Автоподключение: пароль |
+| `MYSQL_PASSWORD` | Пароль пользователя MySQL в Compose |
+| `MYSQL_ROOT_PASSWORD` | Root-пароль MySQL в Compose |
+| `POSTGRES_PASSWORD` | Пароль PostgreSQL в Compose |
+| `STACK_DISABLE_AUTO_UPDATE` | `true` — отключить автообновление с GitHub |
+| `PM2_APP_NAME` | Имя процесса PM2 (по умолчанию `vicariustab-system`) |
+| `TELEGRAM_BOT_TOKEN` | Telegram-бот для уведомлений о входе с нового устройства |
+| `RESEND_API_KEY` | Resend API для email-уведомлений о входе |
+| `SESSION_ALERT_FROM_EMAIL` | Адрес отправителя security-писем |
+| `STACK_DOMAIN` | Публичный домен (Docker + Caddy / reverse proxy) |
+| `STACK_PUBLIC_URL` | Полный URL, напр. `https://stack.example.com` |
+| `STACK_TLS_EMAIL` | Email для Let's Encrypt |
+| `TRUST_PROXY` | `true` за Nginx/Caddy |
+| `STACK_FORCE_HTTPS` | Редирект HTTP → HTTPS при `true` |
+
+Пример `.env`:
+
+```env
+PORT=8080
+
+NODE_ENV=production
+
+DB_ENCRYPTION_KEY=your-long-random-secret-key-here
+
+STACK_DATA_DIR=/app/data
+
+DB_HOST_GATEWAY=host.docker.internal
+
+GITHUB_UPDATE_REPO=https://github.com/llDecsterll/vicariustab.git
+```
+
+---
+
+# 🔄 Обновление системы
+
+### Docker
+
+```bash
+cd ~/vicariustab
+
+git pull origin main
+
+docker compose down
+
+docker compose up -d --build
+```
+
+С MySQL:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.mysql.yml up -d --build
+```
+
+### PM2
+
+```bash
+cd ~/vicariustab
+
+git pull origin main
+
+npm install
+
+npm run build
+
+pm2 restart deploy/ecosystem.config.cjs --env production
+```
+
+Или при ручном запуске: `pm2 restart vicariustab-system`
+
+### Через интерфейс
+
+**Настройки** → **Центр управления обновлениями Vicariustab** — проверка релизов на GitHub.
+
+---
+
+# 🔧 Устранение неполадок
+
+| Проблема | Решение |
+|----------|---------|
+| **Не появляется мастер настройки** | Удалите `db.json`, `store_meta.json`, `sessions_store.enc` в `STACK_DATA_DIR`; очистите данные сайта в браузере |
+| **Ошибка Sessions / bad decrypt** | Сменили `DB_ENCRYPTION_KEY` — удалите `sessions_store.enc` и перезапустите сервер |
+| **«Неверный логин или пароль»** | Используйте данные из первоначальной настройки; учётных записей `admin`/`admin` нет |
+| **Connection refused к СУБД из Docker** | Хост `172.17.0.1`; MySQL: `bind-address=0.0.0.0`; или `docker-compose.host.yml` |
+| **Тест подключения не проходит** | Проверьте пароль; если сохранён — оставьте поле пустым или введите заново |
+| **Dockerfile не найден** | Запускайте из корня `~/vicariustab`, не из вложенной папки |
+| **Порт 8080 занят** | Измените `PORT` и маппинг портов в `docker-compose.yml` |
+| **Сборка падает по памяти** | В Dockerfile уже `SKIP_OBFUSCATION=true` |
+
+Проверка шлюза Docker:
+
+```bash
+ip addr show docker0 | grep inet
+# Обычно: 172.17.0.1
+```
+
+Логи:
+
+```bash
+docker compose logs -f vicariustab-app
+```
+
+Подробнее: [DOCKER.md](./DOCKER.md)
+
+---
+
+# 📜 Авторское право
+
+© Уткин Владислав Вячеславович (Utkin Vladislav Vyacheslavovich)
+
+Все права защищены.
+
+Подробная информация находится в файле:
+
+```text
+COPYRIGHT.md
+```
+
+---
+
+# 📞 Контакты
+
+📧 E-mail:
+
+```text
+vicariustab@icloud.com
+```
+
+📨 Telegram:
+
+```text
+@Dexterll
+```
+
+🌐 GitHub:
+
+```text
+https://github.com/llDecsterll/vicariustab
+```
+
+---
+
+# ⭐ Поддержка проекта
+
+Если Vicariustab оказался полезным:
+
+- Поставьте ⭐ репозиторию
+- Сообщайте об ошибках через [Issues](https://github.com/llDecsterll/vicariustab/issues)
+- Предлагайте новые функции
+- Свяжитесь для получения корпоративной лицензии
+
+---
+
+<p align="center">
+  Сделано для эффективного управления IT-инфраструктурой 🚀
+</p>

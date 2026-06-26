@@ -1,0 +1,34 @@
+# Release
+node_modules/
+build/
+dist/
+coverage/
+.DS_Store
+Thumbs.db
+desktop.ini
+*.log
+.env*
+!.env.example
+db.json
+db_config.json
+store_meta.json
+sessions_store.enc
+data/
+*.backup
+*.backup.json
+db.json.backup
+db.json.before-fresh-*.bak
+db_config.json.before-fresh-*.bak
+sessions_store.enc.corrupt-*
+.screenshot-data/
+# i18n / translation dev dumps (not part of the app)
+cyrillic.txt
+i18n.txt
+i18n_keys.txt
+terms.txt
+new_terms.json
+super_safe_terms.json
+metadata.json
+# Ed25519 license private key — never commit (lives on keyserver only)
+**/license_ed25519.pem
+**/license_private*.pem

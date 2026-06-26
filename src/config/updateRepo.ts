@@ -1,0 +1,4 @@
+export {
+  VICARIUSTAB_UPDATE_REPO,
+  VICARIUSTAB_UPDATE_REPO_DISPLAY,
+} from './appConfig';
