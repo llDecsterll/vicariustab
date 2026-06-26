@@ -2869,7 +2869,7 @@ export default function App() {
     const qty = Math.floor(quantityToWriteOff);
     if (!Number.isFinite(qty) || qty < 1) return false;
 
-    const invKey = normalizeInventoryNumber(inventoryNumber);
+    let resolvedInvKey = normalizeInventoryNumber(inventoryNumber);
     let targetName = '';
     let targetType = '';
     let targetModel = '';
@@ -2886,6 +2886,7 @@ export default function App() {
     if (sourceType === 'computer') {
       const comp = computers.find(c => c.id === id);
       if (!comp) return false;
+      resolvedInvKey = normalizeInventoryNumber(comp.inventoryNumber);
       targetName = comp.category;
       targetType = comp.deviceType || comp.category;
       targetModel = comp.model;
@@ -2896,6 +2897,7 @@ export default function App() {
     } else if (sourceType === 'network') {
       const net = networkDevices.find(n => n.id === id);
       if (!net) return false;
+      resolvedInvKey = normalizeInventoryNumber(net.inventoryNumber);
       targetName = net.deviceName;
       targetType = net.type;
       targetModel = net.type;
@@ -2911,6 +2913,7 @@ export default function App() {
     } else if (sourceType === 'software') {
       const soft = softwareItems.find(s => s.id === id);
       if (!soft) return false;
+      resolvedInvKey = normalizeInventoryNumber(soft.licenseKey || inventoryNumber);
       targetName = soft.name;
       targetType = soft.category;
       targetModel = soft.developer || soft.category;
@@ -2927,6 +2930,9 @@ export default function App() {
     } else if (sourceType === 'warehouse') {
       const wh = warehouseItems.find(w => w.id === id);
       if (!wh) return false;
+      resolvedInvKey = normalizeInventoryNumber(
+        getSplitRootInventoryNumber(wh.inventoryNumber, wh.splitFromInventoryNumber)
+      );
       if (qty > wh.quantity) return false;
       targetName = wh.name;
       targetType = wh.type;
@@ -2995,7 +3001,7 @@ export default function App() {
         networkDevices: nextNetworkDevices,
         softwareItems: nextSoftwareItems,
       },
-      invKey,
+      resolvedInvKey,
       { purgePendingLinked }
     );
 

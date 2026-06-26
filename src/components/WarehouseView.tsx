@@ -510,6 +510,8 @@ export default function WarehouseView({
     unit: string;
     cost: number;
   } | null>(null);
+  /** Позиция из очереди списания — не показываем select (иначе required блокирует submit). */
+  const [writeOffSourceLocked, setWriteOffSourceLocked] = useState(false);
 
   // Form States - Return or Move Active Issued Equipment
   const [showActiveAssetTransitionModal, setShowActiveAssetTransitionModal] = useState(false);
@@ -1030,12 +1032,16 @@ export default function WarehouseView({
     return buildWriteOffSourceFromWarehouse(writable[0]);
   };
 
+  const formatWriteOffSourceLabel = (source: WriteOffSourceItem) =>
+    `${source.name} (${source.inventoryNumber || t('Без инв. №')}) — ${t('Доступно')} ${source.quantity} ${t(source.unit || 'шт.')}`;
+
   const openWriteOffModal = (options?: {
     invNum?: string;
     qty?: number;
     source?: WriteOffSourceItem | null;
   }) => {
     const resolved = resolveWriteOffSource(options?.invNum, options?.source ?? null);
+    setWriteOffSourceLocked(Boolean(options?.source));
     setWriteOffInvNum(resolved?.inventoryNumber ?? options?.invNum ?? '');
     setWriteOffQty(
       resolved
@@ -1251,6 +1257,7 @@ export default function WarehouseView({
     
     if (success) {
       setShowWriteOffModal(false);
+      setWriteOffSourceLocked(false);
     } else {
       setWriteOffError(t('Произошла ошибка при списании товара.'));
     }
@@ -2737,13 +2744,13 @@ export default function WarehouseView({
                     <ImageIcon size={28} className="text-slate-300" />
                   )}
                 </div>
-                <div className="flex-1 space-y-1.5">
-                  <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wide">
+                <div className="flex-1 flex flex-col gap-1.5 min-w-0">
+                  <span className="block text-[10px] font-bold text-slate-600 uppercase tracking-wide">
                     {t('Фото оборудования')}
                   </span>
-                  <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold bg-white border border-slate-200 hover:border-blue-300 text-slate-700 cursor-pointer transition-colors">
+                  <label className="inline-flex self-start items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold bg-white border border-slate-200 hover:border-blue-300 text-slate-700 cursor-pointer transition-colors shrink-0">
                     <Upload size={13} />
-                    {photoUploading ? t('Загрузка…') : t('Загрузить изображение')}
+                    {photoUploading ? t('Загрузка…') : t('Загрузить')}
                     <input
                       type="file"
                       accept="image/*"
@@ -3329,7 +3336,12 @@ export default function WarehouseView({
                   <AlertTriangle size={20} />{t("Списание ТМЦ со склада")}</h3>
                 <p className="text-[11px] text-slate-400 mt-1">{t("Укажите техническое заключение и причину списания устройства с баланса.")}</p>
               </div>
-              <ModalCloseButton onClick={() => setShowWriteOffModal(false)} />
+              <ModalCloseButton
+                onClick={() => {
+                  setShowWriteOffModal(false);
+                  setWriteOffSourceLocked(false);
+                }}
+              />
             </div>
 
             {writeOffError && (
@@ -3341,10 +3353,13 @@ export default function WarehouseView({
             <form onSubmit={handleWriteOffSubmit} className="flex-1 overflow-y-auto space-y-4 pr-1">
               <div>
                 <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">{t("Выбранный товар для списания")}</label>
-                {activeWriteOffSourceItem?.sourceType &&
-                activeWriteOffSourceItem.sourceType !== 'warehouse' ? (
+                {writeOffSourceLocked ||
+                (activeWriteOffSourceItem?.sourceType &&
+                  activeWriteOffSourceItem.sourceType !== 'warehouse') ? (
                   <div className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs bg-slate-50 text-slate-700 font-semibold">
-                    {`${activeWriteOffSourceItem.name} (${activeWriteOffSourceItem.inventoryNumber || t('Без инв. №')}) — ${t('Доступно')} ${activeWriteOffSourceItem.quantity} ${t(activeWriteOffSourceItem.unit || 'шт.')}`}
+                    {activeWriteOffSourceItem
+                      ? formatWriteOffSourceLabel(activeWriteOffSourceItem)
+                      : t('Не выбран элемент для списания.')}
                   </div>
                 ) : (
                   <select
