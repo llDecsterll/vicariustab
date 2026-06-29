@@ -7476,6 +7476,11 @@ const dictionary: Record<string, Record<Language, string>> = {
     en: "Could not find an active record to return to warehouse.",
     zh: "找不到可退回仓库的有效记录。"
   },
+  "Это оборудование уже на складе или в статусе списания.": {
+    ru: "Это оборудование уже на складе или в статусе списания.",
+    en: "This equipment is already in stock or marked for write-off.",
+    zh: "该设备已在库或处于核销/待核销状态。"
+  },
   "Оборудование с инвентарным номером {inv} уже существует!": {
     ru: "Оборудование с инвентарным номером {inv} уже существует!",
     en: "Equipment with inventory number {inv} already exists!",

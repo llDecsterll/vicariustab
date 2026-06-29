@@ -9,6 +9,7 @@ import type {
 import {
   getSplitRootInventoryNumber,
   getWarehouseLineInventoryKey,
+  findActiveWarehouseStockLineIndex,
   inventoryNumbersMatch,
   matchesBaseInventoryNumber,
   normalizeInventoryNumber,
@@ -64,6 +65,46 @@ export function findLinkedStockComputerIds(
   }
 
   return ids.slice(0, Math.max(0, item.quantity));
+}
+
+function stockUnitSuffixRank(inv: string, lineKey: string): number {
+  const cur = (inv || '').trim();
+  if (cur === lineKey) return 0;
+  const m = cur.match(/-(\d+)$/);
+  return m ? parseInt(m[1], 10) : 999;
+}
+
+/** Registry computers linked to a specific warehouse line (not the whole root batch). */
+export function findRegistryComputersForWarehouseLine(
+  item: WarehouseItem,
+  computers: ComputerItem[]
+): { onStock: ComputerItem[]; issued: ComputerItem[] } {
+  if (!WAREHOUSE_COMPUTER_TYPES.includes(item.type)) {
+    return { onStock: [], issued: [] };
+  }
+  const lineKey = getWarehouseLineInventoryKey(item.inventoryNumber);
+  if (!lineKey) return { onStock: [], issued: [] };
+
+  const matching = computers.filter(
+    (c) =>
+      matchesBaseInventoryNumber(c.inventoryNumber, lineKey) &&
+      c.status !== 'Списано'
+  );
+
+  const sortBySuffix = (a: ComputerItem, b: ComputerItem) =>
+    stockUnitSuffixRank(a.inventoryNumber || '', lineKey) -
+    stockUnitSuffixRank(b.inventoryNumber || '', lineKey);
+
+  const onStock = matching
+    .filter((c) => c.status === 'На складе')
+    .sort(sortBySuffix)
+    .slice(0, Math.max(0, item.quantity));
+
+  const issued = matching
+    .filter((c) => c.status !== 'На складе' && c.status !== 'На списание')
+    .sort(sortBySuffix);
+
+  return { onStock, issued };
 }
 
 /** Stock registry cards to remove on partial/full warehouse write-off (suffix order). */
@@ -164,14 +205,10 @@ export function reduceWarehouseQtyByInventoryMatch(
 ): WarehouseItem[] {
   const take = Math.max(1, Math.floor(qty));
   const whName = warehouseName || 'Основной склад ИТ';
-  const target = items.find(
-    (w) =>
-      w.quantity > 0 &&
-      w.status !== 'Списано' &&
-      inventoryNumbersMatch(w.inventoryNumber, inventoryNumber) &&
-      (w.warehouseName || 'Основной склад ИТ') === whName
-  );
-  if (!target) return items;
+  const lineKey = getWarehouseLineInventoryKey(inventoryNumber);
+  const targetIdx = findActiveWarehouseStockLineIndex(items, lineKey, whName);
+  if (targetIdx < 0) return items;
+  const target = items[targetIdx]!;
 
   return items.flatMap((w) => {
     if (w.id !== target.id) return [w];

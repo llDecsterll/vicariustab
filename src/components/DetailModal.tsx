@@ -37,7 +37,6 @@ import {
   RefreshCw,
   Settings,
   Activity,
-  Package,
   Clock,
   Edit2,
   ZoomIn,
@@ -51,8 +50,9 @@ import type { ActItemType } from './ActPrintContent';
 import {
   supportsComputerSpecifications,
   hasAnyComputerSpecs,
-  matchesBaseInventoryNumber,
+  resolveWarehouseItemSerialLines,
 } from '../utils/equipmentFields';
+import { findRegistryComputersForWarehouseLine } from '../utils/equipmentDelete';
 import { isVideoCameraDevice, isVideoRecorderDevice } from '../utils/warehouseRouting';
 import ModalCloseButton from './ModalCloseButton';
 import ImageLightbox from './ImageLightbox';
@@ -1942,21 +1942,35 @@ export default function DetailModal({
                           <span className="font-semibold text-slate-700">{item.caseModel || '—'}</span>
                           {item.caseSerial && <span className="text-slate-400 text-[10px] block font-mono">S/N: {item.caseSerial}</span>}
                         </div>
-                        {item.serialNumber && (
-                          <div className="col-span-2"><span className="text-slate-400 font-bold text-[9px] uppercase block">{t("Серийный номер (базовый):")}</span><span className="font-semibold text-slate-700 font-mono">{item.serialNumber}</span></div>
-                        )}
-                        {item.unitSerialNumbers && item.unitSerialNumbers.some((s: string) => s?.trim()) && (
-                          <div className="col-span-2 space-y-1">
-                            <span className="text-slate-400 font-bold text-[9px] uppercase block">{t("Серийные номера по единицам:")}</span>
-                            {item.unitSerialNumbers.map((sn: string, idx: number) =>
-                              sn?.trim() ? (
-                                <div key={`wh-unit-sn-${idx}`} className="text-[11px] font-mono text-slate-700">
-                                  {t('Единица')} {idx + 1}: {sn.trim()}
-                                </div>
-                              ) : null
-                            )}
-                          </div>
-                        )}
+                        {(() => {
+                          const serialLines =
+                            item.quantity > 1
+                              ? resolveWarehouseItemSerialLines(item, computers)
+                              : [];
+                          if (serialLines.length === 0 && !item.serialNumber?.trim()) return null;
+                          if (serialLines.length > 0) {
+                            return (
+                              <div className="col-span-2 space-y-1">
+                                <span className="text-slate-400 font-bold text-[9px] uppercase block">
+                                  {t('Серийные номера по единицам:')}
+                                </span>
+                                {serialLines.map((sn, idx) => (
+                                  <div key={`wh-unit-sn-${idx}`} className="text-[11px] font-mono text-slate-700">
+                                    {t('Единица')} {idx + 1}: {sn}
+                                  </div>
+                                ))}
+                              </div>
+                            );
+                          }
+                          return (
+                            <div className="col-span-2">
+                              <span className="text-slate-400 font-bold text-[9px] uppercase block">
+                                {t('Серийный номер (базовый):')}
+                              </span>
+                              <span className="font-semibold text-slate-700 font-mono">{item.serialNumber}</span>
+                            </div>
+                          );
+                        })()}
                         {item.customSpecs && item.customSpecs.length > 0 && (
                           <div className="col-span-2 pt-2 border-t border-slate-100 space-y-1.5">
                             <span className="text-slate-400 font-bold text-[9px] uppercase block">{t('Дополнительные характеристики')}</span>
@@ -1974,57 +1988,59 @@ export default function DetailModal({
                           </div>
                         )}
                       </div>
-                      {item.quantity > 1 && (() => {
-                        const linkedUnits = computers.filter((c) =>
-                          matchesBaseInventoryNumber(c.inventoryNumber, item.inventoryNumber)
+                      {(() => {
+                        const { onStock, issued } = findRegistryComputersForWarehouseLine(
+                          item,
+                          computers
                         );
-                        if (linkedUnits.length === 0) return null;
+                        if (onStock.length === 0 && issued.length === 0) return null;
                         return (
-                          <div className="pt-2 border-t border-slate-100 space-y-1.5">
-                            <span className="text-[10px] font-bold text-slate-500 uppercase">{t("Единицы в реестре")}</span>
-                            {linkedUnits.map((unit) => (
-                              <button
-                                key={unit.id}
-                                type="button"
-                                onClick={() => onNavigateDetail('computer', unit.id)}
-                                className="w-full text-left text-[11px] px-2.5 py-1.5 rounded-lg border border-slate-150 bg-white hover:border-blue-300 hover:text-blue-700 transition-colors font-mono"
-                              >
-                                {unit.inventoryNumber} • {unit.deviceType || unit.category}
-                                {(unit.cpuModel || unit.ramModel) ? ` • ${unit.cpuModel || ''} ${unit.ramModel || ''}`.trim() : ''}
-                              </button>
-                            ))}
+                          <div className="pt-2 border-t border-slate-100 space-y-2">
+                            {onStock.length > 0 && (
+                              <div className="space-y-1.5">
+                                <span className="text-[10px] font-bold text-slate-500 uppercase">
+                                  {t('Единицы в реестре')}
+                                </span>
+                                {onStock.map((unit) => (
+                                  <button
+                                    key={unit.id}
+                                    type="button"
+                                    onClick={() => onNavigateDetail('computer', unit.id)}
+                                    className="w-full text-left text-[11px] px-2.5 py-1.5 rounded-lg border border-slate-150 bg-white hover:border-blue-300 hover:text-blue-700 transition-colors font-mono"
+                                  >
+                                    {unit.inventoryNumber} • {unit.deviceType || unit.category}
+                                    {unit.serialNumber?.trim()
+                                      ? ` • S/N ${unit.serialNumber.trim()}`
+                                      : ''}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                            {issued.length > 0 && (
+                              <div className="space-y-1.5">
+                                <span className="text-[10px] font-bold text-indigo-600 uppercase">
+                                  {t('Выдано из партии')}
+                                </span>
+                                {issued.map((unit) => (
+                                  <button
+                                    key={unit.id}
+                                    type="button"
+                                    onClick={() => onNavigateDetail('computer', unit.id)}
+                                    className="w-full text-left text-[11px] px-2.5 py-1.5 rounded-lg border border-indigo-100 bg-indigo-50/40 hover:border-indigo-300 hover:text-indigo-700 transition-colors font-mono"
+                                  >
+                                    {unit.inventoryNumber} • {unit.deviceType || unit.category}
+                                    {unit.serialNumber?.trim()
+                                      ? ` • S/N ${unit.serialNumber.trim()}`
+                                      : ''}
+                                    {' • '}
+                                    {unit.status}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         );
                       })()}
-                    </div>
-                  )}
-
-                  {itemType === 'warehouse' && (
-                    <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl space-y-3 shadow-2xs">
-                      <h4 className="text-xs font-bold text-slate-705 uppercase tracking-wider flex items-center gap-1.5">
-                        <Package size={14} className="text-blue-500" />{t("Управление остатками на складе")}</h4>
-                      <div className="flex items-center gap-3">
-                        <div className="text-2xl font-bold font-mono text-slate-800">
-                          {item.quantity} <span className="text-sm font-medium text-slate-400 font-sans">{item.unit || 'ед.'}</span>
-                        </div>
-                        {!isViewer && (
-                          <div className="flex gap-1.5">
-                            <button
-                              onClick={() => handleUpdate('warehouse', item.id, { quantity: Math.max(0, item.quantity - 1) })}
-                              className="w-8 h-8 flex items-center justify-center bg-white border border-slate-205 hover:bg-slate-100 text-slate-600 rounded-lg text-sm font-bold transition-all cursor-pointer shadow-sm"
-                            >
-                              -
-                            </button>
-                            <button
-                              onClick={() => handleUpdate('warehouse', item.id, { quantity: item.quantity + 1 })}
-                              className="w-8 h-8 flex items-center justify-center bg-white border border-slate-205 hover:bg-slate-100 text-slate-600 rounded-lg text-sm font-bold transition-all cursor-pointer shadow-sm"
-                            >
-                              +
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                      <p className="text-[10px] text-slate-400 leading-normal">{t("Вы можете оперативно списывать или приходовать товарно-материальные ценности. Изменения склада мгновенно зафиксируются в системном журнале.")}</p>
                     </div>
                   )}
 

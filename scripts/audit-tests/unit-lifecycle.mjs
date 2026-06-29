@@ -14,6 +14,7 @@ import {
   countRegistryUnitsForWarehouseBatch,
   reduceWarehouseQtyByInventoryMatch,
 } from '../../src/utils/equipmentDelete.ts';
+import { splitWarehouseItem } from '../../src/utils/warehouseLifecycleEngine.ts';
 
 describe('warehouse lifecycle helpers', () => {
   it('getWarehouseBatchInventoryKey collapses batch suffix for warehouse line', () => {
@@ -160,5 +161,38 @@ describe('warehouse lifecycle helpers', () => {
     const cardsToAdd = Math.max(0, targetWhQty - existingUnits);
     assert.equal(existingUnits, 3);
     assert.equal(cardsToAdd, 2);
+  });
+
+  it('splitWarehouseItem partitions unit serial numbers to split line', () => {
+    const state = {
+      warehouseItems: [
+        {
+          id: 'wh-batch',
+          name: 'Laptop',
+          type: 'Компьютеры',
+          model: 'ThinkPad',
+          inventoryNumber: 'ST-0500',
+          quantity: 4,
+          unit: 'шт.',
+          costPerUnit: 1000,
+          status: 'В наличии',
+          warehouseName: 'Основной склад ИТ',
+          unitSerialNumbers: ['S1', 'S2', 'S3', 'S4'],
+        },
+      ],
+      computers: [],
+      networkDevices: [],
+      softwareItems: [],
+      warehouses: [{ id: 'w1', name: 'Основной склад ИТ', objectName: 'Office', description: '' }],
+      objects: [{ id: 'o1', name: 'Office', address: 'Main' }],
+    };
+    const next = splitWarehouseItem(state, 'wh-batch', 2);
+    assert.ok(next);
+    const source = next.warehouseItems.find((w) => w.id === 'wh-batch');
+    const splitLine = next.warehouseItems.find((w) => w.id !== 'wh-batch');
+    assert.equal(source?.quantity, 2);
+    assert.deepEqual(source?.unitSerialNumbers, ['S3', 'S4']);
+    assert.equal(splitLine?.quantity, 2);
+    assert.deepEqual(splitLine?.unitSerialNumbers, ['S1', 'S2']);
   });
 });

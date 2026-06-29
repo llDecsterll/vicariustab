@@ -9,10 +9,14 @@ import {
   allocateNextSplitPartIndex,
   formatSplitWarehouseInventoryNumber,
   getSplitRootInventoryNumber,
+  getWarehouseItemSpecs,
   getWarehouseLineInventoryKey,
   inventoryNumbersMatch,
   normalizeInventoryNumber,
   normalizePositiveInt,
+  normalizeUnitSerialNumbers,
+  partitionUnitSerialNumbers,
+  warehouseSpecsForQuantity,
 } from './equipmentFields';
 import type { EquipmentDeleteSource } from './equipmentDelete';
 import {
@@ -109,21 +113,40 @@ function markStockComputerIds(
 function buildPendingWarehouseLine(
   target: WarehouseItem,
   markQty: number,
-  warehouseItems: WarehouseItem[]
+  warehouseItems: WarehouseItem[],
+  unitSerials?: string[]
 ): WarehouseItem {
   const rootInv = getSplitRootInventoryNumber(
     target.inventoryNumber,
     target.splitFromInventoryNumber
   );
   const partIndex = allocateNextSplitPartIndex(rootInv, warehouseItems);
+  const receiptSpecs = getWarehouseItemSpecs(target);
   return {
     ...target,
+    ...warehouseSpecsForQuantity(
+      receiptSpecs,
+      markQty,
+      normalizeUnitSerialNumbers(markQty, unitSerials)
+    ),
     id: `wh-pending-${Date.now()}`,
     inventoryNumber: formatSplitWarehouseInventoryNumber(rootInv, partIndex),
     splitFromInventoryNumber: rootInv,
     quantity: markQty,
     status: 'На списание',
   };
+}
+
+function partitionLineSerialsForQty(
+  item: WarehouseItem,
+  takeQty: number
+): { taken: string[]; remaining: string[] } {
+  const specs = getWarehouseItemSpecs(item);
+  const fromLine = normalizeUnitSerialNumbers(item.quantity, item.unitSerialNumbers);
+  if (fromLine.some((s) => s.trim())) {
+    return partitionUnitSerialNumbers(item.quantity, fromLine, takeQty);
+  }
+  return partitionUnitSerialNumbers(item.quantity, fromLine, takeQty);
 }
 
 function syncNetworkPartialMarkFromWarehouse(
@@ -278,10 +301,24 @@ export function applyMarkForWriteOff(
 
     if (target.type === 'Лицензии ПО' || softIds.length > 0) {
       if (isPartialMark) {
-        warehouseItems = warehouseItems.map((w) =>
-          w.id === id ? { ...w, quantity: targetQty - markQty } : w
+        const { taken: takenSerials, remaining: remainingSerials } =
+          partitionLineSerialsForQty(target, markQty);
+        const remainingSpecs = warehouseSpecsForQuantity(
+          getWarehouseItemSpecs(target),
+          targetQty - markQty,
+          remainingSerials
         );
-        const pendingLine = buildPendingWarehouseLine(target, markQty, warehouseItems);
+        warehouseItems = warehouseItems.map((w) =>
+          w.id === id
+            ? { ...w, quantity: targetQty - markQty, ...remainingSpecs }
+            : w
+        );
+        const pendingLine = buildPendingWarehouseLine(
+          target,
+          markQty,
+          warehouseItems,
+          takenSerials
+        );
         warehouseItems.push(pendingLine);
         softwareItems = syncSoftwarePartialMarkFromWarehouse(
           target,
@@ -315,10 +352,24 @@ export function applyMarkForWriteOff(
         ctx.warehouses,
         markQty
       );
-      warehouseItems = warehouseItems.map((w) =>
-        w.id === id ? { ...w, quantity: targetQty - markQty } : w
+      const { taken: takenSerials, remaining: remainingSerials } =
+        partitionLineSerialsForQty(target, markQty);
+      const remainingSpecs = warehouseSpecsForQuantity(
+        getWarehouseItemSpecs(target),
+        targetQty - markQty,
+        remainingSerials
       );
-      const pendingLine = buildPendingWarehouseLine(target, markQty, warehouseItems);
+      warehouseItems = warehouseItems.map((w) =>
+        w.id === id
+          ? { ...w, quantity: targetQty - markQty, ...remainingSpecs }
+          : w
+      );
+      const pendingLine = buildPendingWarehouseLine(
+        target,
+        markQty,
+        warehouseItems,
+        takenSerials
+      );
       warehouseItems.push(pendingLine);
       computers = markStockComputerIds(computers, stockIds);
       networkDevices = syncNetworkPartialMarkFromWarehouse(

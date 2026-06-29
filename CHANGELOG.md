@@ -1,5 +1,22 @@
 # Changelog
 
+## [2.0.18] — 2026-06-22
+
+### Fixed
+- Warehouse card «Единицы в реестре» scoped to warehouse line and on-stock units only; issued units shown separately.
+- Serial numbers in warehouse detail use `resolveWarehouseItemSerialLines` (line key, not root batch).
+- Warehouse return restores serials and matches exact stock line (`findActiveWarehouseStockLineIndex`).
+- Write-off, split, merge, and «На списание» use line-key scoping across equipment types.
+
+### Added
+- `findRegistryComputersForWarehouseLine` and extended `warehouseLifecycleEngine` (merge, return, cancel pending).
+- Extended audit: 31 subtype scenarios for merge → deploy → return → cancel → write-off.
+
+### Testing
+- Full audit suite passes; `unit-warehouse-full-lifecycle` now 63 scenarios.
+
+---
+
 ## [2.0.17] — 2026-06-22
 
 ### Fixed

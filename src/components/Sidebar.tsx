@@ -15,7 +15,6 @@ import {
   ClipboardList,
   FileBarChart2,
   ShieldCheck,
-  Shield,
   History,
   ChevronLeft,
   ChevronRight,
@@ -96,7 +95,6 @@ export default function Sidebar({
   const serviceTabs: NavItem[] = [
     { id: 'warranties', label: t('Гарантия и обслуживание'), icon: <ShieldCheck size={17} /> },
     { id: 'reports', label: t('Отчеты'), icon: <FileBarChart2 size={17} /> },
-    { id: 'security', label: t('Кибербезопасность'), icon: <Shield size={17} /> },
     { id: 'activity_log', label: t('Журнал действий'), icon: <History size={17} /> },
   ];
 

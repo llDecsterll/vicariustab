@@ -469,6 +469,185 @@ export function normalizeUnitSerialNumbers(
   return list.slice(0, qty).map((s) => (typeof s === 'string' ? s : ''));
 }
 
+/** Split per-unit serials when dividing a warehouse batch. */
+export function partitionUnitSerialNumbers(
+  totalQty: number,
+  unitSerialNumbers: string[] | undefined | null,
+  takeQty: number
+): { remaining: string[]; taken: string[] } {
+  const qty = Math.max(1, Math.floor(totalQty));
+  const take = Math.min(Math.max(0, Math.floor(takeQty)), qty);
+  const normalized = normalizeUnitSerialNumbers(qty, unitSerialNumbers);
+  return {
+    taken: normalizeUnitSerialNumbers(take, normalized.slice(0, take)),
+    remaining: normalizeUnitSerialNumbers(qty - take, normalized.slice(take)),
+  };
+}
+
+/**
+ * Remove up to consumeQty serials from a warehouse batch (deploy / issue).
+ * explicitSerials are removed first (from stock cards), then leading entries from the list.
+ */
+export function consumeUnitSerialNumbers(
+  totalQty: number,
+  unitSerialNumbers: string[] | undefined | null,
+  consumeQty: number,
+  explicitSerials?: string[]
+): { remaining: string[]; consumed: string[] } {
+  const qty = Math.max(1, Math.floor(totalQty));
+  const take = Math.min(Math.max(0, Math.floor(consumeQty)), qty);
+  const working = [...normalizeUnitSerialNumbers(qty, unitSerialNumbers)];
+  const consumed: string[] = [];
+
+  for (const sn of (explicitSerials ?? []).map((s) => s.trim()).filter(Boolean)) {
+    if (consumed.length >= take) break;
+    const idx = working.findIndex((x) => x.trim() === sn);
+    if (idx >= 0) {
+      consumed.push(working[idx]!.trim());
+      working.splice(idx, 1);
+    }
+  }
+
+  while (consumed.length < take && working.length > 0) {
+    const next = working.shift()!;
+    const t = next.trim();
+    if (t) consumed.push(t);
+  }
+
+  const newQty = Math.max(0, qty - take);
+  return {
+    consumed: normalizeUnitSerialNumbers(take, consumed),
+    remaining: normalizeUnitSerialNumbers(newQty, working),
+  };
+}
+
+/** Decrement warehouse qty and drop issued unit serials from the line. */
+export function reduceWarehouseItemAfterDeploy(
+  item: Pick<WarehouseItem, 'quantity' | 'unitSerialNumbers' | 'serialNumber'> & ComputerReceiptSpecs,
+  deployQty: number,
+  deployedSerials?: string[]
+): { quantity: number } & ComputerReceiptSpecs | null {
+  const newQty = item.quantity - deployQty;
+  if (newQty <= 0) return null;
+  const { quantity: _qty, ...specs } = item;
+  const { remaining } = consumeUnitSerialNumbers(
+    item.quantity,
+    item.unitSerialNumbers,
+    deployQty,
+    deployedSerials
+  );
+  return {
+    quantity: newQty,
+    ...warehouseSpecsForQuantity(specs, newQty, remaining),
+  };
+}
+
+/** Increment warehouse qty and append returned unit serials to the line. */
+export function increaseWarehouseItemAfterReturn(
+  item: Pick<WarehouseItem, 'quantity' | 'unitSerialNumbers' | 'serialNumber'> & ComputerReceiptSpecs,
+  returnQty: number,
+  returnedSerials?: string[]
+): { quantity: number } & ComputerReceiptSpecs {
+  const newQty = item.quantity + returnQty;
+  const { quantity: _qty, ...specs } = item;
+  const explicit = (returnedSerials ?? []).map((s) => s.trim()).filter(Boolean);
+  const mergedSerials = mergeUnitSerialNumbers(
+    item.quantity,
+    item.unitSerialNumbers,
+    returnQty,
+    explicit.length > 0 ? explicit : undefined
+  );
+  return {
+    quantity: newQty,
+    ...warehouseSpecsForQuantity(specs, newQty, mergedSerials),
+  };
+}
+
+/** Decrement warehouse qty and drop written-off unit serials from the line. */
+export function reduceWarehouseItemAfterWriteOff(
+  item: Pick<WarehouseItem, 'quantity' | 'unitSerialNumbers' | 'serialNumber'> & ComputerReceiptSpecs,
+  writeOffQty: number,
+  writtenOffSerials?: string[]
+): { quantity: number } & ComputerReceiptSpecs | null {
+  const newQty = item.quantity - writeOffQty;
+  if (newQty <= 0) return null;
+  const { quantity: _qty, ...specs } = item;
+  const { remaining } = consumeUnitSerialNumbers(
+    item.quantity,
+    item.unitSerialNumbers,
+    writeOffQty,
+    writtenOffSerials
+  );
+  return {
+    quantity: newQty,
+    ...warehouseSpecsForQuantity(specs, newQty, remaining),
+  };
+}
+
+/** Merge receipt specs and per-unit serial lists when combining warehouse lines. */
+export function mergeWarehouseLineSpecs(
+  parentQty: number,
+  parent: ComputerReceiptSpecs,
+  addedQty: number,
+  added: ComputerReceiptSpecs
+): ComputerReceiptSpecs & { unitSerialNumbers?: string[] } {
+  const merged = mergeWarehouseReceiptSpecs(parent, added);
+  const mergedSerials = mergeUnitSerialNumbers(
+    parentQty,
+    parent.unitSerialNumbers,
+    addedQty,
+    added.unitSerialNumbers
+  );
+  const newQty = parentQty + addedQty;
+  return warehouseSpecsForQuantity(merged, newQty, mergedSerials);
+}
+
+/** Pick the best active warehouse line for a return (exact line key over batch family). */
+export function findActiveWarehouseStockLineIndex(
+  warehouseItems: WarehouseItem[],
+  batchKey: string,
+  targetWarehouseName: string
+): number {
+  const whName = targetWarehouseName || 'Основной склад ИТ';
+  const candidates = warehouseItems
+    .map((w, idx) => ({ w, idx }))
+    .filter(
+      ({ w }) =>
+        (w.warehouseName || 'Основной склад ИТ') === whName &&
+        isActiveWarehouseStockLine(w) &&
+        inventoryNumbersMatch(w.inventoryNumber, batchKey)
+    );
+  if (candidates.length === 0) return -1;
+  const exact = candidates.find(
+    ({ w }) => getWarehouseLineInventoryKey(w.inventoryNumber) === batchKey
+  );
+  return (exact ?? candidates[0]!).idx;
+}
+
+/** Apply per-unit serial list to warehouse receipt specs for a given batch qty. */
+export function warehouseSpecsForQuantity(
+  baseSpecs: ComputerReceiptSpecs,
+  qty: number,
+  unitSerialNumbers: string[]
+): ComputerReceiptSpecs {
+  const units = normalizeUnitSerialNumbers(qty, unitSerialNumbers);
+  const hasAny = units.some((s) => s.trim());
+  if (qty <= 0) return baseSpecs;
+  if (qty === 1) {
+    const sn = units[0]?.trim() || (baseSpecs.serialNumber || '').trim();
+    return {
+      ...baseSpecs,
+      serialNumber: sn || undefined,
+      unitSerialNumbers: undefined,
+    };
+  }
+  return {
+    ...baseSpecs,
+    serialNumber: hasAny ? undefined : baseSpecs.serialNumber,
+    unitSerialNumbers: units,
+  };
+}
+
 /** Device-level serial numbers for lists (not component S/N). */
 export function getDeviceSerialDisplayLines(
   item: {
@@ -494,31 +673,60 @@ function stockUnitSuffixRank(inv: string, baseInv: string): number {
   return m ? parseInt(m[1], 10) : 999;
 }
 
-/** Warehouse row S/N: stored unit list, fallback to stock registry cards. */
+/** Warehouse row S/N: stored unit list minus issued units, fallback to stock registry cards. */
 export function resolveWarehouseItemSerialLines(
   item: WarehouseItem,
-  stockComputers: ComputerItem[] = []
+  computers: ComputerItem[] = []
 ): string[] {
-  const fromItem = getDeviceSerialDisplayLines(item);
-  if (fromItem.length > 0) return fromItem;
-
-  if (item.quantity > 1 && stockComputers.length > 0) {
-    const baseInv = item.inventoryNumber;
-    const fromRegistry = stockComputers
+  const lineKey = getWarehouseLineInventoryKey(item.inventoryNumber);
+  const deployedSerials = new Set(
+    computers
       .filter(
         (c) =>
-          matchesBaseInventoryNumber(c.inventoryNumber, baseInv) &&
+          matchesBaseInventoryNumber(c.inventoryNumber, lineKey) &&
+          c.status !== 'На складе' &&
+          c.status !== 'Списано' &&
+          c.status !== 'На списание'
+      )
+      .map((c) => (c.serialNumber || '').trim())
+      .filter(Boolean)
+  );
+
+  const excludeIssued = (lines: string[]) =>
+    lines.filter((sn) => !deployedSerials.has(sn.trim()));
+
+  const fromItem = excludeIssued(getDeviceSerialDisplayLines(item));
+
+  let fromRegistry: string[] = [];
+  if (item.quantity > 0 && computers.length > 0) {
+    fromRegistry = computers
+      .filter(
+        (c) =>
+          matchesBaseInventoryNumber(c.inventoryNumber, lineKey) &&
           c.status === 'На складе'
       )
       .sort(
         (a, b) =>
-          stockUnitSuffixRank(a.inventoryNumber || '', baseInv) -
-          stockUnitSuffixRank(b.inventoryNumber || '', baseInv)
+          stockUnitSuffixRank(a.inventoryNumber || '', lineKey) -
+          stockUnitSuffixRank(b.inventoryNumber || '', lineKey)
       )
       .map((c) => (c.serialNumber || '').trim())
       .filter(Boolean);
-    if (fromRegistry.length > 0) return fromRegistry;
   }
+
+  if (fromItem.length > 0 || fromRegistry.length > 0) {
+    const merged: string[] = [];
+    for (const sn of fromItem) {
+      if (merged.length >= item.quantity) break;
+      if (!merged.includes(sn)) merged.push(sn);
+    }
+    for (const sn of fromRegistry) {
+      if (merged.length >= item.quantity) break;
+      if (!merged.includes(sn) && !deployedSerials.has(sn)) merged.push(sn);
+    }
+    return merged.slice(0, Math.max(0, item.quantity));
+  }
+
   return [];
 }
 

@@ -1,6 +1,6 @@
 # Vicariustab — индекс проекта
 
-**Версия:** 2.0.17 · **Repo:** https://github.com/llDecsterll/vicariustab
+**Версия:** 2.0.18 · **Repo:** https://github.com/llDecsterll/vicariustab
 
 **Полный каталог файлов:** [`docs/FILES_INDEX.md`](docs/FILES_INDEX.md) · Workspace: [`../FILES_INDEX.md`](../FILES_INDEX.md)
 

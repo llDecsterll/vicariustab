@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import {
   RECEIPT_DEVICE_TYPES,
   runWarehouseBatchScenario,
+  runWarehouseExtendedScenario,
 } from '../../src/utils/warehouseLifecycleEngine.ts';
 
 const BATCH_QTY = 100;
@@ -42,4 +43,22 @@ describe('warehouse full lifecycle (100 units per type)', () => {
   it(`covers all ${scenarios.length} device subtypes`, () => {
     assert.equal(scenarios.length, 31);
   });
+});
+
+const extendedScenarios = scenarios.map((s) => ({
+  ...s,
+  invNumber: `EX-${s.invNumber.replace(/^LC-/, '')}`,
+  batchQty: 8,
+}));
+
+describe('warehouse extended lifecycle (merge, return, cancel pending)', () => {
+  for (const config of extendedScenarios) {
+    it(`${config.type} / ${config.deviceType}: merge → deploy → return → cancel → write-off`, () => {
+      const result = runWarehouseExtendedScenario(config);
+      if (!result.ok) {
+        assert.fail(`[${config.label}] ${result.error ?? 'unknown error'}`);
+      }
+      assert.equal(result.ok, true);
+    });
+  }
 });

@@ -563,14 +563,6 @@ export default function WarehouseView({
       const net = networkDevices.find((n) => inventoryNumbersMatch(n.inventoryNumber, item.inventoryNumber));
       if (net) return Math.min(item.quantity, net.quantity || 1);
     }
-    if (item.type !== 'Лицензии ПО') {
-      const stockCards = computers.filter(
-        (c) =>
-          matchesBaseInventoryNumber(c.inventoryNumber, item.inventoryNumber) &&
-          c.status === 'На складе'
-      ).length;
-      if (stockCards > 0) return Math.min(item.quantity, stockCards);
-    }
     return item.quantity;
   };
 
@@ -1081,7 +1073,10 @@ export default function WarehouseView({
       softwareItems: softwareItems || [],
       warehouses,
     });
-    if (!info) return;
+    if (!info) {
+      alert(t('Не удалось отправить оборудование на списание.'));
+      return;
+    }
 
     if (info.maxQty <= 1) {
       const ok = onMarkForWriteOff?.(source, id, 1);
@@ -2127,7 +2122,14 @@ export default function WarehouseView({
                               )}
                               {!isViewer && (
                                 <button
-                                  onClick={() => handleOpenWriteOff(item.inventoryNumber)}
+                                  onClick={() => {
+                                    const wh = warehouseItems.find((w) => w.id === item.id);
+                                    if (wh) {
+                                      openWriteOffModal({ source: buildWriteOffSourceFromWarehouse(wh) });
+                                    } else {
+                                      handleOpenWriteOff(item.inventoryNumber);
+                                    }
+                                  }}
                                   className="px-2 py-1.5 hover:bg-rose-50 border border-rose-100 hover:border-rose-200 rounded-lg text-rose-600 hover:text-rose-700 transition-colors cursor-pointer flex items-center gap-1 text-[11px] font-bold"
                                   title={t("Списать")}
                                 >

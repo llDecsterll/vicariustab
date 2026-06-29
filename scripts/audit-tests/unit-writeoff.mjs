@@ -11,7 +11,7 @@ import {
   repairWarehousePendingDuplicates,
 } from '../../src/utils/warehousePendingMerge.ts';
 import { formatSplitWarehouseInventoryNumber } from '../../src/utils/equipmentFields.ts';
-import { reduceWarehouseQtyForComputerWriteOff, findLinkedStockComputerIds } from '../../src/utils/equipmentDelete.ts';
+import { reduceWarehouseQtyForComputerWriteOff, findLinkedStockComputerIds, findRegistryComputersForWarehouseLine } from '../../src/utils/equipmentDelete.ts';
 
 const baseWarehouseLine = {
   id: 'wh-1',
@@ -166,6 +166,23 @@ describe('write-off lifecycle', () => {
     ];
     const linked = findLinkedStockComputerIds(splitLine, computers, ctx.warehouses);
     assert.deepEqual(linked, ['c3', 'c4']);
+  });
+
+  it('findRegistryComputersForWarehouseLine shows only on-stock units for line qty', () => {
+    const mergedLine = {
+      ...baseWarehouseLine,
+      inventoryNumber: 'ST-0001',
+      quantity: 2,
+    };
+    const computers = [
+      { id: 'c1', category: 'Ноутбук', model: 'ThinkPad', inventoryNumber: 'ST-0001-1', employeeName: 'Склад', status: 'На складе', objectName: 'Office' },
+      { id: 'c2', category: 'Ноутбук', model: 'ThinkPad', inventoryNumber: 'ST-0001-2', employeeName: 'Склад', status: 'На складе', objectName: 'Office' },
+      { id: 'c3', category: 'Ноутбук', model: 'ThinkPad', inventoryNumber: 'ST-0001-3', employeeName: 'Иванов', status: 'В работе', objectName: 'Office' },
+      { id: 'c4', category: 'Ноутбук', model: 'ThinkPad', inventoryNumber: 'ST-0001-4', employeeName: 'Иванов', status: 'В работе', objectName: 'Office' },
+    ];
+    const { onStock, issued } = findRegistryComputersForWarehouseLine(mergedLine, computers);
+    assert.deepEqual(onStock.map((c) => c.id), ['c1', 'c2']);
+    assert.deepEqual(issued.map((c) => c.id), ['c3', 'c4']);
   });
 
   it('partial mark splits qty and assigns unique pending inv', () => {

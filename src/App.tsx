@@ -72,10 +72,19 @@ import {
   matchesBaseInventoryNumber,
   mergeWarehouseReceiptSpecs,
   normalizeInventoryNumber,
+  normalizeUnitSerialNumbers,
   normalizePositiveInt,
+  partitionUnitSerialNumbers,
   remapBatchInventoryNumber,
   allocateNextSplitPartIndex,
   repairDuplicateComputerInventoryNumbers,
+  reduceWarehouseItemAfterDeploy,
+  increaseWarehouseItemAfterReturn,
+  findActiveWarehouseStockLineIndex,
+  mergeWarehouseLineSpecs,
+  reduceWarehouseItemAfterWriteOff,
+  consumeUnitSerialNumbers,
+  warehouseSpecsForQuantity,
 } from './utils/equipmentFields';
 import { Copy, Check, Mail } from 'lucide-react';
 import { copyTextToClipboard } from './utils/clipboard';
@@ -1063,22 +1072,40 @@ export default function App() {
   const requestReturnEquipment = useCallback(
     (source: 'computer' | 'network' | 'software', id: string) => {
       if (currentUser?.role === 'Viewer') return;
-      let valid = false;
       if (source === 'computer') {
-        valid = !!computers.find((c) => c.id === id);
+        const comp = computers.find((c) => c.id === id);
+        if (!comp) {
+          alert(t('Не удалось найти активную запись для возврата на склад.'));
+          return;
+        }
+        if (comp.status === 'На складе' || isWrittenOffLifecycleStatus(comp.status)) {
+          alert(t('Это оборудование уже на складе или в статусе списания.'));
+          return;
+        }
       } else if (source === 'network') {
-        valid = !!networkDevices.find((n) => n.id === id);
+        const dev = networkDevices.find((n) => n.id === id);
+        if (!dev) {
+          alert(t('Не удалось найти активную запись для возврата на склад.'));
+          return;
+        }
+        if (isWrittenOffLifecycleStatus(dev.status)) {
+          alert(t('Это оборудование уже на складе или в статусе списания.'));
+          return;
+        }
       } else {
         const soft = softwareItems.find((s) => s.id === id);
-        valid = !!soft && soft.status !== 'Не активирована';
-      }
-      if (!valid) {
-        alert(t('Не удалось найти активную запись для возврата на склад.'));
-        return;
+        if (!soft || soft.status === 'Не активирована') {
+          alert(t('Не удалось найти активную запись для возврата на склад.'));
+          return;
+        }
+        if (isWrittenOffLifecycleStatus(soft.status)) {
+          alert(t('Это оборудование уже на складе или в статусе списания.'));
+          return;
+        }
       }
       setEquipmentReturnRequest({ source, id });
     },
-    [currentUser, computers, networkDevices, softwareItems]
+    [currentUser, computers, networkDevices, softwareItems, t]
   );
 
   const clearDetailIfDeleted = useCallback(
@@ -1330,22 +1357,36 @@ export default function App() {
   ) => {
     const returnQty = Math.max(1, quantity);
     const incomingSpecs = specs || {};
+    const returnedSerials = (() => {
+      const fromUnits =
+        incomingSpecs.unitSerialNumbers?.map((s) => s.trim()).filter(Boolean) ?? [];
+      if (fromUnits.length > 0) return fromUnits.slice(0, returnQty);
+      const sn = (incomingSpecs.serialNumber || '').trim();
+      return sn ? [sn] : [];
+    })();
+
     setWarehouseItems((prev) => {
       const batchKey = getWarehouseLineInventoryKey(inventoryNumber);
-      const existingWhIndex = prev.findIndex(
-        (w) =>
-          inventoryNumbersMatch(w.inventoryNumber, batchKey) &&
-          (w.warehouseName || 'Основной склад ИТ') === targetWarehouseName &&
-          isActiveWarehouseStockLine(w)
+      const existingWhIndex = findActiveWarehouseStockLineIndex(
+        prev,
+        batchKey,
+        targetWarehouseName
       );
 
       if (existingWhIndex > -1) {
         return prev.map((item, idx) => {
           if (idx !== existingWhIndex) return item;
-          const mergedSpecs = mergeWarehouseReceiptSpecs(getWarehouseItemSpecs(item), incomingSpecs);
+          const baseSpecs = getWarehouseItemSpecs(item);
+          const mergedSpecs = mergeWarehouseReceiptSpecs(baseSpecs, incomingSpecs);
+          const increased = increaseWarehouseItemAfterReturn(
+            { ...item, ...baseSpecs },
+            returnQty,
+            returnedSerials.length > 0 ? returnedSerials : undefined
+          );
           return {
             ...item,
-            quantity: item.quantity + returnQty,
+            ...mergedSpecs,
+            ...increased,
             status: 'В наличии' as const,
             model: model || item.model,
             costPerUnit: cost || item.costPerUnit,
@@ -1354,7 +1395,6 @@ export default function App() {
             memoInfo: meta?.memoInfo || item.memoInfo,
             warrantyInfo: meta?.warrantyInfo || item.warrantyInfo,
             pdfFiles: meta?.pdfFiles?.length ? meta.pdfFiles : item.pdfFiles,
-            ...mergedSpecs,
           };
         });
       }
@@ -1366,6 +1406,14 @@ export default function App() {
       else if (category === 'Видеонаблюдение') whType = 'Видеонаблюдение';
       else if (category === 'Расходники') whType = 'Расходные материалы';
       else if (category === 'Сетевое оборудование') whType = 'Сетевое оборудование';
+
+      const receiptSpecs = warehouseSpecsForQuantity(
+        incomingSpecs,
+        returnQty,
+        returnedSerials.length > 0
+          ? normalizeUnitSerialNumbers(returnQty, returnedSerials)
+          : normalizeUnitSerialNumbers(returnQty, incomingSpecs.unitSerialNumbers)
+      );
 
       const newWhItem: WarehouseItem = {
         id: `wh-item-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
@@ -1383,7 +1431,7 @@ export default function App() {
         memoInfo: meta?.memoInfo,
         warrantyInfo: meta?.warrantyInfo,
         pdfFiles: meta?.pdfFiles,
-        ...incomingSpecs,
+        ...receiptSpecs,
       };
       return [...prev, newWhItem];
     });
@@ -1689,14 +1737,25 @@ export default function App() {
           stockSuffixRank(a.inventoryNumber || '') - stockSuffixRank(b.inventoryNumber || '')
       );
 
-    if (!isNetwork && !isSoftware && stockComputerCards.length > 0 && splitQty > stockComputerCards.length) {
-      alert(
-        t(
-          'Нельзя разделить больше единиц, чем осталось на складе (не выдано). Сначала верните выданное оборудование или уменьшите количество.'
-        )
-      );
-      return false;
-    }
+    const sourceUnitSerials = (() => {
+      const fromLine = normalizeUnitSerialNumbers(source.quantity, source.unitSerialNumbers);
+      if (fromLine.some((s) => s.trim())) return fromLine;
+      if (stockComputerCards.length > 0) {
+        return stockComputerCards.map((c) => (c.serialNumber || '').trim());
+      }
+      return fromLine;
+    })();
+    const { taken: takenSerials, remaining: remainingSerials } = partitionUnitSerialNumbers(
+      source.quantity,
+      sourceUnitSerials,
+      splitQty
+    );
+    const remainingQty = source.quantity - splitQty;
+    const remainingSpecs = warehouseSpecsForQuantity(
+      receiptSpecs,
+      remainingQty,
+      remainingSerials
+    );
 
     if (isNetwork) {
       const matchingNetwork = networkDevices.find((n) =>
@@ -1726,10 +1785,11 @@ export default function App() {
       qty: number,
       inv: string,
       lineId: string,
-      partIndex: number
+      partIndex: number,
+      unitSerials: string[]
     ): WarehouseItem => ({
       ...source,
-      ...receiptSpecs,
+      ...warehouseSpecsForQuantity(receiptSpecs, qty, unitSerials),
       id: lineId,
       inventoryNumber: inv,
       quantity: qty,
@@ -1746,7 +1806,9 @@ export default function App() {
       for (let i = 0; i < splitQty; i++) {
         const splitInv = formatSplitWarehouseInventoryNumber(rootBase, nextPartIndex);
         const lineId = `wh-split-${Date.now()}-${i}-${Math.floor(Math.random() * 10000)}`;
-        newLines.push(createWarehouseLine(1, splitInv, lineId, nextPartIndex));
+        newLines.push(
+          createWarehouseLine(1, splitInv, lineId, nextPartIndex, [takenSerials[i] || ''])
+        );
         const card = stockComputerCards[i];
         if (card) cardReassignments.set(card.id, splitInv);
         nextPartIndex += 1;
@@ -1754,7 +1816,7 @@ export default function App() {
     } else {
       const splitInv = formatSplitWarehouseInventoryNumber(rootBase, nextPartIndex);
       const lineId = `wh-split-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
-      newLines.push(createWarehouseLine(splitQty, splitInv, lineId, nextPartIndex));
+      newLines.push(createWarehouseLine(splitQty, splitInv, lineId, nextPartIndex, takenSerials));
 
       const cardsToMove = stockComputerCards.slice(0, splitQty);
       const newInvNums = allocateBatchInventoryNumbers(splitInv, allInvNumbers(), cardsToMove.length);
@@ -1769,7 +1831,11 @@ export default function App() {
           if (w.id !== id) return w;
           const remaining = w.quantity - splitQty;
           if (remaining <= 0) return null;
-          return { ...w, quantity: remaining };
+          return {
+            ...w,
+            quantity: remaining,
+            ...remainingSpecs,
+          };
         })
         .filter((w): w is WarehouseItem => w !== null);
       return [...reduced, ...newLines];
@@ -1978,20 +2044,29 @@ export default function App() {
       if (parent) {
         return withoutSplit.map((w) => {
           if (w.id !== parent.id) return w;
-          const mergedSpecs = mergeWarehouseReceiptSpecs(
+          const mergedLineSpecs = mergeWarehouseLineSpecs(
+            w.quantity,
             getWarehouseItemSpecs(w),
+            mergeQty,
             getWarehouseItemSpecs(splitItem)
           );
           return {
             ...w,
             quantity: w.quantity + mergeQty,
-            ...mergedSpecs,
+            ...mergedLineSpecs,
           };
         });
       }
 
+      const restoredSpecs = mergeWarehouseLineSpecs(
+        0,
+        {},
+        mergeQty,
+        getWarehouseItemSpecs(splitItem)
+      );
       const restored: WarehouseItem = {
         ...splitItem,
+        ...restoredSpecs,
         id: `wh-merge-${Date.now()}`,
         inventoryNumber: rootBase,
         quantity: mergeQty,
@@ -3207,6 +3282,9 @@ export default function App() {
         warehouses,
         qty
       );
+      const writtenOffSerials = stockIdsToRemove
+        .map((cid) => computers.find((c) => c.id === cid)?.serialNumber?.trim())
+        .filter((sn): sn is string => Boolean(sn));
       if (stockIdsToRemove.length > 0) {
         const removeSet = new Set(stockIdsToRemove);
         nextComputers = computers.filter((c) => !removeSet.has(c.id));
@@ -3245,9 +3323,15 @@ export default function App() {
       nextWarehouseItems = warehouseItems.flatMap((w) => {
         if (w.id !== id) return [w];
         if (newQty <= 0) return [];
+        const nextLine = reduceWarehouseItemAfterWriteOff(
+          { ...w, ...getWarehouseItemSpecs(w) },
+          qty,
+          writtenOffSerials.length > 0 ? writtenOffSerials : undefined
+        );
+        if (!nextLine) return [];
         const nextStatus =
           w.status === 'На списание' ? ('На списание' as const) : ('В наличии' as const);
-        return [{ ...w, quantity: newQty, status: nextStatus }];
+        return [{ ...w, ...nextLine, status: nextStatus }];
       });
     } else {
       return false;
@@ -3363,23 +3447,23 @@ export default function App() {
       }
     }
 
-    setWarehouseItems((prev) =>
-      prev
-        .map((item) => {
-          if (item.id !== whItem.id) return item;
-          const newQty = item.quantity - deployQuantity;
-          return {
-            ...item,
-            quantity: newQty,
-            status: 'В наличии' as const,
-          };
-        })
-        .filter((item) => item.quantity > 0)
-    );
+    const patchWarehouseStock = (deployedSerials?: string[]) => {
+      setWarehouseItems((prev) =>
+        prev
+          .map((item) => {
+            if (item.id !== whItem.id) return item;
+            const next = reduceWarehouseItemAfterDeploy(item, deployQuantity, deployedSerials);
+            if (!next) return null;
+            return { ...item, ...next, status: 'В наличии' as const };
+          })
+          .filter((item): item is WarehouseItem => item !== null)
+      );
+    };
 
     let success = false;
 
     if (isSoftwareLicense) {
+      patchWarehouseStock();
       const linkedIds = findSoftwareIdsForWarehouseItem(whItem, softwareItems);
       const storedSoft =
         softwareItems.find(
@@ -3441,6 +3525,7 @@ export default function App() {
         success = true;
       }
     } else if (isNetwork) {
+      patchWarehouseStock();
       const matchingNetwork = networkDevices.find((nd) =>
         inventoryNumbersMatch(nd.inventoryNumber, lineKey)
       );
@@ -3514,6 +3599,20 @@ export default function App() {
             ? matchingCompsOnStock.slice(0, countToDeployFromStock).map((c) => c.id)
             : [];
 
+      const deployedSerials = matchingCompsOnStock
+        .filter((c) => idsToDeploy.includes(c.id))
+        .map((c) => (c.serialNumber || '').trim())
+        .filter(Boolean);
+
+      const { consumed: consumedSerials } = consumeUnitSerialNumbers(
+        whItem.quantity,
+        whItem.unitSerialNumbers,
+        deployQty,
+        deployedSerials.length > 0 ? deployedSerials : undefined
+      );
+
+      patchWarehouseStock(deployedSerials);
+
       setComputers((prev) => {
         let updated = prev.map((c) => {
           if (idsToDeploy.includes(c.id)) {
@@ -3566,6 +3665,8 @@ export default function App() {
               i,
               remainingToCreate
             );
+            const issuedSerial =
+              consumedSerials[countToDeployFromStock + i]?.trim() || unitSpecs.serialNumber;
 
             const newAsset: ComputerItem = {
               id: `comp-deploy-${Date.now()}-${i}-${Math.floor(Math.random() * 10000)}`,
@@ -3584,6 +3685,7 @@ export default function App() {
               photoUrl: whItem.photoUrl,
               monitorDiagonalInches: whItem.monitorDiagonalInches,
               ...unitSpecs,
+              serialNumber: issuedSerial,
             };
             newCompsToAppend.push(newAsset);
           }
