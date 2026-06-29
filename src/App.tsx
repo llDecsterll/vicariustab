@@ -605,6 +605,7 @@ export default function App() {
   const handleDeactivateLicense = () => {
     deactivateSystem();
     setLicenseStatus(getLicenseStatus());
+    setLicenseRevision((r) => r + 1);
     logActivity('Деактивация лицензии', 'Сброшен активный лицензионный ключ системы', 'system');
   };
 

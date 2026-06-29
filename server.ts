@@ -74,6 +74,7 @@ import {
   loginRateLimitMessage,
 } from "./server/loginRateLimit.ts";
 import { performGithubUpdateCheck } from "./server/githubUpdateCheck.ts";
+import { preserveServerInstallLicenseFields } from "./server/licenseInstallFields.ts";
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
@@ -723,15 +724,19 @@ async function startServer() {
         if (!data || typeof data !== "object") {
           return res.status(400).json({ error: "Invalid payload" });
         }
-        
+
+        let payload = { ...data };
+
         // Prevent Privilege Escalation / Mass Assignment
         if (req.authSession?.userRole !== "Admin") {
-          delete data.users;
-          delete data.license_key;
-          delete data.license_key_sig;
+          delete payload.users;
+          delete payload.license_key;
+          delete payload.license_key_sig;
+          const { data: existing } = await loadApplicationData();
+          payload = preserveServerInstallLicenseFields(payload, existing);
         }
 
-        const prepared = await preparePayloadForSave(data);
+        const prepared = await preparePayloadForSave(payload);
         const expectedRevision = parseExpectedRevision(req);
         const result = await saveApplicationData(prepared, expectedRevision);
         if ("conflict" in result && result.conflict) {

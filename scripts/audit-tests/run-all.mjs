@@ -22,6 +22,7 @@ const tests = [
   'unit-routing.mjs',
   'unit-backup-license.mjs',
   'unit-license-server.mjs',
+  'unit-license-install.mjs',
   'integration-api.mjs',
   'load-concurrent.mjs',
   'security.mjs',
@@ -41,7 +42,8 @@ for (const file of tests) {
       file === 'unit-sql-persistence.mjs' ||
       file === 'unit-warehouse-full-lifecycle.mjs' ||
       file === 'unit-routing.mjs' ||
-      file === 'unit-license-server.mjs'
+      file === 'unit-license-server.mjs' ||
+      file === 'unit-license-install.mjs'
         ? ['--import', 'tsx/esm', '--test', filePath]
         : ['--test', filePath];
     const child = spawn(process.execPath, nodeArgs, {

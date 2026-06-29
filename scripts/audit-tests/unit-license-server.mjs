@@ -4,6 +4,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
 import {
   buildLicensePayloadString,
   issueSignedLicenseKey,
@@ -82,4 +84,32 @@ test("evaluateLicenseFromState — empty state", () => {
   const ev = evaluateLicenseFromState(null);
   assert.equal(ev.isActivated, false);
   assert.equal(ev.isExpired, false);
+});
+
+const KEYSERVER_PEM = path.resolve(process.cwd(), "../keyserver/data/license_ed25519.pem");
+
+function issueProductionTestKey(expiresYear) {
+  if (!fs.existsSync(KEYSERVER_PEM)) return null;
+  const privatePem = fs.readFileSync(KEYSERVER_PEM, "utf8");
+  return issueTestKey(expiresYear, { privatePem });
+}
+
+test("evaluateLicenseFromState — valid activated key for server MAC", (t) => {
+  const key = issueProductionTestKey(2099);
+  if (!key) {
+    t.skip("keyserver PEM not available (local only)");
+    return;
+  }
+  const ev = evaluateLicenseFromState({ license_key: key, system_mac: MAC });
+  assert.equal(ev.isActivated, true);
+  assert.equal(ev.isExpired, false);
+});
+
+test("isLicenseActivationPayload accepts valid server installation", (t) => {
+  const key = issueProductionTestKey(2099);
+  if (!key) {
+    t.skip("keyserver PEM not available (local only)");
+    return;
+  }
+  assert.equal(isLicenseActivationPayload({ license_key: key, system_mac: MAC }), true);
 });

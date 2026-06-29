@@ -353,60 +353,63 @@ export function applyLicenseStateFromServer(data: Record<string, unknown>): void
   if (typeof window === 'undefined') return;
 
   const currentFingerprint = getHardwareFingerprint();
-  const localMac = localStorage.getItem('it_system_mac');
   const serverMac = typeof data.system_mac === 'string' ? data.system_mac.trim() : null;
   const serverFingerprint =
     typeof data.system_fingerprint === 'string' ? data.system_fingerprint.trim() : null;
 
-  let crossInstall = Boolean(localMac && serverMac && localMac !== serverMac);
+  // License is per server installation — block only when DB was moved to different hardware.
+  const fingerprintMismatch = Boolean(
+    serverFingerprint && serverFingerprint !== currentFingerprint
+  );
 
-  if (!localMac) {
-    if (serverMac && serverFingerprint && serverFingerprint === currentFingerprint) {
-      localStorage.setItem('it_system_mac', serverMac);
-      localStorage.setItem('it_system_fingerprint', currentFingerprint);
-    } else {
-      getSystemMac();
-      crossInstall = true;
-    }
-  } else if (localStorage.getItem('it_system_fingerprint') !== currentFingerprint) {
+  if (fingerprintMismatch) {
+    localStorage.removeItem('it_license_key');
+    localStorage.removeItem('it_license_key_sig');
     getSystemMac();
-    crossInstall = true;
-  } else {
-    localStorage.setItem('it_system_fingerprint', currentFingerprint);
+    mergeLicenseSecurityFromServer(data);
+    return;
   }
 
-  if (!crossInstall) {
-    syncSignedTrialField(data.trial_start, data.trial_sig, 'it_trial_start', 'it_trial_sig');
-    syncSignedTrialField(
-      data._ao_telemetry_pt,
-      data._ao_telemetry_sig,
-      '_ao_telemetry_pt',
-      '_ao_telemetry_sig'
-    );
+  if (serverMac) {
+    localStorage.setItem('it_system_mac', serverMac);
+    localStorage.setItem('it_system_fingerprint', currentFingerprint);
+  } else {
+    getSystemMac();
+  }
 
-    if (typeof data.max_time === 'string' && data.max_time) {
-      localStorage.setItem('it_max_time', data.max_time);
-      localStorage.setItem('_ao_telemetry_mt', data.max_time);
-    }
+  syncSignedTrialField(data.trial_start, data.trial_sig, 'it_trial_start', 'it_trial_sig');
+  syncSignedTrialField(
+    data._ao_telemetry_pt,
+    data._ao_telemetry_sig,
+    '_ao_telemetry_pt',
+    '_ao_telemetry_sig'
+  );
 
-    if (typeof data.tamper_flag === 'string') {
-      localStorage.setItem('it_tamper_flag', data.tamper_flag);
-    }
+  if (typeof data.max_time === 'string' && data.max_time) {
+    localStorage.setItem('it_max_time', data.max_time);
+    localStorage.setItem('_ao_telemetry_mt', data.max_time);
+  }
 
-    const serverKey = typeof data.license_key === 'string' ? data.license_key.trim() : '';
-    if (serverKey) {
-      const validation = validateKey(serverKey);
-      if (validation) {
-        localStorage.setItem('it_license_key', serverKey);
-        if (typeof data.license_key_sig === 'string' && data.license_key_sig) {
-          localStorage.setItem('it_license_key_sig', data.license_key_sig);
-        }
-        if (!isActivationSignatureValid(serverKey)) {
-          localStorage.removeItem('it_license_key');
-          localStorage.removeItem('it_license_key_sig');
-        }
+  if (typeof data.tamper_flag === 'string') {
+    localStorage.setItem('it_tamper_flag', data.tamper_flag);
+  }
+
+  const serverKey = typeof data.license_key === 'string' ? data.license_key.trim() : '';
+  if (serverKey) {
+    const validation = validateKey(serverKey);
+    if (validation) {
+      localStorage.setItem('it_license_key', serverKey);
+      setActivationSignature(serverKey);
+      if (typeof data.license_key_sig === 'string' && data.license_key_sig) {
+        localStorage.setItem('it_license_key_sig', data.license_key_sig);
       }
+    } else {
+      localStorage.removeItem('it_license_key');
+      localStorage.removeItem('it_license_key_sig');
     }
+  } else {
+    localStorage.removeItem('it_license_key');
+    localStorage.removeItem('it_license_key_sig');
   }
 
   mergeLicenseSecurityFromServer(data);

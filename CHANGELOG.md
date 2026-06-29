@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.0.21] — 2026-06-29
+
+### Fixed (лицензия — привязка к серверу, не к сессии)
+- Editor/Viewer save больше не затирает `license_key` в БД (`preserveServerInstallLicenseFields`).
+- Все пользователи на одной установке получают лицензию с сервера (по `system_fingerprint`, не по браузерному MAC).
+- Деактивация лицензии сразу синхронизируется на сервер.
+
+### Added
+- `server/licenseInstallFields.ts`, тесты `unit-license-install.mjs`.
+
+---
+
 ## [2.0.20] — 2026-06-29
 
 ### Fixed (MySQL / PostgreSQL)
