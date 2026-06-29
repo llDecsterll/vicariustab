@@ -1943,7 +1943,6 @@ export default function WarehouseView({
                     <th className="py-3 px-5 font-semibold text-slate-500 text-xs uppercase tracking-wider">{t("Категория")}</th>
                     <th className="py-3 px-5 font-semibold text-slate-500 text-xs uppercase tracking-wider">{t("Модель")}</th>
                     <th className="py-3 px-5 font-semibold text-slate-500 text-xs uppercase tracking-wider">{t("Инвентарный номер")}</th>
-                    <th className="py-3 px-5 font-semibold text-slate-500 text-xs uppercase tracking-wider">{t("Серийный номер")}</th>
                     <th className="py-3 px-5 font-semibold text-slate-500 text-xs uppercase tracking-wider">{t("Дата поступления")}</th>
                     <th className="py-3 px-5 text-center font-semibold text-slate-500 text-xs uppercase tracking-wider">{t("Остаток")}</th>
                     <th className="py-3 px-5 font-semibold text-slate-500 text-xs uppercase tracking-wider">{t("Ед.")}</th>
@@ -1994,24 +1993,6 @@ export default function WarehouseView({
                             </span>
                           )}
                         </div>
-                      </td>
-                      <td className="py-3.5 px-5 font-mono text-slate-500 text-xs">
-                        {item.serialNumbers.length === 0 ? (
-                          <span className="text-slate-300 italic font-sans font-normal">{t('—')}</span>
-                        ) : item.serialNumbers.length === 1 ? (
-                          <span className="font-bold">{item.serialNumbers[0]}</span>
-                        ) : (
-                          <div className="flex flex-col gap-0.5 max-w-[11rem]">
-                            {item.serialNumbers.map((sn, idx) => (
-                              <span key={`${item.id}-sn-${idx}`} className="font-bold leading-tight truncate" title={sn}>
-                                <span className="text-[9px] text-slate-400 font-sans font-semibold mr-1">
-                                  {idx + 1}.
-                                </span>
-                                {sn}
-                              </span>
-                            ))}
-                          </div>
-                        )}
                       </td>
                       <td className="py-3.5 px-5 text-slate-500 text-xs whitespace-nowrap">
                         {formatReceiptDate(item.receiptDate) ? (

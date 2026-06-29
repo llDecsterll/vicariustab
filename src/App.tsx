@@ -692,7 +692,7 @@ export default function App() {
       if (repairedComputers !== computers) {
         setComputers(repairedComputers);
       }
-      const result = await persistWorkspaceState(payload, dataRevisionRef.current);
+      const result = await persistWorkspaceState(payload, dataRevisionRef.current, 3);
       if (result.ok === true) {
         setDataRevision(result.revision);
         dataRevisionRef.current = result.revision;

@@ -678,13 +678,17 @@ async function startServer() {
       if (!data) return res.json({ _revision: revision });
       const raw = data as Record<string, unknown>;
       const normalized = ensureWorkspaceWarehouses(raw);
+      let revisionOut = revision;
       if (workspaceWarehousesChanged(raw, normalized)) {
-        void saveApplicationData(normalized, revision).catch((err) =>
-          console.warn("[warehouses] Self-heal save after restore/load failed:", err)
-        );
+        const healed = await saveApplicationData(normalized, revision);
+        if (healed.ok) {
+          revisionOut = healed.revision;
+        } else if ("revision" in healed) {
+          revisionOut = healed.revision;
+        }
       }
       const safe = sanitizePayloadForClient(normalized);
-      return res.json({ ...(safe || normalized), _revision: revision });
+      return res.json({ ...(safe || normalized), _revision: revisionOut });
     } catch (error) {
       console.error("Error reading database:", error);
       return res.status(500).json({ error: "Failed to read server database" });
