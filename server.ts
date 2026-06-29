@@ -452,7 +452,16 @@ async function saveToSql(config: any, payload: any): Promise<void> {
 
     await connection.beginTransaction();
     try {
-      for (const key of Object.keys(payload)) {
+      const keys = Object.keys(payload);
+      if (keys.length > 0) {
+        await connection.query(
+          `DELETE FROM orbit_secure_store WHERE store_key NOT IN (${keys.map(() => "?").join(", ")})`,
+          keys
+        );
+      } else {
+        await connection.query(`DELETE FROM orbit_secure_store`);
+      }
+      for (const key of keys) {
         const val = payload[key];
         const encryptedValue = encrypt(JSON.stringify(val));
         await connection.query(
@@ -484,7 +493,16 @@ async function saveToSql(config: any, payload: any): Promise<void> {
 
     await client.query("BEGIN");
     try {
-      for (const key of Object.keys(payload)) {
+      const keys = Object.keys(payload);
+      if (keys.length > 0) {
+        await client.query(
+          `DELETE FROM orbit_secure_store WHERE store_key NOT IN (${keys.map((_, i) => `$${i + 1}`).join(", ")})`,
+          keys
+        );
+      } else {
+        await client.query(`DELETE FROM orbit_secure_store`);
+      }
+      for (const key of keys) {
         const val = payload[key];
         const encryptedValue = encrypt(JSON.stringify(val));
         await client.query(

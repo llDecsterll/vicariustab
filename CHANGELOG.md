@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.0.20] — 2026-06-29
+
+### Fixed (MySQL / PostgreSQL)
+- SQL save failures no longer fall through silently while only the local file updates (prevents stale SQL on next load).
+- `orbit_secure_store` prunes keys removed from the workspace payload on each save.
+
+### Added
+- `unit-sql-persistence.mjs` — round-trip tests for users, roles, warehouses, costs, photos, and SQL key cleanup.
+
+---
+
 ## [2.0.19] — 2026-06-29
 
 ### Fixed (склад)

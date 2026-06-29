@@ -114,11 +114,7 @@ export async function saveApplicationData(
 
   const config = d.readDbConfig();
   if (config.type === "mysql" || config.type === "postgres") {
-    try {
-      await d.saveToSql(config, payload);
-    } catch (sqlErr) {
-      console.error("SQL save error, writing fallback to local file also", sqlErr);
-    }
+    await d.saveToSql(config, payload);
   }
 
   const rawString = JSON.stringify(payload, null, 2);

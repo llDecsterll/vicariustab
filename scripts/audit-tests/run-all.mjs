@@ -17,6 +17,7 @@ const tests = [
   'unit-warehouse-excel.mjs',
   'unit-writeoff.mjs',
   'unit-restore-writeoff.mjs',
+  'unit-sql-persistence.mjs',
   'unit-warehouse-full-lifecycle.mjs',
   'unit-routing.mjs',
   'unit-backup-license.mjs',
@@ -37,6 +38,7 @@ for (const file of tests) {
       file === 'unit-warehouse-excel.mjs' ||
       file === 'unit-writeoff.mjs' ||
       file === 'unit-restore-writeoff.mjs' ||
+      file === 'unit-sql-persistence.mjs' ||
       file === 'unit-warehouse-full-lifecycle.mjs' ||
       file === 'unit-routing.mjs' ||
       file === 'unit-license-server.mjs'
