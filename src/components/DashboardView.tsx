@@ -45,6 +45,7 @@ import {
   Activity,
   InventoryAudit,
   CustomWarehouse,
+  SoftwareItem,
 } from '../types';
 import { useTranslation } from '../utils/i18n';
 import {
@@ -80,6 +81,19 @@ import {
   translateActivityDetail,
   translateDashboardAlert,
 } from '../utils/dashboardI18n';
+import {
+  DashboardLayoutProvider,
+  DashboardSections,
+  DashboardDraggableWidget,
+  useDashboardLayout,
+} from './DashboardLayoutContext';
+import {
+  analyticsWidgetColClass,
+  type AnalyticsWidgetId,
+  type DetailCardId,
+  type StatCardId,
+  type WarehouseStripId,
+} from '../utils/dashboardLayout';
 
 const CARD = 'bg-white rounded-2xl border border-slate-100 shadow-sm';
 const TITLE = 'font-bold text-sm text-slate-900';
@@ -92,6 +106,7 @@ interface DashboardViewProps {
   computers: ComputerItem[];
   employees: EmployeeItem[];
   warehouseItems: WarehouseItem[];
+  softwareItems?: SoftwareItem[];
   warehouses?: CustomWarehouse[];
   activities: Activity[];
   audits: InventoryAudit[];
@@ -366,7 +381,15 @@ const WarehouseCategoryCard: React.FC<{
   );
 };
 
-export default function DashboardView({
+export default function DashboardView(props: DashboardViewProps) {
+  return (
+    <DashboardLayoutProvider>
+      <DashboardViewInner {...props} />
+    </DashboardLayoutProvider>
+  );
+}
+
+function DashboardViewInner({
   objects,
   networkDevices,
   computers,
@@ -378,6 +401,7 @@ export default function DashboardView({
   onNavigate,
 }: DashboardViewProps) {
   const { t, language } = useTranslation();
+  const { layout, editMode } = useDashboardLayout();
   const [chartsReady, setChartsReady] = useState(false);
   const [reduceMotion, setReduceMotion] = useState(false);
   const [dynamicsPeriod, setDynamicsPeriod] = useState<DynamicsPeriod>('quarter');
@@ -575,8 +599,19 @@ export default function DashboardView({
     .filter((w) => w.type === 'Оргтехника')
     .reduce((s, w) => s + w.quantity, 0);
 
-  const warehouseStrip = [
+  const warehouseStripById: Record<
+    WarehouseStripId,
     {
+      label: string;
+      icon: React.ElementType<{ size?: number }>;
+      iconBox: string;
+      iconColor: string;
+      sparkColor: string;
+      count: number;
+      price: number;
+    }
+  > = {
+    laptops: {
       label: t('Ноутбуки'),
       icon: Laptop,
       iconBox: 'bg-blue-50',
@@ -585,7 +620,7 @@ export default function DashboardView({
       count: laptopStrip.count,
       price: laptopStrip.cost,
     },
-    {
+    monitors: {
       label: t('Мониторы'),
       icon: Monitor,
       iconBox: 'bg-violet-50',
@@ -594,7 +629,7 @@ export default function DashboardView({
       count: monitorCount,
       price: sumWarehouseCost((w) => w.type === 'Периферия'),
     },
-    {
+    desktops: {
       label: t('Системные блоки'),
       icon: Server,
       iconBox: 'bg-violet-50',
@@ -603,7 +638,7 @@ export default function DashboardView({
       count: desktopStrip.count,
       price: desktopStrip.cost,
     },
-    {
+    printers: {
       label: t('Принтеры'),
       icon: Printer,
       iconBox: 'bg-violet-50',
@@ -612,7 +647,7 @@ export default function DashboardView({
       count: printerWarehouseCount,
       price: sumWarehouseCost((w) => w.type === 'Оргтехника'),
     },
-    {
+    switches: {
       label: t('Коммутаторы'),
       icon: Box,
       iconBox: 'bg-emerald-50',
@@ -621,7 +656,7 @@ export default function DashboardView({
       count: switchStrip.count,
       price: switchStrip.cost,
     },
-    {
+    access_points: {
       label: t('Точки доступа'),
       icon: Wifi,
       iconBox: 'bg-sky-50',
@@ -630,7 +665,7 @@ export default function DashboardView({
       count: apStrip.count,
       price: apStrip.cost,
     },
-  ];
+  };
 
   const subStrong = (label: string, value: number) => (
     <span>
@@ -651,463 +686,554 @@ export default function DashboardView({
   const warehousePct = equipmentTotals.total > 0 ? ((equipmentTotals.warehouse / equipmentTotals.total) * 100).toFixed(1) : '0';
   const writtenOffPct = equipmentTotals.total > 0 ? ((equipmentTotals.writtenOff / equipmentTotals.total) * 100).toFixed(1) : '0';
 
-  return (
-    <div className="space-y-4 max-w-[1600px]">
-      <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-3">
-        <StatCard
-          label={t('Компьютеры')}
-          numericValue={pcStats.total}
-          subDetail={warehouseIssuedDetail(pcStats.onWarehouse, pcStats.issued)}
-          icon={<Laptop size={18} />}
-          iconBg="bg-blue-50 text-blue-600"
-          onClick={() => onNavigate('computers')}
-          staggerIndex={0}
-        />
-        <StatCard
-          label={t('Сотрудники')}
-          numericValue={employeeStats.total}
-          subDetail={
-            <>
-              {subStrong(t('Работа'), employeeStats.working)}
-              <span className="mx-1">·</span>
-              {subStrong(t('Отпуск'), employeeStats.vacation)}
-            </>
-          }
-          icon={<Users size={18} />}
-          iconBg="bg-violet-50 text-violet-600"
-          onClick={() => onNavigate('employees')}
-          staggerIndex={1}
-        />
-        <StatCard
-          label={t('Оборудование на складе')}
-          numericValue={warehouseCount}
-          subDetail={
-            <span>
-              {t('На сумму')}: <strong className="text-slate-600 font-semibold">{formatMoney(warehouseCostSum)}</strong>
-            </span>
-          }
-          icon={<Warehouse size={18} />}
-          iconBg="bg-emerald-50 text-emerald-600"
-          onClick={() => onNavigate('warehouse')}
-          staggerIndex={2}
-        />
-        <StatCard
-          label={t('Сетевое оборудование')}
-          numericValue={netStats.total}
-          subDetail={warehouseIssuedDetail(netStats.onWarehouse, netStats.issued)}
-          icon={<Network size={18} />}
-          iconBg="bg-blue-50 text-blue-600"
-          onClick={() => onNavigate('network')}
-          staggerIndex={3}
-        />
-        <StatCard
-          label={t('Принтеры')}
-          numericValue={printerStats.total}
-          subDetail={warehouseIssuedDetail(printerStats.onWarehouse, printerStats.issued)}
-          icon={<Printer size={18} />}
-          iconBg="bg-violet-50 text-violet-600"
-          onClick={() => onNavigate('orgtech')}
-          staggerIndex={4}
-        />
-        <StatCard
-          label={t('Камеры СКУД')}
-          numericValue={cameraStats.total}
-          subDetail={warehouseIssuedDetail(cameraStats.onWarehouse, cameraStats.issued)}
-          icon={<Camera size={18} />}
-          iconBg="bg-slate-100 text-slate-500"
-          onClick={() => onNavigate('surveillance')}
-          staggerIndex={5}
-        />
-        <StatCard
-          label={t('Расходники')}
-          numericValue={consumableStats.total}
-          subDetail={warehouseIssuedDetail(consumableStats.onWarehouse, consumableStats.issued)}
-          icon={<Package size={18} />}
-          iconBg="bg-emerald-50 text-emerald-600"
-          onClick={() => onNavigate('consumables')}
-          staggerIndex={6}
-        />
-        <StatCard
-          label={t('Прочее оборудование')}
-          numericValue={otherStats.total}
-          subDetail={warehouseIssuedDetail(otherStats.onWarehouse, otherStats.issued)}
-          icon={<Server size={18} />}
-          iconBg="bg-slate-100 text-slate-500"
-          onClick={() => onNavigate('other_equip')}
-          staggerIndex={7}
-        />
-      </div>
+  const renderStatCard = (id: StatCardId, staggerIndex: number) => {
+    switch (id) {
+      case 'computers':
+        return (
+          <StatCard
+            label={t('Компьютеры')}
+            numericValue={pcStats.total}
+            subDetail={warehouseIssuedDetail(pcStats.onWarehouse, pcStats.issued)}
+            icon={<Laptop size={18} />}
+            iconBg="bg-blue-50 text-blue-600"
+            onClick={() => !editMode && onNavigate('computers')}
+            staggerIndex={staggerIndex}
+          />
+        );
+      case 'employees':
+        return (
+          <StatCard
+            label={t('Сотрудники')}
+            numericValue={employeeStats.total}
+            subDetail={
+              <>
+                {subStrong(t('Работа'), employeeStats.working)}
+                <span className="mx-1">·</span>
+                {subStrong(t('Отпуск'), employeeStats.vacation)}
+              </>
+            }
+            icon={<Users size={18} />}
+            iconBg="bg-violet-50 text-violet-600"
+            onClick={() => !editMode && onNavigate('employees')}
+            staggerIndex={staggerIndex}
+          />
+        );
+      case 'warehouse':
+        return (
+          <StatCard
+            label={t('Оборудование на складе')}
+            numericValue={warehouseCount}
+            subDetail={
+              <span>
+                {t('На сумму')}: <strong className="text-slate-600 font-semibold">{formatMoney(warehouseCostSum)}</strong>
+              </span>
+            }
+            icon={<Warehouse size={18} />}
+            iconBg="bg-emerald-50 text-emerald-600"
+            onClick={() => !editMode && onNavigate('warehouse')}
+            staggerIndex={staggerIndex}
+          />
+        );
+      case 'network':
+        return (
+          <StatCard
+            label={t('Сетевое оборудование')}
+            numericValue={netStats.total}
+            subDetail={warehouseIssuedDetail(netStats.onWarehouse, netStats.issued)}
+            icon={<Network size={18} />}
+            iconBg="bg-blue-50 text-blue-600"
+            onClick={() => !editMode && onNavigate('network')}
+            staggerIndex={staggerIndex}
+          />
+        );
+      case 'printers':
+        return (
+          <StatCard
+            label={t('Принтеры')}
+            numericValue={printerStats.total}
+            subDetail={warehouseIssuedDetail(printerStats.onWarehouse, printerStats.issued)}
+            icon={<Printer size={18} />}
+            iconBg="bg-violet-50 text-violet-600"
+            onClick={() => !editMode && onNavigate('orgtech')}
+            staggerIndex={staggerIndex}
+          />
+        );
+      case 'cameras':
+        return (
+          <StatCard
+            label={t('Камеры СКУД')}
+            numericValue={cameraStats.total}
+            subDetail={warehouseIssuedDetail(cameraStats.onWarehouse, cameraStats.issued)}
+            icon={<Camera size={18} />}
+            iconBg="bg-slate-100 text-slate-500"
+            onClick={() => !editMode && onNavigate('surveillance')}
+            staggerIndex={staggerIndex}
+          />
+        );
+      case 'consumables':
+        return (
+          <StatCard
+            label={t('Расходники')}
+            numericValue={consumableStats.total}
+            subDetail={warehouseIssuedDetail(consumableStats.onWarehouse, consumableStats.issued)}
+            icon={<Package size={18} />}
+            iconBg="bg-emerald-50 text-emerald-600"
+            onClick={() => !editMode && onNavigate('consumables')}
+            staggerIndex={staggerIndex}
+          />
+        );
+      case 'other':
+        return (
+          <StatCard
+            label={t('Прочее оборудование')}
+            numericValue={otherStats.total}
+            subDetail={warehouseIssuedDetail(otherStats.onWarehouse, otherStats.issued)}
+            icon={<Server size={18} />}
+            iconBg="bg-slate-100 text-slate-500"
+            onClick={() => !editMode && onNavigate('other_equip')}
+            staggerIndex={staggerIndex}
+          />
+        );
+      default:
+        return null;
+    }
+  };
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-        <div className={`lg:col-span-5 ${CARD} p-5 dashboard-chart-glow flex flex-col ${dashboardStaggerClass(0, 1)}`}>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className={TITLE}>{t('Динамика оборудования')}</h2>
-            <select
-              value={dynamicsPeriod}
-              onChange={(e) => setDynamicsPeriod(e.target.value as DynamicsPeriod)}
-              className="text-[10px] font-medium text-slate-600 bg-slate-50 pl-2.5 pr-7 py-1 rounded-lg border border-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300 cursor-pointer appearance-none bg-[length:10px] bg-[right_8px_center] bg-no-repeat"
-              style={{
-                backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
-              }}
-              aria-label={t('Период')}
-            >
-              <option value="month">{t('Месяц')}</option>
-              <option value="quarter">{t('Квартал')}</option>
-              <option value="year">{t('Год')}</option>
-            </select>
-          </div>
-          <div className="h-[190px]">
-            {chartsReady && (
-              <ResponsiveContainer key={dynamicsPeriod} width="100%" height="100%">
-                <ComposedChart data={dynamicsData} margin={{ top: 4, right: 4, left: -12, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="dashDynamicsFill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.22} />
-                      <stop offset="100%" stopColor="#3b82f6" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke={chartGrid} vertical={false} />
-                  <XAxis dataKey="month" tick={{ fontSize: 10, fill: chartTick }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 10, fill: chartTick }} axisLine={false} tickLine={false} width={28} allowDecimals={false} />
-                  <Tooltip contentStyle={chartTooltip} labelFormatter={(l) => `${t('Месяц')}: ${l}`} cursor={{ stroke: '#3b82f6', strokeWidth: 1, strokeDasharray: '4 4' }} />
-                  <Area type="monotone" dataKey="count" fill="url(#dashDynamicsFill)" stroke="none" tooltipType="none" {...motion} animationBegin={150} />
-                  <Line
-                    type="monotone"
-                    dataKey="count"
-                    stroke="#3b82f6"
-                    strokeWidth={2.5}
-                    dot={{ r: 4, fill: lineDotFill, stroke: '#3b82f6', strokeWidth: 2 }}
-                    activeDot={{ r: 6, fill: '#3b82f6', stroke: '#fff', strokeWidth: 2 }}
-                    name={t('Добавлено')}
-                    {...motion}
-                    animationBegin={200}
-                  />
-                </ComposedChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mt-4 pt-4 border-t border-slate-100">
-            <DynamicsStatBox
-              label={t('Всего единиц')}
-              value={equipmentTotals.total}
-              suffix={periodDelta > 0 ? `+${periodDelta} ${t('за период')}` : undefined}
-              suffixClassName="text-emerald-600"
-            />
-            <DynamicsStatBox
-              label={t('Выдано')}
-              value={equipmentTotals.issued}
-              suffix={`${issuedPct}%`}
-            />
-            <DynamicsStatBox
-              label={t('На складе')}
-              value={equipmentTotals.warehouse}
-              suffix={`${warehousePct}%`}
-            />
-            <DynamicsStatBox
-              label={t('Списано')}
-              value={equipmentTotals.writtenOff}
-              suffix={`${writtenOffPct}%`}
-            />
-          </div>
-        </div>
-
-        <div className={`lg:col-span-4 ${CARD} p-4 flex flex-col ${dashboardStaggerClass(1, 1)}`}>
-          <h2 className={`${TITLE} mb-3`}>{t('Статусы оборудования')}</h2>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6 flex-1 min-h-[160px] sm:min-h-[190px]">
-            <div className="relative h-[140px] w-[140px] sm:h-[190px] sm:w-[190px] shrink-0">
-              {activeStatusSlices.length > 0 && (
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
-                    <Pie
-                      data={activeStatusSlices}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius="52%"
-                      outerRadius="88%"
-                      paddingAngle={2}
-                      dataKey="value"
-                      startAngle={90}
-                      endAngle={-270}
-                      stroke="none"
-                      {...statusMotion}
-                      animationBegin={0}
-                    >
-                      {activeStatusSlices.map((entry) => (
-                        <Cell key={entry.name} fill={entry.color} stroke="transparent" />
-                      ))}
-                    </Pie>
-                    <Tooltip contentStyle={chartTooltip} />
-                  </PieChart>
+  const renderAnalyticsWidget = (id: AnalyticsWidgetId, staggerIndex: number) => {
+    switch (id) {
+      case 'dynamics':
+        return (
+          <div className={`${CARD} p-5 dashboard-chart-glow flex flex-col ${dashboardStaggerClass(staggerIndex, 1)}`}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className={TITLE}>{t('Динамика оборудования')}</h2>
+              <select
+                value={dynamicsPeriod}
+                onChange={(e) => setDynamicsPeriod(e.target.value as DynamicsPeriod)}
+                className="text-[10px] font-medium text-slate-600 bg-slate-50 pl-2.5 pr-7 py-1 rounded-lg border border-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300 cursor-pointer appearance-none bg-[length:10px] bg-[right_8px_center] bg-no-repeat"
+                style={{
+                  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
+                }}
+                aria-label={t('Период')}
+              >
+                <option value="month">{t('Месяц')}</option>
+                <option value="quarter">{t('Квартал')}</option>
+                <option value="year">{t('Год')}</option>
+              </select>
+            </div>
+            <div className="h-[190px]">
+              {chartsReady && (
+                <ResponsiveContainer key={dynamicsPeriod} width="100%" height="100%">
+                  <ComposedChart data={dynamicsData} margin={{ top: 4, right: 4, left: -12, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="dashDynamicsFill" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.22} />
+                        <stop offset="100%" stopColor="#3b82f6" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke={chartGrid} vertical={false} />
+                    <XAxis dataKey="month" tick={{ fontSize: 10, fill: chartTick }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 10, fill: chartTick }} axisLine={false} tickLine={false} width={28} allowDecimals={false} />
+                    <Tooltip contentStyle={chartTooltip} labelFormatter={(l) => `${t('Месяц')}: ${l}`} cursor={{ stroke: '#3b82f6', strokeWidth: 1, strokeDasharray: '4 4' }} />
+                    <Area type="monotone" dataKey="count" fill="url(#dashDynamicsFill)" stroke="none" tooltipType="none" {...motion} animationBegin={150} />
+                    <Line
+                      type="monotone"
+                      dataKey="count"
+                      stroke="#3b82f6"
+                      strokeWidth={2.5}
+                      dot={{ r: 4, fill: lineDotFill, stroke: '#3b82f6', strokeWidth: 2 }}
+                      activeDot={{ r: 6, fill: '#3b82f6', stroke: '#fff', strokeWidth: 2 }}
+                      name={t('Добавлено')}
+                      {...motion}
+                      animationBegin={200}
+                    />
+                  </ComposedChart>
                 </ResponsiveContainer>
               )}
-              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center">
-                <span className="text-[28px] font-bold text-slate-900 tabular-nums leading-none">{animatedStatusTotal}</span>
-                <span className={`text-[10px] ${MUTED} mt-0.5`}>{t('Всего')}</span>
-              </div>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-2.5 w-full sm:w-auto max-w-sm sm:max-w-none">
-              {statusSlices.map((s, i) => (
-                <StatusLegendRow key={s.name} name={s.name} color={s.color} value={s.value} total={statusTotal} rowIndex={i} />
-              ))}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mt-4 pt-4 border-t border-slate-100">
+              <DynamicsStatBox
+                label={t('Всего единиц')}
+                value={equipmentTotals.total}
+                suffix={periodDelta > 0 ? `+${periodDelta} ${t('за период')}` : undefined}
+                suffixClassName="text-emerald-600"
+              />
+              <DynamicsStatBox label={t('Выдано')} value={equipmentTotals.issued} suffix={`${issuedPct}%`} />
+              <DynamicsStatBox label={t('На складе')} value={equipmentTotals.warehouse} suffix={`${warehousePct}%`} />
+              <DynamicsStatBox label={t('Списано')} value={equipmentTotals.writtenOff} suffix={`${writtenOffPct}%`} />
             </div>
           </div>
-          <div className={`flex items-center gap-1.5 text-[10px] ${MUTED} mt-3 pt-2.5 border-t border-slate-100`}>
-            <span>
-              {t('Последнее обновление')}: {t('сегодня')}, {lastUpdated}
-            </span>
-            <RefreshCw size={11} className="text-slate-400 shrink-0" />
-          </div>
-        </div>
-
-        <div className={`lg:col-span-3 ${CARD} p-5 flex flex-col ${dashboardStaggerClass(2, 1)}`}>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className={TITLE}>{t('Требуют внимания')}</h2>
-            {alerts.length > 0 && (
-              <span className="bg-red-500 text-white text-[10px] font-bold min-w-[20px] h-5 px-1.5 rounded-full flex items-center justify-center">
-                {alerts.length}
-              </span>
-            )}
-          </div>
-          <div className="space-y-2 flex-1">
-            {alerts.length === 0 ? (
-              <p className={`text-xs ${MUTED} text-center py-10`}>{t('Нет срочных уведомлений')}</p>
-            ) : (
-              alerts.slice(0, 2).map((a, i) => {
-                const localized = translateDashboardAlert(a, t);
-                return (
-                <button
-                  key={a.id}
-                  type="button"
-                  onClick={() => onNavigate(a.tab)}
-                  className={`dashboard-rise w-full text-left p-3 rounded-xl border text-xs transition-colors ${
-                    a.tone === 'danger'
-                      ? 'bg-rose-50 border-rose-100 text-rose-800'
-                      : 'bg-amber-50 border-amber-100 text-amber-900'
-                  }`}
-                  style={{ animationDelay: `${200 + i * 80}ms` }}
-                >
-                  <div className="flex items-start gap-2.5">
-                    <span className={`p-1.5 rounded-lg shrink-0 ${a.tone === 'danger' ? 'bg-rose-100 text-rose-600' : 'bg-amber-100 text-amber-600'}`}>
-                      <AlertTriangle size={14} />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="font-semibold leading-snug text-slate-900">{localized.title}</p>
-                      <p className="text-[11px] text-slate-600 mt-0.5">{localized.subtitle}</p>
-                      {localized.detail && <p className={`text-[10px] ${MUTED} mt-0.5`}>{localized.detail}</p>}
-                    </div>
-                    {localized.badge && (
-                      <span
-                        className={`shrink-0 text-[9px] font-bold px-2 py-1 rounded-md whitespace-nowrap ${
-                          a.tone === 'danger'
-                            ? 'bg-rose-100 text-rose-700'
-                            : 'bg-amber-100 text-amber-700'
-                        }`}
+        );
+      case 'status_chart':
+        return (
+          <div className={`${CARD} p-4 flex flex-col ${dashboardStaggerClass(staggerIndex, 1)}`}>
+            <h2 className={`${TITLE} mb-3`}>{t('Статусы оборудования')}</h2>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6 flex-1 min-h-[160px] sm:min-h-[190px]">
+              <div className="relative h-[140px] w-[140px] sm:h-[190px] sm:w-[190px] shrink-0">
+                {activeStatusSlices.length > 0 && (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
+                      <Pie
+                        data={activeStatusSlices}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius="52%"
+                        outerRadius="88%"
+                        paddingAngle={2}
+                        dataKey="value"
+                        startAngle={90}
+                        endAngle={-270}
+                        stroke="none"
+                        {...statusMotion}
+                        animationBegin={0}
                       >
-                        {localized.badge}
-                      </span>
-                    )}
-                  </div>
-                </button>
-              );
-              })
-            )}
-          </div>
-          {alerts.length > 0 && <FooterLink label={t('Смотреть все')} onClick={() => onNavigate('warranties')} />}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-        <div className={`${CARD} p-5 flex flex-col ${dashboardStaggerClass(0, 2)}`}>
-          <h2 className={`${TITLE} mb-4`}>{t('Сетевое оборудование')}</h2>
-          {networkSummary.length === 0 ? (
-            <p className={`text-xs ${MUTED}`}>{t('Нет данных')}</p>
-          ) : (
-            <div className="space-y-1 flex-1">
-              <div className="grid grid-cols-[1fr_52px_80px] gap-2 text-[10px] font-semibold uppercase tracking-wide text-slate-400 pb-2 border-b border-slate-100">
-                <span>{t('Тип')}</span>
-                <span className="text-right">{t('Количество')}</span>
-                <span>{t('Устройства')}</span>
-              </div>
-              {networkSummary.map((row, i) => (
-                <div
-                  key={row.type}
-                  className="dashboard-legend-item grid grid-cols-[1fr_52px_80px] gap-2 items-center py-2 border-b border-slate-50 last:border-0"
-                  style={{ animationDelay: `${300 + i * 100}ms` }}
-                >
-                  <span className="text-[12px] text-slate-700 truncate">{t(row.type)}</span>
-                  <span className="text-[12px] font-bold text-slate-900 text-right tabular-nums">{row.count}</span>
-                  <AnimatedBar percent={Math.round((row.count / maxNetworkCount) * 100)} delay={350 + i * 100} />
+                        {activeStatusSlices.map((entry) => (
+                          <Cell key={entry.name} fill={entry.color} stroke="transparent" />
+                        ))}
+                      </Pie>
+                      <Tooltip contentStyle={chartTooltip} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                )}
+                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center">
+                  <span className="text-[28px] font-bold text-slate-900 tabular-nums leading-none">{animatedStatusTotal}</span>
+                  <span className={`text-[10px] ${MUTED} mt-0.5`}>{t('Всего')}</span>
                 </div>
-              ))}
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-2.5 w-full sm:w-auto max-w-sm sm:max-w-none">
+                {statusSlices.map((s, i) => (
+                  <StatusLegendRow key={s.name} name={s.name} color={s.color} value={s.value} total={statusTotal} rowIndex={i} />
+                ))}
+              </div>
             </div>
-          )}
-          <FooterLink label={t('Перейти к сетевому оборудованию')} onClick={() => onNavigate('network')} />
-        </div>
-
-        <div className={`${CARD} p-5 flex flex-col ${dashboardStaggerClass(1, 2)}`}>
-          <h2 className={`${TITLE} mb-4`}>{t('Последние действия')}</h2>
-          <div className="space-y-0 flex-1">
-            {recentActivities.length === 0 ? (
-              <p className={`text-xs ${MUTED}`}>{t('Журнал пуст')}</p>
-            ) : (
-              recentActivities.map((act, i) => {
-                const { icon: Icon, box } = pickActivityStyle(act.action, act.detail);
-                const actionLabel = translateActivityAction(act.action, t);
-                const detailLabel = translateActivityDetail(act.detail, t);
-                return (
-                  <div
-                    key={act.id}
-                    className="dashboard-legend-item flex gap-3 py-3 border-b border-slate-50 last:border-0"
-                    style={{ animationDelay: `${250 + i * 70}ms` }}
-                  >
-                    <span className={`p-2 rounded-xl h-fit shrink-0 ${box}`}>
-                      <Icon size={14} />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[12px] font-semibold text-slate-800 leading-snug">
-                        {actionLabel}
-                        {detailLabel ? `. ${detailLabel}` : ''}
-                      </p>
-                    </div>
-                    <span className={`text-[10px] ${MUTED} shrink-0 tabular-nums self-start pt-0.5`}>
-                      {formatDashboardActivityTime(act.timestamp, language, t)}
-                    </span>
-                  </div>
-                );
-              })
-            )}
+            <div className={`flex items-center gap-1.5 text-[10px] ${MUTED} mt-3 pt-2.5 border-t border-slate-100`}>
+              <span>
+                {t('Последнее обновление')}: {t('сегодня')}, {lastUpdated}
+              </span>
+              <RefreshCw size={11} className="text-slate-400 shrink-0" />
+            </div>
           </div>
-          <FooterLink label={t('Все действия')} onClick={() => onNavigate('activity_log')} />
-        </div>
+        );
+      case 'alerts':
+        return (
+          <div className={`${CARD} p-5 flex flex-col ${dashboardStaggerClass(staggerIndex, 1)}`}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className={TITLE}>{t('Требуют внимания')}</h2>
+              {alerts.length > 0 && (
+                <span className="bg-red-500 text-white text-[10px] font-bold min-w-[20px] h-5 px-1.5 rounded-full flex items-center justify-center">
+                  {alerts.length}
+                </span>
+              )}
+            </div>
+            <div className="space-y-2 flex-1">
+              {alerts.length === 0 ? (
+                <p className={`text-xs ${MUTED} text-center py-10`}>{t('Нет срочных уведомлений')}</p>
+              ) : (
+                alerts.slice(0, 2).map((a, i) => {
+                  const localized = translateDashboardAlert(a, t);
+                  return (
+                    <button
+                      key={a.id}
+                      type="button"
+                      onClick={() => !editMode && onNavigate(a.tab)}
+                      className={`dashboard-rise w-full text-left p-3 rounded-xl border text-xs transition-colors ${
+                        a.tone === 'danger'
+                          ? 'bg-rose-50 border-rose-100 text-rose-800'
+                          : 'bg-amber-50 border-amber-100 text-amber-900'
+                      }`}
+                      style={{ animationDelay: `${200 + i * 80}ms` }}
+                    >
+                      <div className="flex items-start gap-2.5">
+                        <span className={`p-1.5 rounded-lg shrink-0 ${a.tone === 'danger' ? 'bg-rose-100 text-rose-600' : 'bg-amber-100 text-amber-600'}`}>
+                          <AlertTriangle size={14} />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="font-semibold leading-snug text-slate-900">{localized.title}</p>
+                          <p className="text-[11px] text-slate-600 mt-0.5">{localized.subtitle}</p>
+                          {localized.detail && <p className={`text-[10px] ${MUTED} mt-0.5`}>{localized.detail}</p>}
+                        </div>
+                        {localized.badge && (
+                          <span
+                            className={`shrink-0 text-[9px] font-bold px-2 py-1 rounded-md whitespace-nowrap ${
+                              a.tone === 'danger' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'
+                            }`}
+                          >
+                            {localized.badge}
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+            {alerts.length > 0 && <FooterLink label={t('Смотреть все')} onClick={() => !editMode && onNavigate('warranties')} />}
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
 
-        <div className={`${CARD} p-5 flex flex-col ${dashboardStaggerClass(2, 2)}`}>
-          <h2 className={`${TITLE} mb-4`}>{t('Оборудование по объектам')}</h2>
-          <div className="space-y-3 flex-1">
-            {byObject.length === 0 ? (
+  const renderDetailCard = (id: DetailCardId, staggerIndex: number) => {
+    switch (id) {
+      case 'network_summary':
+        return (
+          <div className={`${CARD} p-5 flex flex-col ${dashboardStaggerClass(staggerIndex, 2)}`}>
+            <h2 className={`${TITLE} mb-4`}>{t('Сетевое оборудование')}</h2>
+            {networkSummary.length === 0 ? (
               <p className={`text-xs ${MUTED}`}>{t('Нет данных')}</p>
             ) : (
-              byObject.map((obj, i) => (
-                <div key={obj.name} className="dashboard-legend-item" style={{ animationDelay: `${300 + i * 90}ms` }}>
-                  <div className="flex justify-between text-[12px] mb-1.5 gap-2">
-                    <span className="text-slate-700 truncate font-medium">{obj.name}</span>
-                    <span className="font-bold text-slate-900 shrink-0 tabular-nums">{obj.count}</span>
-                  </div>
-                  <AnimatedBar percent={Math.round((obj.count / maxObjectCount) * 100)} delay={400 + i * 90} tall />
+              <div className="space-y-1 flex-1">
+                <div className="grid grid-cols-[1fr_52px_80px] gap-2 text-[10px] font-semibold uppercase tracking-wide text-slate-400 pb-2 border-b border-slate-100">
+                  <span>{t('Тип')}</span>
+                  <span className="text-right">{t('Количество')}</span>
+                  <span>{t('Устройства')}</span>
                 </div>
-              ))
-            )}
-          </div>
-          <FooterLink label={t('Смотреть все объекты')} onClick={() => onNavigate('objects')} />
-        </div>
-
-        <div className={`${CARD} p-6 sm:p-8 flex flex-col items-center text-center min-h-[300px] ${dashboardStaggerClass(3, 2)}`}>
-          <div className="w-full max-w-[280px] space-y-3 mb-4">
-            <h2 className={`${TITLE} text-center`}>{t('Инвентаризация')}</h2>
-            {audits.length > 0 ? (
-              <select
-                value={selectedAudit?.id ?? ''}
-                onChange={(e) => handleAuditSelectionChange(e.target.value)}
-                className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 cursor-pointer"
-              >
-                {audits.map((audit) => (
-                  <option key={audit.id} value={audit.id}>
-                    {audit.title} ({audit.date})
-                  </option>
+                {networkSummary.map((row, i) => (
+                  <div
+                    key={row.type}
+                    className="dashboard-legend-item grid grid-cols-[1fr_52px_80px] gap-2 items-center py-2 border-b border-slate-50 last:border-0"
+                    style={{ animationDelay: `${300 + i * 100}ms` }}
+                  >
+                    <span className="text-[12px] text-slate-700 truncate">{t(row.type)}</span>
+                    <span className="text-[12px] font-bold text-slate-900 text-right tabular-nums">{row.count}</span>
+                    <AnimatedBar percent={Math.round((row.count / maxNetworkCount) * 100)} delay={350 + i * 100} />
+                  </div>
                 ))}
-              </select>
-            ) : (
-              <p className={`text-xs ${MUTED}`}>{t('Нет запланированных инвентаризаций')}</p>
-            )}
-            {selectedAudit && (
-              <div className="flex flex-col items-center gap-2">
-                <span
-                  className={`inline-flex items-center px-2.5 py-0.5 rounded-lg text-[10px] font-bold border ${auditStatusTone(selectedAudit.status)}`}
-                >
-                  {t(selectedAudit.status)}
-                </span>
-                {auditCard.objectLabel && (
-                  <p className="text-[10px] text-indigo-700 font-semibold bg-indigo-50 px-2 py-1 rounded-lg">
-                    {t('Объект')}: {auditCard.objectLabel}
-                  </p>
-                )}
               </div>
             )}
+            <FooterLink label={t('Перейти к сетевому оборудованию')} onClick={() => !editMode && onNavigate('network')} />
           </div>
-          <div className="flex flex-col items-center justify-center gap-5 sm:gap-6 flex-1 w-full">
-            <CircularProgress percent={inventoryProgress.percent} size="lg" />
-            <div className="space-y-2.5 text-sm text-slate-700 w-full max-w-[260px] text-left">
-              <p>
-                {t('Проверено')}:{' '}
-                <strong className="text-slate-900 tabular-nums text-base">
-                  {inventoryProgress.checked}/{inventoryProgress.total}
-                </strong>
-              </p>
-              <p>
-                {t('Осталось')}:{' '}
-                <strong className="text-slate-900 tabular-nums text-base">
-                  {inventoryProgress.remaining} {t('позиций')}
-                </strong>
-              </p>
-              <p>
-                {t('Объектов')}:{' '}
-                <strong className="text-slate-900 tabular-nums text-base">
-                  {inventoryProgress.objectsDone} {t('из')} {inventoryProgress.objectsTotal}
-                </strong>
-              </p>
+        );
+      case 'activities':
+        return (
+          <div className={`${CARD} p-5 flex flex-col ${dashboardStaggerClass(staggerIndex, 2)}`}>
+            <h2 className={`${TITLE} mb-4`}>{t('Последние действия')}</h2>
+            <div className="space-y-0 flex-1">
+              {recentActivities.length === 0 ? (
+                <p className={`text-xs ${MUTED}`}>{t('Журнал пуст')}</p>
+              ) : (
+                recentActivities.map((act, i) => {
+                  const { icon: Icon, box } = pickActivityStyle(act.action, act.detail);
+                  const actionLabel = translateActivityAction(act.action, t);
+                  const detailLabel = translateActivityDetail(act.detail, t);
+                  return (
+                    <div
+                      key={act.id}
+                      className="dashboard-legend-item flex gap-3 py-3 border-b border-slate-50 last:border-0"
+                      style={{ animationDelay: `${250 + i * 70}ms` }}
+                    >
+                      <span className={`p-2 rounded-xl h-fit shrink-0 ${box}`}>
+                        <Icon size={14} />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[12px] font-semibold text-slate-800 leading-snug">
+                          {actionLabel}
+                          {detailLabel ? `. ${detailLabel}` : ''}
+                        </p>
+                      </div>
+                      <span className={`text-[10px] ${MUTED} shrink-0 tabular-nums self-start pt-0.5`}>
+                        {formatDashboardActivityTime(act.timestamp, language, t)}
+                      </span>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+            <FooterLink label={t('Все действия')} onClick={() => !editMode && onNavigate('activity_log')} />
+          </div>
+        );
+      case 'by_object':
+        return (
+          <div className={`${CARD} p-5 flex flex-col ${dashboardStaggerClass(staggerIndex, 2)}`}>
+            <h2 className={`${TITLE} mb-4`}>{t('Оборудование по объектам')}</h2>
+            <div className="space-y-3 flex-1">
+              {byObject.length === 0 ? (
+                <p className={`text-xs ${MUTED}`}>{t('Нет данных')}</p>
+              ) : (
+                byObject.map((obj, i) => (
+                  <div key={obj.name} className="dashboard-legend-item" style={{ animationDelay: `${300 + i * 90}ms` }}>
+                    <div className="flex justify-between text-[12px] mb-1.5 gap-2">
+                      <span className="text-slate-700 truncate font-medium">{obj.name}</span>
+                      <span className="font-bold text-slate-900 shrink-0 tabular-nums">{obj.count}</span>
+                    </div>
+                    <AnimatedBar percent={Math.round((obj.count / maxObjectCount) * 100)} delay={400 + i * 90} tall />
+                  </div>
+                ))
+              )}
+            </div>
+            <FooterLink label={t('Смотреть все объекты')} onClick={() => !editMode && onNavigate('objects')} />
+          </div>
+        );
+      case 'inventory':
+        return (
+          <div className={`${CARD} p-6 sm:p-8 flex flex-col items-center text-center min-h-[300px] ${dashboardStaggerClass(staggerIndex, 2)}`}>
+            <div className="w-full max-w-[280px] space-y-3 mb-4">
+              <h2 className={`${TITLE} text-center`}>{t('Инвентаризация')}</h2>
+              {audits.length > 0 ? (
+                <select
+                  value={selectedAudit?.id ?? ''}
+                  onChange={(e) => handleAuditSelectionChange(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 cursor-pointer"
+                >
+                  {audits.map((audit) => (
+                    <option key={audit.id} value={audit.id}>
+                      {audit.title} ({audit.date})
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <p className={`text-xs ${MUTED}`}>{t('Нет запланированных инвентаризаций')}</p>
+              )}
               {selectedAudit && (
-                <div className="pt-2 mt-1 border-t border-slate-100 space-y-2 text-[11px]">
-                  <p>
-                    <span className="text-slate-500 font-semibold">{t('Кто проводит:')}</span>{' '}
-                    <span className="text-slate-800 font-medium">
-                      {auditCard.conductorUser || t('Не указан')}
-                    </span>
-                  </p>
-                  <p>
-                    <span className="text-slate-500 font-semibold">{t('Кто принимает:')}</span>{' '}
-                    <span className="text-slate-800 font-medium">
-                      {auditCard.controllerUser || t('Не указан')}
-                    </span>
-                  </p>
+                <div className="flex flex-col items-center gap-2">
+                  <span
+                    className={`inline-flex items-center px-2.5 py-0.5 rounded-lg text-[10px] font-bold border ${auditStatusTone(selectedAudit.status)}`}
+                  >
+                    {t(selectedAudit.status)}
+                  </span>
+                  {auditCard.objectLabel && (
+                    <p className="text-[10px] text-indigo-700 font-semibold bg-indigo-50 px-2 py-1 rounded-lg">
+                      {t('Объект')}: {auditCard.objectLabel}
+                    </p>
+                  )}
                 </div>
               )}
             </div>
+            <div className="flex flex-col items-center justify-center gap-5 sm:gap-6 flex-1 w-full">
+              <CircularProgress percent={inventoryProgress.percent} size="lg" />
+              <div className="space-y-2.5 text-sm text-slate-700 w-full max-w-[260px] text-left">
+                <p>
+                  {t('Проверено')}:{' '}
+                  <strong className="text-slate-900 tabular-nums text-base">
+                    {inventoryProgress.checked}/{inventoryProgress.total}
+                  </strong>
+                </p>
+                <p>
+                  {t('Осталось')}:{' '}
+                  <strong className="text-slate-900 tabular-nums text-base">
+                    {inventoryProgress.remaining} {t('позиций')}
+                  </strong>
+                </p>
+                <p>
+                  {t('Объектов')}:{' '}
+                  <strong className="text-slate-900 tabular-nums text-base">
+                    {inventoryProgress.objectsDone} {t('из')} {inventoryProgress.objectsTotal}
+                  </strong>
+                </p>
+                {selectedAudit && (
+                  <div className="pt-2 mt-1 border-t border-slate-100 space-y-2 text-[11px]">
+                    <p>
+                      <span className="text-slate-500 font-semibold">{t('Кто проводит:')}</span>{' '}
+                      <span className="text-slate-800 font-medium">{auditCard.conductorUser || t('Не указан')}</span>
+                    </p>
+                    <p>
+                      <span className="text-slate-500 font-semibold">{t('Кто принимает:')}</span>{' '}
+                      <span className="text-slate-800 font-medium">{auditCard.controllerUser || t('Не указан')}</span>
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="w-full flex justify-center mt-6">
+              <FooterLink label={t('Перейти к инвентаризации')} onClick={() => !editMode && onNavigate('inventory')} />
+            </div>
           </div>
-          <div className="w-full flex justify-center mt-6">
-            <FooterLink label={t('Перейти к инвентаризации')} onClick={() => onNavigate('inventory')} />
-          </div>
-        </div>
-      </div>
+        );
+      default:
+        return null;
+    }
+  };
 
-      <div className={`${CARD} p-5 dashboard-chart-glow ${dashboardStaggerClass(0, 8)}`}>
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-          <h2 className="font-bold text-[15px] text-slate-900">{t('Оборудование на складе')}</h2>
-          <button
-            type="button"
-            onClick={() => onNavigate('warehouse')}
-            className={`${LINK} text-sm self-start sm:self-auto`}
-          >
-            {t('Перейти на склад')} <ArrowRight size={14} />
-          </button>
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
-          {warehouseStrip.map((item, i) => (
-            <WarehouseCategoryCard
-              key={item.label}
-              label={item.label}
-              count={item.count}
-              price={item.price}
-              formatMoney={formatMoney}
-              icon={item.icon}
-              iconBox={item.iconBox}
-              iconColor={item.iconColor}
-              sparkColor={item.sparkColor}
-              staggerIndex={i}
-              chartsReady={chartsReady}
-              reduceMotion={reduceMotion}
-            />
-          ))}
-        </div>
-      </div>
+  return (
+    <div className="space-y-4 max-w-[1600px]">
+      <DashboardSections>
+        {(sectionId) => {
+          switch (sectionId) {
+            case 'stat_cards':
+              return (
+                <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-3" key={`stats-${layout.statCards.join('-')}`}>
+                  {layout.statCards.map((id, i) => (
+                    <React.Fragment key={id}>
+                      <DashboardDraggableWidget scope="stat" blockId={id} className="h-full">
+                        {renderStatCard(id, i)}
+                      </DashboardDraggableWidget>
+                    </React.Fragment>
+                  ))}
+                </div>
+              );
+            case 'analytics_row':
+              return (
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-4" key={`analytics-${layout.analytics.join('-')}`}>
+                  {layout.analytics.map((id, i) => (
+                    <React.Fragment key={id}>
+                      <DashboardDraggableWidget
+                        scope="analytics"
+                        blockId={id}
+                        className={`${analyticsWidgetColClass(id)} h-full`}
+                      >
+                        {renderAnalyticsWidget(id, i)}
+                      </DashboardDraggableWidget>
+                    </React.Fragment>
+                  ))}
+                </div>
+              );
+            case 'details_row':
+              return (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4" key={`details-${layout.detailCards.join('-')}`}>
+                  {layout.detailCards.map((id, i) => (
+                    <React.Fragment key={id}>
+                      <DashboardDraggableWidget scope="detail" blockId={id} className="h-full">
+                        {renderDetailCard(id, i)}
+                      </DashboardDraggableWidget>
+                    </React.Fragment>
+                  ))}
+                </div>
+              );
+            case 'warehouse_strip':
+              return (
+                <div className={`${CARD} p-5 dashboard-chart-glow ${dashboardStaggerClass(0, 8)}`}>
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+                    <h2 className="font-bold text-[15px] text-slate-900">{t('Оборудование на складе')}</h2>
+                    <button
+                      type="button"
+                      onClick={() => !editMode && onNavigate('warehouse')}
+                      className={`${LINK} text-sm self-start sm:self-auto`}
+                    >
+                      {t('Перейти на склад')} <ArrowRight size={14} />
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3" key={`warehouse-${layout.warehouseStrip.join('-')}`}>
+                    {layout.warehouseStrip.map((id, i) => {
+                      const item = warehouseStripById[id];
+                      return (
+                        <React.Fragment key={id}>
+                          <DashboardDraggableWidget scope="warehouse" blockId={id} className="h-full">
+                            <WarehouseCategoryCard
+                              label={item.label}
+                              count={item.count}
+                              price={item.price}
+                              formatMoney={formatMoney}
+                              icon={item.icon}
+                              iconBox={item.iconBox}
+                              iconColor={item.iconColor}
+                              sparkColor={item.sparkColor}
+                              staggerIndex={i}
+                              chartsReady={chartsReady}
+                              reduceMotion={reduceMotion}
+                            />
+                          </DashboardDraggableWidget>
+                        </React.Fragment>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            default:
+              return null;
+          }
+        }}
+      </DashboardSections>
 
       <footer className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pt-1 pb-2 text-[11px] text-slate-400">
         <span>

@@ -35,7 +35,6 @@ import {
 import { isStockRegistryDuplicateOfWarehouseBatch, getNetworkDeviceDisplayStatus, DEFAULT_WAREHOUSE_NAME } from '../utils/warehouseRouting';
 import {
   getSoftwareWarehouseInv,
-  isSoftwareStoredOnWarehouse,
   warehouseItemLinksSoftware,
 } from '../utils/equipmentDelete';
 import { prepareEquipmentPhoto } from '../utils/imageUtils';
@@ -140,6 +139,30 @@ interface WarehouseViewProps {
   ) => WarehouseExcelImportResult;
   /** false в пробном периоде без ключа активации */
   allowWarehouseExcel?: boolean;
+}
+
+export const WAREHOUSE_RECEIPT_GROUP_OPTIONS: WarehouseItemType[] = [
+  'Компьютеры',
+  'Сетевое оборудование',
+  'Периферия',
+  'Оргтехника',
+  'Видеонаблюдение',
+  'Расходные материалы',
+  'Другое',
+];
+
+export const WAREHOUSE_CATEGORY_FILTER_TABS = [
+  'Все',
+  ...WAREHOUSE_RECEIPT_GROUP_OPTIONS,
+] as const;
+
+export function getReceiptGroupSelectOptions(
+  currentType?: WarehouseItemType
+): WarehouseItemType[] {
+  if (currentType === 'Лицензии ПО') {
+    return [...WAREHOUSE_RECEIPT_GROUP_OPTIONS, 'Лицензии ПО'];
+  }
+  return WAREHOUSE_RECEIPT_GROUP_OPTIONS;
 }
 
 export const getDeviceTypesForReceiptGroup = (group: WarehouseItemType): string[] => {
@@ -1199,6 +1222,10 @@ export default function WarehouseView({
       customSpecs: buildCustomSpecsPayload(),
     };
 
+    if (!editingWarehouseId && type === 'Лицензии ПО') {
+      return;
+    }
+
     const success = editingWarehouseId
       ? onEdit?.(editingWarehouseId, { ...payload, quantity })
       : onReceipt({
@@ -1258,9 +1285,15 @@ export default function WarehouseView({
     }
   };
 
-  // 1. Standard Warehouse Stock items
+  // 1. Standard Warehouse Stock items (ПО ведётся только в реестре ПО)
   const whUnified = warehouseItems
-    .filter((item) => item.quantity > 0 && item.status !== 'Списано' && item.status !== 'На списание')
+    .filter(
+      (item) =>
+        item.type !== 'Лицензии ПО' &&
+        item.quantity > 0 &&
+        item.status !== 'Списано' &&
+        item.status !== 'На списание'
+    )
     .map(item => ({
     id: item.id,
     name: item.name,
@@ -1375,37 +1408,8 @@ export default function WarehouseView({
       };
     });
 
-  // 4. Active Software Licenses / keys (hide stock already shown in whUnified)
-  const softUnified = (softwareItems || [])
-    .filter(
-      (s) =>
-        s.status !== 'На списание' &&
-        s.status !== 'Списано' &&
-        !(s.status === 'Не активирована' && isSoftwareStoredOnWarehouse(s, warehouseItems || []))
-    )
-    .map(s => {
-    const linkedWhName = warehouses.find(w => w.objectName === s.objectName)?.name || 'Основной склад ИТ';
-    return {
-      id: s.id,
-      name: s.name,
-      type: 'Лицензии ПО' as const,
-      model: `${s.developer || ''} (v${s.version || ''})`,
-      inventoryNumber: s.licenseKey || getSoftwareWarehouseInv(s.id),
-      quantity: s.quantity || 1,
-      unit: 'шт.',
-      costPerUnit: s.cost || 0,
-      status: s.status === 'Активна' ? 'В работе' : s.status === 'Не активирована' ? 'На складе' : s.status,
-      location: s.objectName || 'Главный офис',
-      employeeName: s.assignedEmployeeName || '—',
-      itemSource: 'software' as const,
-      warehouseName: linkedWhName,
-      serialNumbers: [] as string[],
-      receiptDate: undefined as string | undefined,
-    };
-  });
-
-  // Combine lists of overall company-wide TMZ assets
-  const totalUnifiedList = [...whUnified, ...stockCompsUnified, ...compsUnified, ...netUnified, ...softUnified];
+  // Combine lists of overall company-wide TMZ assets (без ПО — учёт в разделе «Программное обеспечение»)
+  const totalUnifiedList = [...whUnified, ...stockCompsUnified, ...compsUnified, ...netUnified];
 
   // Apply filters on the unified assets list
   const filtered = totalUnifiedList.filter(item => {
@@ -1425,11 +1429,7 @@ export default function WarehouseView({
         const n = networkDevices.find((x) => x.id === item.id);
         return n ? networkDeviceMatchesSearch(n, search) : false;
       }
-      return (
-        item.name.toLowerCase().includes(searchLower) ||
-        item.model.toLowerCase().includes(searchLower) ||
-        matchesInventorySearch(item.inventoryNumber, search)
-      );
+      return false;
     })();
     
     // Category match
@@ -1448,14 +1448,12 @@ export default function WarehouseView({
     if (placementFilter === 'stock') {
       matchesPlacement =
         item.itemSource === 'warehouse' ||
-        (item.itemSource === 'software' && item.status === 'На складе') ||
         (item.itemSource === 'computer' && item.status === 'На складе') ||
         (item.itemSource === 'network' && item.status === 'На складе');
     } else if (placementFilter === 'issued') {
       matchesPlacement =
         (item.itemSource === 'computer' && item.status !== 'На складе') ||
-        (item.itemSource === 'network' && item.status !== 'На складе') ||
-        (item.itemSource === 'software' && item.status === 'В работе');
+        (item.itemSource === 'network' && item.status !== 'На складе');
     }
 
     return matchesSearch && matchesTab && matchesWarehouse && matchesPlacement;
@@ -1900,7 +1898,7 @@ export default function WarehouseView({
                     : 'text-slate-500 hover:bg-slate-50/50 hover:text-slate-800'
                 }`}
               >
-                {t("На складе")} ({whUnified.length + stockCompsUnified.length + softUnified.filter(s => s.status === 'На складе').length})
+                {t("На складе")} ({whUnified.length + stockCompsUnified.length})
               </button>
               <button
                 type="button"
@@ -1911,13 +1909,13 @@ export default function WarehouseView({
                     : 'text-slate-500 hover:bg-slate-50/50 hover:text-slate-800'
                 }`}
               >
-                {t("В работе")} ({compsUnified.length + netUnified.length + softUnified.filter(s => s.status === 'В работе').length})
+                {t("В работе")} ({compsUnified.length + netUnified.length})
               </button>
             </div>
 
             {/* Dynamic Category Filter bar matching the dashboard layout */}
             <div className="flex flex-wrap gap-1 border-t border-slate-50 pt-3 overflow-x-auto scrollbar-none">
-              {(['Все', 'Компьютеры', 'Сетевое оборудование', 'Периферия', 'Оргтехника', 'Видеонаблюдение', 'Расходные материалы', 'Лицензии ПО', 'Другое'] as const).map((tab) => (
+              {WAREHOUSE_CATEGORY_FILTER_TABS.map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
@@ -2143,11 +2141,7 @@ export default function WarehouseView({
                                 <button
                                   onClick={() =>
                                     handleMarkForWriteOffClick(
-                                      item.itemSource === 'network'
-                                        ? 'network'
-                                        : item.itemSource === 'software'
-                                          ? 'software'
-                                          : 'computer',
+                                      item.itemSource === 'network' ? 'network' : 'computer',
                                       item.id
                                     )
                                   }
@@ -2632,14 +2626,11 @@ export default function WarehouseView({
                     }}
                     className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-700 font-semibold"
                   >
-                    <option value="Компьютеры">{t("Компьютеры")}</option>
-                    <option value="Сетевое оборудование">{t("Сетевое оборудование")}</option>
-                    <option value="Периферия">{t("Периферия")}</option>
-                    <option value="Оргтехника">{t("Оргтехника")}</option>
-                    <option value="Видеонаблюдение">{t("Видеонаблюдение")}</option>
-                    <option value="Расходные материалы">{t("Расходные материалы")}</option>
-                    <option value="Лицензии ПО">{t("Лицензии ПО")}</option>
-                    <option value="Другое">{t("Другое")}</option>
+                    {getReceiptGroupSelectOptions(editingWarehouseId ? type : undefined).map((group) => (
+                      <option key={group} value={group}>
+                        {t(group)}
+                      </option>
+                    ))}
                   </select>
                 </div>
 

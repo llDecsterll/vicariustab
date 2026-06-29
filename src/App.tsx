@@ -128,6 +128,19 @@ import {
   warehouseItemLinksSoftware,
   type EquipmentDeleteSource,
 } from './utils/equipmentDelete';
+import {
+  applySoftwareSeatPatch,
+  buildLicenseSeatsFromForm,
+  countAssignedLicenseSeats,
+  countFreeLicenseSeats,
+  CORPORATE_LICENSE_EMPLOYEE,
+  deriveSoftwareAssignmentSummary,
+  ensureLicenseSeats,
+  findFirstAssignedSeatIndex,
+  FREE_LICENSE_EMPLOYEE,
+  isLicenseSeatAssigned,
+  unassignLicenseSeat,
+} from './utils/softwareLicenseUtils';
 
 export default function App() {
   const { t } = useTranslation();
@@ -2249,10 +2262,14 @@ export default function App() {
   // Software CRUD
   const handleAddSoftware = (soft: Omit<SoftwareItem, 'id'>): boolean | void => {
     if (checkLicenseBlocked()) return false;
-    const inv = soft.licenseKey || getSoftwareWarehouseInv(`tmp-${Date.now()}`); // fallback to check if custom exists
-    if (soft.licenseKey && checkInventoryExists(soft.licenseKey)) {
-      alert(interpolate(t('ПО с ключом/инвентарным номером {key} уже существует!'), { key: soft.licenseKey }));
-      return false;
+    const keysToCheck =
+      soft.licenseKeys?.filter((k) => k.trim() && k.trim() !== t('Без ключа')) ??
+      (soft.licenseKey && soft.licenseKey !== t('Без ключа') ? [soft.licenseKey] : []);
+    for (const key of keysToCheck) {
+      if (checkInventoryExists(key)) {
+        alert(interpolate(t('ПО с ключом/инвентарным номером {key} уже существует!'), { key }));
+        return false;
+      }
     }
     const newSoft: SoftwareItem = {
       ...soft,
@@ -2265,75 +2282,55 @@ export default function App() {
 
   const handleEditSoftware = (id: string, soft: Omit<SoftwareItem, 'id'>): boolean | void => {
     if (checkLicenseBlocked()) return false;
-    if (soft.licenseKey && checkInventoryExists(soft.licenseKey, id)) {
-      alert(interpolate(t('ПО с ключом/инвентарным номером {key} уже существует!'), { key: soft.licenseKey }));
-      return false;
+    const keysToCheck =
+      soft.licenseKeys?.filter((k) => k.trim() && k.trim() !== t('Без ключа')) ??
+      (soft.licenseKey && soft.licenseKey !== t('Без ключа') ? [soft.licenseKey] : []);
+    for (const key of keysToCheck) {
+      if (checkInventoryExists(key, id)) {
+        alert(interpolate(t('ПО с ключом/инвентарным номером {key} уже существует!'), { key }));
+        return false;
+      }
     }
     setSoftwareItems(prev => prev.map(s => s.id === id ? { ...s, ...soft } : s));
     logActivity('Изменено ПО', `Параметры ПО "${soft.name}" обновлены`, 'update');
     return true;
   };
 
-  const handleReturnSoftwareToWarehouse = (id: string, targetWarehouseName?: string) => {
+  const handleUnassignSoftwareSeat = (id: string, seatIndex: number) => {
+    if (checkLicenseBlocked()) return;
+    const soft = softwareItems.find((s) => s.id === id);
+    if (!soft) return;
+    const seats = ensureLicenseSeats(soft);
+    if (!isLicenseSeatAssigned(seats.find((s) => s.seatIndex === seatIndex) ?? { seatIndex, assignedEmployeeName: FREE_LICENSE_EMPLOYEE })) {
+      return;
+    }
+    const nextSeats = unassignLicenseSeat(seats, seatIndex);
+    const updated = applySoftwareSeatPatch(soft, nextSeats);
+    setSoftwareItems((prev) => prev.map((s) => (s.id === id ? updated : s)));
+    logActivity(
+      'Снято с выдачи',
+      `ПО «${soft.name}»: место ${seatIndex + 1} откреплено (${countFreeLicenseSeats(nextSeats)} из ${nextSeats.length} свободно)`,
+      'update'
+    );
+  };
+
+  const handleReturnSoftwareToWarehouse = (id: string, _targetWarehouseName?: string) => {
     if (checkLicenseBlocked()) return;
     const soft = softwareItems.find((s) => s.id === id);
     if (!soft || soft.status === 'Не активирована' || isWrittenOffLifecycleStatus(soft.status)) return;
 
-    const targetWhName = targetWarehouseName || warehouses[0]?.name || 'Основной склад ИТ';
-    const defaultObjectName =
-      warehouses.find((w) => w.name === targetWhName)?.objectName || objects[0]?.name || 'Главный офис';
-    const inv = getSoftwareWarehouseInv(soft.id);
-    const returnQty = 1;
-    const currentQty = soft.quantity || 1;
+    const seats = ensureLicenseSeats(soft);
+    const seatIndex = findFirstAssignedSeatIndex(seats);
+    if (seatIndex == null) return;
 
-    setSoftwareItems((prev) =>
-      prev.map((s) => {
-        if (s.id !== id) return s;
-        if (currentQty > returnQty && s.status === 'Активна') {
-          return { ...s, quantity: currentQty - returnQty };
-        }
-        return {
-          ...s,
-          status: 'Не активирована',
-          assignedEmployeeName: 'Свободная лицензия',
-          assignedDeviceId: undefined,
-          objectName: defaultObjectName,
-        };
-      })
-    );
+    const nextSeats = unassignLicenseSeat(seats, seatIndex);
+    const updated = applySoftwareSeatPatch(soft, nextSeats);
 
-    setWarehouseItems((prev) => {
-      const existing = prev.find(
-        (w) =>
-          w.type === 'Лицензии ПО' &&
-          warehouseItemLinksSoftware(w, soft) &&
-          (w.warehouseName || 'Основной склад ИТ') === targetWhName
-      );
-      if (existing) {
-        return prev.map((w) =>
-          w.id === existing.id ? { ...w, quantity: w.quantity + returnQty, status: 'В наличии' as const } : w
-        );
-      }
-      return [
-        ...prev,
-        {
-          id: `wh-sw-${Date.now()}`,
-          name: soft.name,
-          type: 'Лицензии ПО' as const,
-          model: soft.version || soft.name,
-          inventoryNumber: inv,
-          quantity: returnQty,
-          unit: 'шт.',
-          costPerUnit: soft.cost || 0,
-          status: 'В наличии' as const,
-          warehouseName: targetWhName,
-        },
-      ];
-    });
+    setSoftwareItems((prev) => prev.map((s) => (s.id === id ? updated : s)));
 
     logActivity(
-      'Возврат на склад',
-      `ПО «${soft.name}» (${returnQty} шт.) возвращено на склад «${targetWhName}»`,
+      'Снято с выдачи',
+      `ПО «${soft.name}»: место ${seatIndex + 1} возвращено в свободный пул (${countFreeLicenseSeats(nextSeats)} из ${nextSeats.length} свободно)`,
       'update'
     );
   };
@@ -2584,6 +2581,13 @@ export default function App() {
     caseModel?: string;
   }): boolean | void => {
     if (checkLicenseBlocked()) return false;
+
+    if (item.type === 'Лицензии ПО') {
+      alert(
+        t('Программное обеспечение добавляется в разделе «Программное обеспечение», не через склад.')
+      );
+      return false;
+    }
 
     const normalizedItem = {
       ...item,
@@ -3910,6 +3914,7 @@ export default function App() {
             employees={employees}
             warehouseItems={warehouseItems}
             warehouses={warehouses}
+            softwareItems={softwareItems}
             activities={activities}
             audits={audits}
             onNavigate={(id) => setActiveTab(id)}
@@ -4223,7 +4228,7 @@ export default function App() {
       case 'software':
         return (
           <SoftwareView
-            softwareItems={filterSoftwareForEquipmentView(softwareItems, warehouseItems)}
+            softwareItems={filterSoftwareForEquipmentView(softwareItems)}
             allSoftwareItems={softwareItems}
             employees={employees}
             objects={objects}
@@ -4231,10 +4236,9 @@ export default function App() {
             onAdd={handleAddSoftware}
             onEdit={handleEditSoftware}
             onMarkForWriteOff={(id) => handleMarkForWriteOff('software', id)}
-            onReturnToWarehouse={(id) => requestReturnEquipment('software', id)}
+            onUnassignSeat={handleUnassignSoftwareSeat}
             currentUser={currentUser}
             warehouses={warehouses}
-            allowCreate={false}
           />
         );
       default:

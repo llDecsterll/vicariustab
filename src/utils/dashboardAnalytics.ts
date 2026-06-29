@@ -7,6 +7,7 @@ import type {
   NetworkDevice,
   NetworkDeviceType,
   ObjectItem,
+  SoftwareItem,
   WarehouseItem,
 } from '../types';
 import {
@@ -455,9 +456,108 @@ export interface DashboardAlert {
   tab: string;
 }
 
+export interface SoftwareLicenseDashboardRow {
+  id: string;
+  name: string;
+  quantity: number;
+  purchaseDate?: string;
+  expirationDate?: string;
+  costRub: number;
+  status: SoftwareItem['status'];
+  daysUntilExpiry: number | null;
+}
+
+export interface SoftwareLicenseDashboardSummary {
+  rows: SoftwareLicenseDashboardRow[];
+  totalSeats: number;
+  totalCostRub: number;
+  expiringSoon: number;
+  expired: number;
+  recentPurchases: { monthKey: string; monthLabel: string; seats: number; costRub: number }[];
+}
+
+function parseDateOnly(iso?: string): Date | null {
+  if (!iso?.trim()) return null;
+  const d = new Date(iso.includes('T') ? iso : `${iso}T12:00:00`);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function daysUntil(date: Date, today: Date): number {
+  return Math.ceil((date.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+export function buildSoftwareLicenseDashboard(
+  softwareItems: SoftwareItem[],
+  dateLocale = 'ru-RU'
+): SoftwareLicenseDashboardSummary {
+  const today = new Date();
+  today.setHours(12, 0, 0, 0);
+
+  const active = softwareItems.filter(
+    (s) => s.status !== 'Списано' && s.status !== 'На списание'
+  );
+
+  const rows: SoftwareLicenseDashboardRow[] = active
+    .map((s) => {
+      const expiry = parseDateOnly(s.expirationDate);
+      const days = expiry ? daysUntil(expiry, today) : null;
+      return {
+        id: s.id,
+        name: s.name,
+        quantity: s.quantity || 1,
+        purchaseDate: s.purchaseDate,
+        expirationDate: s.expirationDate,
+        costRub: (s.quantity || 1) * (s.cost || 0),
+        status: s.status,
+        daysUntilExpiry: days,
+      };
+    })
+    .sort((a, b) => {
+      if (a.daysUntilExpiry == null && b.daysUntilExpiry == null) return a.name.localeCompare(b.name, 'ru');
+      if (a.daysUntilExpiry == null) return 1;
+      if (b.daysUntilExpiry == null) return -1;
+      return a.daysUntilExpiry - b.daysUntilExpiry;
+    });
+
+  const totalSeats = rows.reduce((sum, r) => sum + r.quantity, 0);
+  const totalCostRub = rows.reduce((sum, r) => sum + r.costRub, 0);
+  const expiringSoon = rows.filter(
+    (r) => r.daysUntilExpiry != null && r.daysUntilExpiry > 0 && r.daysUntilExpiry <= 30
+  ).length;
+  const expired = rows.filter((r) => r.daysUntilExpiry != null && r.daysUntilExpiry <= 0).length;
+
+  const purchaseMap = new Map<string, { seats: number; costRub: number; sortKey: string }>();
+  for (const s of active) {
+    const purchase = parseDateOnly(s.purchaseDate);
+    if (!purchase) continue;
+    const monthKey = `${purchase.getFullYear()}-${String(purchase.getMonth() + 1).padStart(2, '0')}`;
+    const prev = purchaseMap.get(monthKey) ?? { seats: 0, costRub: 0, sortKey: monthKey };
+    prev.seats += s.quantity || 1;
+    prev.costRub += (s.quantity || 1) * (s.cost || 0);
+    purchaseMap.set(monthKey, prev);
+  }
+
+  const recentPurchases = [...purchaseMap.entries()]
+    .sort((a, b) => b[0].localeCompare(a[0]))
+    .slice(0, 6)
+    .map(([monthKey, data]) => {
+      const [y, m] = monthKey.split('-').map(Number);
+      const labelDate = new Date(y, m - 1, 1);
+      return {
+        monthKey,
+        monthLabel: labelDate.toLocaleDateString(dateLocale, { month: 'long', year: 'numeric' }),
+        seats: data.seats,
+        costRub: data.costRub,
+      };
+    });
+
+  return { rows, totalSeats, totalCostRub, expiringSoon, expired, recentPurchases };
+}
+
 export function buildDashboardAlerts(params: {
   computers: ComputerItem[];
   audits: InventoryAudit[];
+  softwareItems?: SoftwareItem[];
 }): DashboardAlert[] {
   const alerts: DashboardAlert[] = [];
 
@@ -510,6 +610,39 @@ export function buildDashboardAlerts(params: {
         subtitle: audit.objectName || audit.responsibleUser,
         badge: 'В процессе',
         tab: 'inventory',
+      });
+    }
+  }
+
+  const today = new Date();
+  today.setHours(12, 0, 0, 0);
+  for (const soft of params.softwareItems ?? []) {
+    if (soft.status === 'Списано' || soft.status === 'На списание' || !soft.expirationDate) continue;
+    const expiry = parseDateOnly(soft.expirationDate);
+    if (!expiry) continue;
+    const days = daysUntil(expiry, today);
+    if (days > 0 && days <= 30) {
+      alerts.push({
+        id: `sw-${soft.id}`,
+        tone: days <= 14 ? 'danger' : 'warning',
+        title:
+          days <= 14
+            ? `Лицензия истекает через ${days} дн.`
+            : `Скоро истекает лицензия: ${soft.name}`,
+        subtitle: soft.name,
+        detail: `${soft.quantity || 1} мест · куплено ${soft.purchaseDate || '—'}`,
+        badge: expiry.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' }),
+        tab: 'software',
+      });
+    } else if (days <= 0) {
+      alerts.push({
+        id: `sw-exp-${soft.id}`,
+        tone: 'danger',
+        title: `Истекла лицензия: ${soft.name}`,
+        subtitle: `${soft.quantity || 1} мест`,
+        detail: soft.purchaseDate ? `Куплено: ${soft.purchaseDate}` : undefined,
+        badge: expiry.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' }),
+        tab: 'software',
       });
     }
   }

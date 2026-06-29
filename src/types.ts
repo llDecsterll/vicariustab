@@ -239,11 +239,23 @@ export interface SystemUser {
 
 export type SoftwareCategory = 'Системное ПО' | 'Операционные системы (ОС)' | 'Утилиты и антивирусы' | 'Офисные приложения' | 'Графические редакторы' | 'Корпоративные системы' | 'Иное ПО';
 
+export interface SoftwareLicenseSeat {
+  seatIndex: number;
+  licenseKey?: string;
+  assignedEmployeeName?: string;
+  assignedDeviceId?: string;
+  objectName?: string;
+}
+
 export interface SoftwareItem {
   id: string;
   name: string;
   category: SoftwareCategory;
   licenseKey: string;
+  /** Отдельный ключ на каждое место при quantity > 1 */
+  licenseKeys?: string[];
+  /** Поштучная выдача: quantity = licenseSeats.length */
+  licenseSeats?: SoftwareLicenseSeat[];
   version: string;
   developer: string;
   quantity: number;

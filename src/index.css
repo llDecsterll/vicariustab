@@ -372,13 +372,18 @@ body {
   }
 }
 
+.dashboard-edit-banner {
+  animation: dashboard-rise 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .dashboard-rise,
   .dashboard-bar,
   .dashboard-legend-item,
   .dashboard-icon-pop,
   .dashboard-spark-reveal,
-  .dashboard-chart-glow::after {
+  .dashboard-chart-glow::after,
+  .dashboard-edit-banner {
     animation: none !important;
     opacity: 1;
     transform: none;

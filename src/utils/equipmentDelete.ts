@@ -259,15 +259,9 @@ export function isSoftwareStoredOnWarehouse(
   );
 }
 
-export function filterSoftwareForEquipmentView(
-  softwareItems: SoftwareItem[],
-  warehouseItems: WarehouseItem[]
-): SoftwareItem[] {
+export function filterSoftwareForEquipmentView(softwareItems: SoftwareItem[]): SoftwareItem[] {
   return softwareItems.filter(
-    (s) =>
-      s.status !== 'На списание' &&
-      s.status !== 'Списано' &&
-      !(s.status === 'Не активирована' && isSoftwareStoredOnWarehouse(s, warehouseItems))
+    (s) => s.status !== 'На списание' && s.status !== 'Списано'
   );
 }
 
