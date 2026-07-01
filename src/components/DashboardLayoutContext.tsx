@@ -11,6 +11,7 @@ import {
   getWidgetCatalogGroups,
   hasOverlappingGridItems,
   loadDashboardLayout,
+  packDashboardLayout,
   sanitizeLayoutItems,
   saveDashboardLayout,
   type DashboardLayoutState,
@@ -22,8 +23,10 @@ interface DashboardLayoutContextValue {
   layout: DashboardLayoutState;
   gridItems: GridLayout;
   editMode: boolean;
+  selectedWidgetId: string | null;
   availableWidgets: DashboardWidgetId[];
   setEditMode: (value: boolean) => void;
+  setSelectedWidgetId: (widgetId: string | null) => void;
   resetLayout: () => void;
   updateGridLayout: (items: GridLayout) => void;
   removeWidget: (widgetId: string) => void;
@@ -72,7 +75,7 @@ function DashboardHeaderEditPortal() {
 
 function DashboardEditBanner() {
   const { t } = useTranslation();
-  const { setEditMode, resetLayout, availableWidgets, addWidget } = useDashboardLayout();
+  const { setEditMode, resetLayout, availableWidgets, addWidget, selectedWidgetId } = useDashboardLayout();
   const [pickerOpen, setPickerOpen] = useState(false);
 
   const catalog = getWidgetCatalogGroups()
@@ -93,9 +96,14 @@ function DashboardEditBanner() {
             </p>
             <p className="text-[11px] text-blue-800/80 mt-1 leading-relaxed">
               {t(
-                'Перетаскивайте и меняйте размер виджетов. Удаляйте кнопкой ×, добавляйте из каталога. Содержимое подстраивается под размер.'
+                'Нажмите виджет для выделения. Перетаскивайте и меняйте размер. Удаляйте кнопкой ×, добавляйте из каталога.'
               )}
             </p>
+            {selectedWidgetId ? (
+              <p className="text-[11px] font-semibold text-blue-900 mt-1.5">
+                {t('Выбран')}: {t(dashboardWidgetLabelKey(selectedWidgetId))}
+              </p>
+            ) : null}
           </div>
           <div className="flex flex-wrap items-center gap-2 shrink-0">
             <button
@@ -162,14 +170,17 @@ function DashboardEditBanner() {
 export function DashboardLayoutProvider({ children }: { children: React.ReactNode }) {
   const [layout, setLayout] = useState<DashboardLayoutState>(loadDashboardLayout);
   const [editMode, setEditModeRaw] = useState(false);
+  const [selectedWidgetId, setSelectedWidgetId] = useState<string | null>(null);
 
   const setEditMode = useCallback((value: boolean) => {
     if (value) {
       setLayout((prev) =>
         hasOverlappingGridItems(prev.items)
-          ? { version: 6, items: buildDefaultGridLayout() }
+          ? { version: 10, items: buildDefaultGridLayout() }
           : prev
       );
+    } else {
+      setSelectedWidgetId(null);
     }
     setEditModeRaw(value);
   }, []);
@@ -179,12 +190,14 @@ export function DashboardLayoutProvider({ children }: { children: React.ReactNod
   }, [layout]);
 
   const updateGridLayout = useCallback((items: GridLayout) => {
-    setLayout({ version: 6, items: sanitizeLayoutItems(items) });
+    const sanitized = sanitizeLayoutItems(items);
+    const packed = packDashboardLayout(sanitized);
+    setLayout({ version: 10, items: hasOverlappingGridItems(packed) ? sanitized : packed });
   }, []);
 
   const resetLayout = useCallback(() => {
     setLayout({
-      version: 6,
+      version: 10,
       items: buildDefaultGridLayout().map((item) => ({ ...item })),
     });
   }, []);
@@ -195,8 +208,9 @@ export function DashboardLayoutProvider({ children }: { children: React.ReactNod
       if (next.length === 0) {
         return prev;
       }
-      return { version: 6, items: next };
+      return { version: 10, items: next };
     });
+    setSelectedWidgetId((prev) => (prev === widgetId ? null : prev));
   }, []);
 
   const addWidget = useCallback((widgetId: DashboardWidgetId) => {
@@ -205,7 +219,7 @@ export function DashboardLayoutProvider({ children }: { children: React.ReactNod
         return prev;
       }
       const placement = findPlacementForWidget(prev.items, widgetId);
-      return { version: 6, items: [...prev.items, placement] };
+      return { version: 10, items: [...prev.items, placement] };
     });
   }, []);
 
@@ -219,8 +233,10 @@ export function DashboardLayoutProvider({ children }: { children: React.ReactNod
       layout,
       gridItems: layout.items,
       editMode,
+      selectedWidgetId,
       availableWidgets,
       setEditMode,
+      setSelectedWidgetId,
       resetLayout,
       updateGridLayout,
       removeWidget,
@@ -229,6 +245,7 @@ export function DashboardLayoutProvider({ children }: { children: React.ReactNod
     [
       layout,
       editMode,
+      selectedWidgetId,
       availableWidgets,
       setEditMode,
       resetLayout,

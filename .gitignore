@@ -3,6 +3,7 @@ node_modules/
 build/
 dist/
 coverage/
+.cursor/
 .DS_Store
 Thumbs.db
 desktop.ini
@@ -18,7 +19,8 @@ data/
 *.backup.json
 db.json.backup
 db.json.before-fresh-*.bak
-db_config.json.before-fresh-*.bak
+sessions_store.enc.before-fresh-*.bak
+store_meta.json.before-fresh-*.bak
 sessions_store.enc.corrupt-*
 .screenshot-data/
 # i18n / translation dev dumps (not part of the app)

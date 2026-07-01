@@ -657,7 +657,7 @@ export default function Header({
                     <Network size={15} className="text-[#84cc16]" />
                     <div>
                       <div className="font-medium text-slate-800">{net.deviceName}</div>
-                      <div className="text-xs text-slate-400">Сетевое • IP: {net.ipAddress} • {net.type}</div>
+                      <div className="text-xs text-slate-400">{t('Сетевое')} • IP: {net.ipAddress} • {t(net.type)}</div>
                     </div>
                   </button>
                 ))}
@@ -703,7 +703,7 @@ export default function Header({
                     <Building2 size={15} className="text-indigo-500" />
                     <div>
                       <span className="font-medium text-slate-800 block">{obj.name}</span>
-                      <span className="text-xs text-slate-400 block">Локация • {obj.address}</span>
+                      <span className="text-xs text-slate-400 block">{t('Локация •')} {obj.address}</span>
                     </div>
                   </button>
                 ))}

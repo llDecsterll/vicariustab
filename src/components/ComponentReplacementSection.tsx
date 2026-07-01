@@ -186,7 +186,7 @@ export default function ComponentReplacementSection({
                   <span className="font-bold text-emerald-700 font-mono">{comp.newDetails}</span>
                 </div>
                 {comp.reason && (
-                  <div className="text-[9.5px] text-slate-400 italic mt-0.5">Причина: {comp.reason}</div>
+                  <div className="text-[9.5px] text-slate-400 italic mt-0.5">{t('Причина:')} {comp.reason}</div>
                 )}
               </div>
               {!isViewer && (

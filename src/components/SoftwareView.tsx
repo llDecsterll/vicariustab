@@ -93,7 +93,7 @@ export default function SoftwareView({
     { seatIndex: 0, assignedEmployeeName: FREE_LICENSE_EMPLOYEE },
   ]);
   const [objectName, setObjectName] = useState('Головной офис');
-  const [status, setStatus] = useState<'Активна' | 'Истекла' | 'Не активирована'>('Активна');
+  const [status, setStatus] = useState<SoftwareItem['status']>('Активна');
   const [purchaseDate, setPurchaseDate] = useState('');
   const [expirationDate, setExpirationDate] = useState('');
   const [notes, setNotes] = useState('');
@@ -563,8 +563,8 @@ export default function SoftwareView({
                       <td className="py-3.5 px-4 text-xs font-mono text-slate-500">
                         {item.expirationDate ? (
                           <div className="space-y-0.5">
-                            <div>До {item.expirationDate}</div>
-                            {item.purchaseDate && <div className="text-[10px] text-slate-400">Куплено: {item.purchaseDate}</div>}
+                            <div>{t('До')} {item.expirationDate}</div>
+                            {item.purchaseDate && <div className="text-[10px] text-slate-400">{t('Куплено:')} {item.purchaseDate}</div>}
                           </div>
                         ) : (
                           <span className="text-slate-450 italic">{t("Бессрочная")}</span>

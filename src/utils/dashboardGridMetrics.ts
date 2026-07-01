@@ -18,15 +18,14 @@ export interface GridMetrics {
 export type ResizeHandle = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw';
 
 function resolveRowHeight(containerWidth: number): number {
+  if (containerWidth < 400) return 32;
   if (containerWidth < 480) return 34;
   if (containerWidth < 768) return 36;
   if (containerWidth < 1200) return 38;
   return DASHBOARD_ROW_HEIGHT;
 }
 
-function resolveMargin(containerWidth: number): [number, number] {
-  if (containerWidth < 640) return [6, 6];
-  if (containerWidth < 1024) return [7, 7];
+function resolveMargin(_containerWidth: number): [number, number] {
   return DASHBOARD_GRID_MARGIN;
 }
 

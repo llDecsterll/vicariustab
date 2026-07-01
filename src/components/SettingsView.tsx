@@ -2082,9 +2082,9 @@ export default function SettingsView({
                       <div>{t("Владелец лицензии:")}<strong className="font-bold text-slate-900">{licenseStatus.clientName}</strong></div>
                       {(licenseStatus.clientEmail || licenseStatus.clientPhone) && (
                         <div className="text-slate-650 font-medium">
-                          {licenseStatus.clientEmail && <span>Почта: {licenseStatus.clientEmail}</span>}
+                          {licenseStatus.clientEmail && <span>{t('Почта:')} {licenseStatus.clientEmail}</span>}
                           {licenseStatus.clientEmail && licenseStatus.clientPhone && <span className="mx-1.5 text-slate-400">|</span>}
-                          {licenseStatus.clientPhone && <span>Телефон: {licenseStatus.clientPhone}</span>}
+                          {licenseStatus.clientPhone && <span>{t('Телефон:')} {licenseStatus.clientPhone}</span>}
                         </div>
                       )}
                     </div>

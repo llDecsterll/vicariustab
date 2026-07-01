@@ -3079,6 +3079,66 @@ const dictionary: Record<string, Record<Language, string>> = {
     en: "Perpetual",
     zh: "永久"
   },
+  "Локация •": {
+    ru: "Локация •",
+    en: "Location •",
+    zh: "位置 •"
+  },
+  "Сформирован автоматически системой учета": {
+    ru: "Сформирован автоматически системой учета",
+    en: "Generated automatically by the inventory system",
+    zh: "由库存系统自动生成"
+  },
+  "Прикрепленные ресурсы по группам": {
+    ru: "Прикрепленные ресурсы по группам",
+    en: "Attached resources by group",
+    zh: "按组分组的附属资源"
+  },
+  "Инв:": {
+    ru: "Инв:",
+    en: "Inv:",
+    zh: "库存号："
+  },
+  "Локация:": {
+    ru: "Локация:",
+    en: "Location:",
+    zh: "位置："
+  },
+  "Размер:": {
+    ru: "Размер:",
+    en: "Size:",
+    zh: "大小："
+  },
+  "Загружен:": {
+    ru: "Загружен:",
+    en: "Uploaded:",
+    zh: "上传："
+  },
+  "Где установлен": {
+    ru: "Где установлен",
+    en: "Installed on",
+    zh: "安装位置"
+  },
+  "Изменить на \"В работе\"": {
+    ru: "Изменить на \"В работе\"",
+    en: "Change to \"In use\"",
+    zh: "更改为“在用”"
+  },
+  "Списать (\"Списано\")": {
+    ru: "Списать (\"Списано\")",
+    en: "Write off (\"Written off\")",
+    zh: "核销（“已核销”）"
+  },
+  "Расходный материал (Картридж) —": {
+    ru: "Расходный материал (Картридж) —",
+    en: "Consumable (Cartridge) —",
+    zh: "耗材（硒鼓）—"
+  },
+  "Причина:": {
+    ru: "Причина:",
+    en: "Reason:",
+    zh: "原因："
+  },
   "Отдел:": {
     ru: "Отдел:",
     en: "Department:",
@@ -7663,27 +7723,27 @@ const dictionary: Record<string, Record<Language, string>> = {
   },
   "create": {
     ru: "создание",
-    en: "create",
+    en: "Creation",
     zh: "创建"
   },
   "update": {
     ru: "изменение",
-    en: "update",
+    en: "Update",
     zh: "更新"
   },
   "delete": {
     ru: "удаление",
-    en: "delete",
+    en: "Deletion",
     zh: "删除"
   },
   "system": {
     ru: "система",
-    en: "system",
+    en: "System",
     zh: "系统"
   },
   "auth": {
     ru: "вход",
-    en: "auth",
+    en: "Sign-in",
     zh: "认证"
   },
   "Активация лицензии": { ru: "Активация лицензии", en: "License activated", zh: "许可证已激活" },

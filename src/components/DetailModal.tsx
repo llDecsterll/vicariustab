@@ -396,7 +396,7 @@ export default function DetailModal({
 
       return (
         <div className="space-y-3 pt-2">
-          <h4 className="text-xs font-bold text-slate-405 uppercase tracking-wider">Прикрепленные ресурсы по группам ({locationComputers.length + locationNetwork.length})</h4>
+          <h4 className="text-xs font-bold text-slate-405 uppercase tracking-wider">{t('Прикрепленные ресурсы по группам')} ({locationComputers.length + locationNetwork.length})</h4>
           
           {!hasResources ? (
             <p className="text-xs text-slate-400 italic">{t("На данном объекте нет зарегистрированной техники.")}</p>
@@ -420,7 +420,7 @@ export default function DetailModal({
                           <span className="p-1 px-1.5 bg-blue-100/60 text-blue-600 rounded-lg">{getDeviceIcon({ category: comp.category, deviceType: comp.deviceType, model: comp.model, size: 12 })}</span>
                           <div>
                             <p className="font-bold text-slate-700">{comp.category} {comp.model}</p>
-                            <p className="text-[10px] text-slate-450">Инв. № {comp.inventoryNumber} • {comp.employeeName}</p>
+                            <p className="text-[10px] text-slate-450">{t('Инв. №')} {comp.inventoryNumber} • {comp.employeeName}</p>
                           </div>
                         </div>
                         <ChevronRight size={14} className="text-slate-400" />
@@ -476,7 +476,7 @@ export default function DetailModal({
                           <span className="p-1 px-1.5 bg-indigo-100/60 text-indigo-600 rounded-lg">{getDeviceIcon({ category: comp.category, deviceType: comp.deviceType, model: comp.model, size: 12 })}</span>
                           <div>
                             <p className="font-bold text-slate-700">{comp.category} {comp.model}</p>
-                            <p className="text-[10px] text-slate-450">Инв. № {comp.inventoryNumber} • {comp.employeeName}</p>
+                            <p className="text-[10px] text-slate-450">{t('Инв. №')} {comp.inventoryNumber} • {comp.employeeName}</p>
                           </div>
                         </div>
                         <ChevronRight size={14} className="text-slate-400" />
@@ -504,7 +504,7 @@ export default function DetailModal({
                           <span className="p-1 px-1.5 bg-orange-100/60 text-orange-600 rounded-lg">{getDeviceIcon({ category: comp.category, deviceType: comp.deviceType, model: comp.model, size: 12 })}</span>
                           <div>
                             <p className="font-bold text-slate-700">{comp.category} {comp.model}</p>
-                            <p className="text-[10px] text-slate-450">Инв. № {comp.inventoryNumber} • {comp.employeeName}</p>
+                            <p className="text-[10px] text-slate-450">{t('Инв. №')} {comp.inventoryNumber} • {comp.employeeName}</p>
                           </div>
                         </div>
                         <ChevronRight size={14} className="text-slate-400" />
@@ -532,7 +532,7 @@ export default function DetailModal({
                           <span className="p-1 px-1.5 bg-violet-100/60 text-violet-600 rounded-lg">{getDeviceIcon({ category: comp.category, deviceType: comp.deviceType, model: comp.model, size: 12 })}</span>
                           <div>
                             <p className="font-bold text-slate-700">{comp.category} {comp.model}</p>
-                            <p className="text-[10px] text-slate-450">Инв. № {comp.inventoryNumber} • {comp.employeeName}</p>
+                            <p className="text-[10px] text-slate-450">{t('Инв. №')} {comp.inventoryNumber} • {comp.employeeName}</p>
                           </div>
                         </div>
                         <ChevronRight size={14} className="text-slate-400" />
@@ -560,7 +560,7 @@ export default function DetailModal({
                           <span className="p-1 px-1.5 bg-emerald-100/60 text-emerald-600 rounded-lg">{getDeviceIcon({ category: comp.category, deviceType: comp.deviceType, model: comp.model, size: 12 })}</span>
                           <div>
                             <p className="font-bold text-slate-700">{comp.category} {comp.model}</p>
-                            <p className="text-[10px] text-slate-450">Инв. № {comp.inventoryNumber} • {comp.employeeName}</p>
+                            <p className="text-[10px] text-slate-450">{t('Инв. №')} {comp.inventoryNumber} • {comp.employeeName}</p>
                           </div>
                         </div>
                         <ChevronRight size={14} className="text-slate-400" />
@@ -588,7 +588,7 @@ export default function DetailModal({
                           <span className="p-1 px-1.5 bg-rose-100/60 text-rose-600 rounded-lg">{getDeviceIcon({ category: comp.category, deviceType: comp.deviceType, model: comp.model, size: 12 })}</span>
                           <div>
                             <p className="font-bold text-slate-700">{comp.category} {comp.model}</p>
-                            <p className="text-[10px] text-slate-450">Инв. № {comp.inventoryNumber} • {comp.employeeName}</p>
+                            <p className="text-[10px] text-slate-450">{t('Инв. №')} {comp.inventoryNumber} • {comp.employeeName}</p>
                           </div>
                         </div>
                         <ChevronRight size={14} className="text-slate-400" />
@@ -608,7 +608,7 @@ export default function DetailModal({
 
       return (
         <div className="space-y-3 pt-2">
-          <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Закрепленное оборудование ({assignedComps.length})</h4>
+          <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">{t('Закрепленное оборудование')} ({assignedComps.length})</h4>
           
           <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
             {assignedComps.length === 0 ? (
@@ -624,7 +624,7 @@ export default function DetailModal({
                     <span className="p-1 px-1.5 bg-blue-105 text-blue-600 rounded-lg">{getDeviceIcon({ category: comp.category, deviceType: comp.deviceType, model: comp.model, size: 12 })}</span>
                     <div>
                       <p className="font-bold text-slate-700">{comp.category} {comp.model}</p>
-                      <p className="text-[10px] text-slate-450">Инв: {comp.inventoryNumber} • Локация: {comp.objectName}</p>
+                      <p className="text-[10px] text-slate-450">{t('Инв:')} {comp.inventoryNumber} • {t('Локация:')} {comp.objectName}</p>
                     </div>
                   </div>
                   <ChevronRight size={14} className="text-slate-400" />
@@ -1237,7 +1237,7 @@ export default function DetailModal({
                                       <span className="p-2 bg-rose-50 text-rose-500 rounded-xl"><FileText size={18} /></span>
                                       <div>
                                         <p className="text-xs font-bold text-slate-707 leading-tight truncate max-w-[280px]">{pdf.name}</p>
-                                        <p className="text-[10px] text-slate-400 font-medium">Размер: {pdf.size} {pdf.dateUploaded && `• Загружен: ${pdf.dateUploaded}`}</p>
+                                        <p className="text-[10px] text-slate-400 font-medium">{t('Размер:')} {pdf.size} {pdf.dateUploaded && `• ${t('Загружен:')} ${pdf.dateUploaded}`}</p>
                                       </div>
                                     </div>
 
@@ -1312,7 +1312,7 @@ export default function DetailModal({
                                   <span className="p-2 bg-rose-50 text-rose-500 rounded-xl"><FileText size={18} /></span>
                                   <div>
                                     <p className="text-xs font-bold text-slate-707 leading-tight truncate max-w-[280px]">{pdf.name}</p>
-                                    <p className="text-[10px] text-slate-400 font-medium">Размер: {pdf.size} {pdf.dateUploaded && `• Загружен: ${pdf.dateUploaded}`}</p>
+                                    <p className="text-[10px] text-slate-400 font-medium">{t('Размер:')} {pdf.size} {pdf.dateUploaded && `• ${t('Загружен:')} ${pdf.dateUploaded}`}</p>
                                   </div>
                                 </div>
 
@@ -1388,7 +1388,7 @@ export default function DetailModal({
                               <div className="p-3.5 bg-blue-50/60 border border-blue-150/85 rounded-xl text-blue-800 text-xs flex gap-2.5 items-start">
                                 <Printer className="text-blue-500 shrink-0 mt-0.5" size={16} />
                                 <div>
-                                  <p className="font-bold">Расходный материал (Картридж) — «{item.model}»</p>
+                                  <p className="font-bold">{t('Расходный материал (Картридж) —')} «{item.model}»</p>
                                   <p className="text-slate-500 mt-0.5 text-[11px] leading-relaxed">{t("Для расходных материалов замена запчастей и ремонт не предусмотрены. Вы можете")}<strong>{t("привязать (закрепить)")}</strong> этот тип картриджа за печатным устройством 
                                     из каталога «Оргтехника». Это автоматически создаст запись в его истории расходных материалов.
                                   </p>
@@ -1469,8 +1469,8 @@ export default function DetailModal({
                                             onChange={(e) => setAutoUpdateConsumableStatus(e.target.value)}
                                             className="w-full px-2 py-1.5 border border-slate-200 rounded bg-white text-xs text-slate-755 focus:outline-none cursor-pointer"
                                           >
-                                            <option value="in_work">Изменить на "В работе"</option>
-                                            <option value="written_off">Списать ("Списано")</option>
+                                            <option value="in_work">{t('Изменить на "В работе"')}</option>
+                                            <option value="written_off">{t('Списать ("Списано")')}</option>
                                             <option value="no">{t("Оставить без изменений")}</option>
                                           </select>
                                         </div>
@@ -1526,7 +1526,7 @@ export default function DetailModal({
                                 <div className="p-4 bg-slate-50/50 border border-slate-100 rounded-2xl space-y-4">
                                   <div className="border-b border-slate-100 pb-1.5 flex items-center gap-1.5">
                                     <Printer size={14} className="text-blue-500" />
-                                    <h4 className="font-bold text-slate-800 text-xs uppercase tracking-wider">Где установлен ({linkedPrinters.length})</h4>
+                                    <h4 className="font-bold text-slate-800 text-xs uppercase tracking-wider">{t('Где установлен')} ({linkedPrinters.length})</h4>
                                   </div>
 
                                   {linkedPrinters.length === 0 ? (
@@ -1552,7 +1552,7 @@ export default function DetailModal({
                                                   {p.model}
                                                 </span>
                                                 <span className="text-[9px] text-slate-400 font-mono block truncate">
-                                                  Инв: {p.inventoryNumber} • {p.objectName}
+                                                  {t('Инв:')} {p.inventoryNumber} • {p.objectName}
                                                 </span>
                                               </div>
                                               <button

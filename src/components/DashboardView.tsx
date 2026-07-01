@@ -92,10 +92,8 @@ import type { AnalyticsWidgetId, DetailCardId, StatCardId, WarehouseStripId } fr
 
 const CARD = 'bg-white rounded-2xl border border-slate-100 shadow-sm';
 const PANEL = `${CARD} dash-widget-panel flex flex-col h-full min-h-0 overflow-hidden`;
-const STAT = `${CARD} dash-widget-stat flex flex-col justify-start gap-1.5 text-left h-full min-h-0 w-full`;
+const STAT = `${CARD} dash-widget-stat flex flex-col justify-center text-left h-full min-h-0 w-full`;
 const TITLE = 'text-sm font-bold text-slate-900 shrink-0';
-const CAPTION = 'text-[11px] font-bold uppercase tracking-wider text-slate-400';
-const BODY = 'text-sm text-slate-700';
 const META = 'text-xs text-slate-500';
 const LINK = 'text-xs font-semibold text-blue-600 flex items-center gap-1 hover:text-blue-700 transition-colors';
 
@@ -229,9 +227,9 @@ function AlertsWidgetList({
   const visibleCount = useVisibleAlertCount();
 
   return (
-    <div className="space-y-2 flex-1 min-h-0 overflow-auto">
+    <div className="dash-alert-list flex-1 min-h-0 overflow-auto scrollbar-none">
       {alerts.length === 0 ? (
-        <p className={`text-xs ${META} text-center py-6`}>{t('Нет срочных уведомлений')}</p>
+        <p className={`text-sm ${META} py-4`}>{t('Нет срочных уведомлений')}</p>
       ) : (
         alerts.slice(0, visibleCount).map((a, i) => {
           const localized = translateDashboardAlert(a, t);
@@ -240,36 +238,22 @@ function AlertsWidgetList({
               key={a.id}
               type="button"
               onClick={() => !editMode && onNavigate(a.tab)}
-              className={`dashboard-rise w-full text-left p-2.5 rounded-xl border text-sm transition-colors ${
-                a.tone === 'danger'
-                  ? 'bg-rose-50 border-rose-100 text-rose-800'
-                  : 'bg-amber-50 border-amber-100 text-amber-900'
-              }`}
+              className={`dash-alert dash-alert--${a.tone === 'danger' ? 'danger' : 'warning'} dashboard-rise w-full text-left`}
               style={{ animationDelay: `${200 + i * 80}ms` }}
             >
-              <div className="flex items-start gap-2.5">
-                <span
-                  className={`p-1.5 rounded-lg shrink-0 ${
-                    a.tone === 'danger' ? 'bg-rose-100 text-rose-600' : 'bg-amber-100 text-amber-600'
-                  }`}
-                >
-                  <AlertTriangle size={14} />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className={`text-xs font-semibold leading-snug text-slate-900`}>{localized.title}</p>
-                  <p className={`text-xs text-slate-600 mt-0.5`}>{localized.subtitle}</p>
-                  {localized.detail && <p className={`text-xs ${META} mt-0.5`}>{localized.detail}</p>}
-                </div>
-                {localized.badge && (
-                  <span
-                    className={`shrink-0 text-[9px] font-bold px-2 py-1 rounded-md whitespace-nowrap ${
-                      a.tone === 'danger' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'
-                    }`}
-                  >
-                    {localized.badge}
-                  </span>
-                )}
+              <span className="dash-alert__icon">
+                <AlertTriangle size={14} />
+              </span>
+              <div className="dash-alert__body min-w-0">
+                <p className="text-sm font-semibold leading-snug text-slate-900">{localized.title}</p>
+                {localized.subtitle ? (
+                  <p className="text-xs text-slate-600 mt-0.5 leading-snug">{localized.subtitle}</p>
+                ) : null}
+                {localized.detail ? <p className={`text-xs ${META} mt-0.5 leading-snug`}>{localized.detail}</p> : null}
               </div>
+              {localized.badge ? (
+                <span className="dash-alert__badge shrink-0">{localized.badge}</span>
+              ) : null}
             </button>
           );
         })
@@ -278,37 +262,41 @@ function AlertsWidgetList({
   );
 }
 
-function DynamicsStatBox({
-  label,
-  value,
-  suffix,
-  suffixClassName = 'text-slate-400',
-  compact = false,
+function DynamicsKpiFooter({
+  equipmentTotals,
+  periodDelta,
 }: {
-  label: string;
-  value: number;
-  suffix?: React.ReactNode;
-  suffixClassName?: string;
-  compact?: boolean;
+  equipmentTotals: { total: number; issued: number; warehouse: number; writtenOff: number };
+  periodDelta: number;
 }) {
-  const displayed = useAnimatedNumber(value, 850, 0);
+  const { t } = useTranslation();
+  const total = useAnimatedNumber(equipmentTotals.total, 850, 0);
+  const issued = useAnimatedNumber(equipmentTotals.issued, 850, 0);
+  const warehouse = useAnimatedNumber(equipmentTotals.warehouse, 850, 0);
+  const writtenOff = useAnimatedNumber(equipmentTotals.writtenOff, 850, 0);
 
   return (
-    <div
-      className={`rounded-xl border border-slate-100 bg-slate-50/80 flex flex-col justify-center p-2.5 min-h-0 ${
-        compact ? 'min-h-0' : 'min-h-[52px]'
-      }`}
-    >
-      <p className={`text-[11px] font-bold uppercase tracking-wider ${META} leading-none line-clamp-2`}>{label}</p>
-      <div className={`flex items-end justify-between gap-2 ${compact ? 'mt-1' : 'mt-1.5'}`}>
-        <span className="text-sm font-bold text-slate-900 tabular-nums leading-none">
-          {displayed}
-        </span>
-        {suffix != null && suffix !== '' && (
-          <span className={`text-xs font-medium tabular-nums pb-0.5 shrink-0 text-right ${suffixClassName}`}>
-            {suffix}
+    <div className="dash-kpis shrink-0 mt-2 pt-2 border-t border-slate-100">
+      <div className="dash-kpi min-w-0">
+        <span className="dash-kpi__label">{t('Всего единиц')}</span>
+        <span className="dash-kpi__value tabular-nums text-slate-900">{total}</span>
+        {periodDelta > 0 ? (
+          <span className="dash-kpi__hint text-emerald-600">
+            +{periodDelta} {t('за период')}
           </span>
-        )}
+        ) : null}
+      </div>
+      <div className="dash-kpi min-w-0">
+        <span className="dash-kpi__label">{t('Выдано')}</span>
+        <span className="dash-kpi__value tabular-nums text-slate-900">{issued}</span>
+      </div>
+      <div className="dash-kpi min-w-0">
+        <span className="dash-kpi__label">{t('На складе')}</span>
+        <span className="dash-kpi__value tabular-nums text-slate-900">{warehouse}</span>
+      </div>
+      <div className="dash-kpi min-w-0">
+        <span className="dash-kpi__label">{t('Списано')}</span>
+        <span className="dash-kpi__value tabular-nums text-slate-900">{writtenOff}</span>
       </div>
     </div>
   );
@@ -346,9 +334,9 @@ function StatCard({
         interactive ? 'hover:shadow-md hover:border-blue-200 transition-all group cursor-pointer' : ''
       } ${dashboardStaggerClass(staggerIndex)}`}
     >
-      <div className="flex items-center gap-2.5 w-full min-h-0 flex-1">
+      <div className="dash-stat-row flex items-center gap-3 w-full min-h-0 flex-1">
         <div
-          className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-transform duration-300 ${
+          className={`dash-stat-row__icon w-9 h-9 rounded-lg flex items-center justify-center shrink-0 transition-transform duration-300 ${
             interactive ? 'group-hover:scale-105' : ''
           } ${iconBg}`}
         >
@@ -357,15 +345,15 @@ function StatCard({
             : icon}
         </div>
 
-        <div className="flex flex-col justify-center gap-0.5 min-w-0 flex-1 py-0.5">
-          <span className="text-xs font-semibold text-slate-600 leading-tight line-clamp-2">{label}</span>
+        <div className="dash-stat-row__text flex flex-col justify-center gap-0.5 min-w-0 flex-1">
+          <span className="text-xs font-semibold text-slate-700 leading-tight line-clamp-2">{label}</span>
           {subDetail ? (
             <div className={`text-[11px] ${META} leading-snug line-clamp-2`}>{subDetail}</div>
           ) : null}
         </div>
 
-        <div className="flex flex-col items-center justify-center shrink-0 self-stretch border-l border-slate-100 pl-2.5 min-w-[2.5rem]">
-          <span className="text-lg font-bold text-slate-700 tabular-nums leading-none">{numericValue}</span>
+        <div className="dash-stat-row__total flex flex-col items-center justify-center shrink-0 self-stretch border-l border-slate-100 pl-3 min-w-[2.75rem]">
+          <span className="text-lg font-bold text-slate-800 tabular-nums leading-none">{numericValue}</span>
           <span className="text-[9px] text-slate-400 mt-1 lowercase tracking-wide">{t('Всего')}</span>
         </div>
       </div>
@@ -373,13 +361,102 @@ function StatCard({
   );
 }
 
-function AnimatedBar({ percent, delay = 0, tall = false }: { percent: number; delay?: number; tall?: boolean }) {
+function MiniBar({ percent }: { percent: number }) {
   return (
-    <div className={`${tall ? 'h-2' : 'h-1.5'} rounded-full bg-slate-100 overflow-hidden min-w-[48px]`}>
-      <div
-        className={`dashboard-bar h-full rounded-full ${tall ? 'bg-gradient-to-r from-blue-600 to-blue-400' : 'bg-blue-500'}`}
-        style={{ width: `${percent}%`, animationDelay: `${delay}ms` }}
-      />
+    <div className="dash-bar-track" aria-hidden>
+      <div className="dash-bar-fill" style={{ width: `${Math.max(0, Math.min(100, percent))}%` }} />
+    </div>
+  );
+}
+
+function DashKpiRow({
+  items,
+}: {
+  items: Array<{ label: string; value: number | string; tone?: string }>;
+}) {
+  return (
+    <div className="dash-kpis shrink-0">
+      {items.map((item) => (
+        <div key={item.label} className="dash-kpi min-w-0">
+          <span className="dash-kpi__label">{item.label}</span>
+          <span className={`dash-kpi__value tabular-nums ${item.tone ?? 'text-slate-900'}`}>{item.value}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function DashMetricTable({
+  rows,
+  maxCount,
+  nameHeader,
+  countHeader,
+}: {
+  rows: Array<{ id: string; label: string; count: number }>;
+  maxCount: number;
+  nameHeader: string;
+  countHeader: string;
+}) {
+  const { t } = useTranslation();
+
+  if (rows.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="dash-mini-table dash-mini-table--bars flex-1 min-h-0 overflow-auto scrollbar-none min-w-0">
+      <div className="dash-mini-table__head">
+        <span>{nameHeader}</span>
+        <span className="text-right" title={countHeader}>
+          {t('Кол.')}
+        </span>
+        <span className="sr-only">{t('Доля')}</span>
+      </div>
+      {rows.map((row, i) => (
+        <div
+          key={row.id}
+          className="dash-mini-table__row dashboard-legend-item"
+          style={{ animationDelay: `${300 + i * 90}ms` }}
+        >
+          <span className="truncate font-medium text-slate-800" title={row.label}>
+            {row.label}
+          </span>
+          <span className="text-right tabular-nums font-semibold text-slate-900">{row.count}</span>
+          <MiniBar percent={Math.round((row.count / maxCount) * 100)} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function DashBarList({
+  rows,
+  maxCount,
+}: {
+  rows: Array<{ id: string; label: string; count: number }>;
+  maxCount: number;
+}) {
+  if (rows.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="dash-bar-list flex-1 min-h-0 overflow-auto scrollbar-none min-w-0">
+      {rows.map((row, i) => (
+        <div
+          key={row.id}
+          className="dash-bar-list__row dashboard-legend-item"
+          style={{ animationDelay: `${300 + i * 90}ms` }}
+        >
+          <div className="dash-bar-list__meta">
+            <span className="truncate font-medium text-slate-800" title={row.label}>
+              {row.label}
+            </span>
+            <span className="tabular-nums font-semibold text-slate-900 shrink-0">{row.count}</span>
+          </div>
+          <MiniBar percent={Math.round((row.count / maxCount) * 100)} />
+        </div>
+      ))}
     </div>
   );
 }
@@ -388,36 +465,40 @@ const StatusLegendRow: React.FC<{
   name: string;
   color: string;
   value: number;
-  total: number;
   rowIndex: number;
-}> = ({ name, color, value, total, rowIndex }) => {
+}> = ({ name, color, value, rowIndex }) => {
   const { t } = useTranslation();
-  const pct = total > 0 ? Math.round((value / total) * 100) : 0;
-  const animatedPct = useAnimatedNumber(pct, 360, rowIndex * 40);
+  const animatedValue = useAnimatedNumber(value, 360, rowIndex * 40);
 
   return (
     <div
-      className="dashboard-legend-item flex items-center gap-2 min-w-0"
+      className="dash-status-legend__row dashboard-legend-item"
       style={{ animationDelay: `${400 + rowIndex * 120}ms` }}
     >
-      <span
-        className="w-2 h-2 rounded-full shrink-0"
-        style={{ backgroundColor: color }}
-      />
-      <span className="text-xs font-semibold text-slate-800 leading-none truncate">{t(name)}</span>
-      <span className="text-xs text-slate-400 tabular-nums leading-none shrink-0 ml-auto">
-        {animatedPct}% ({value})
-      </span>
+      <span className="dash-status-legend__dot shrink-0" style={{ backgroundColor: color }} />
+      <span className="dash-status-legend__label truncate">{t(name)}</span>
+      <span className="dash-status-legend__value tabular-nums">{animatedValue}</span>
     </div>
   );
 };
 
-function StatusTotalBadge({ total }: { total: number }) {
+function useStatusChartSize(): number {
+  const { width, height } = useDashboardWidgetMetrics();
+  const reservedY = 52;
+  const availableH = Math.max(height - reservedY, 80);
+  const halfWidget = width * 0.5;
+  return Math.round(Math.max(110, Math.min(halfWidget - 4, availableH, 200)));
+}
+
+function StatusTotalBadge({ total, size }: { total: number; size: number }) {
   const { t } = useTranslation();
   const animatedTotal = useAnimatedNumber(total, 360, 0);
 
   return (
-    <div className="flex flex-col items-center justify-center shrink-0 border-r border-slate-100 pr-2.5 mr-0.5 min-w-[2.75rem]">
+    <div
+      className="relative shrink-0 flex flex-col items-center justify-center rounded-full border-[3px] border-slate-100 bg-slate-50/50"
+      style={{ width: size, height: size }}
+    >
       <span className="text-base font-bold text-slate-900 tabular-nums leading-none">{animatedTotal}</span>
       <span className={`text-[9px] ${META} mt-0.5 lowercase tracking-wide`}>{t('Всего')}</span>
     </div>
@@ -435,23 +516,26 @@ function StatusChartDonut({
   motion: ReturnType<typeof fastChartMotionProps>;
   tooltipStyle: React.CSSProperties;
 }) {
+  const { t } = useTranslation();
+  const animatedTotal = useAnimatedNumber(total, 360, 0);
   const activeSlices = slices.filter((s) => s.value > 0);
-  const chartDim = 64;
+  const chartDim = useStatusChartSize();
+  const centerText = chartDim >= 120 ? 'text-lg' : 'text-base';
 
   if (activeSlices.length === 0) {
-    return <StatusTotalBadge total={total} />;
+    return <StatusTotalBadge total={total} size={chartDim} />;
   }
 
   return (
-    <div className="relative shrink-0 border-r border-slate-100 pr-2.5 mr-0.5" style={{ width: chartDim, height: chartDim }}>
+    <div className="relative shrink-0" style={{ width: chartDim, height: chartDim }}>
       <ResponsiveContainer width="100%" height="100%">
         <PieChart margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
           <Pie
             data={activeSlices}
             cx="50%"
             cy="50%"
-            innerRadius="52%"
-            outerRadius="88%"
+            innerRadius="46%"
+            outerRadius="94%"
             paddingAngle={2}
             dataKey="value"
             startAngle={90}
@@ -468,7 +552,8 @@ function StatusChartDonut({
         </PieChart>
       </ResponsiveContainer>
       <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center">
-        <span className="text-xs font-bold text-slate-900 tabular-nums leading-none">{total}</span>
+        <span className={`${centerText} font-bold text-slate-900 tabular-nums leading-none`}>{animatedTotal}</span>
+        <span className={`text-[9px] ${META} mt-0.5 lowercase`}>{t('Всего')}</span>
       </div>
     </div>
   );
@@ -520,6 +605,109 @@ function CircularProgress({ percent, compact = false }: { percent: number; compa
   );
 }
 
+function SoftwareMonitoringWidget({
+  summary,
+  editMode,
+  staggerIndex,
+  onNavigate,
+}: {
+  summary: ReturnType<typeof buildSoftwareMonitoringSummary>;
+  editMode: boolean;
+  staggerIndex: number;
+  onNavigate: (tabId: string) => void;
+}) {
+  const { t } = useTranslation();
+  const totalSeats = useAnimatedNumber(summary.totalSeats, 850, 0);
+  const assignedSeats = useAnimatedNumber(summary.assignedSeats, 850, 40);
+  const unassignedSeats = useAnimatedNumber(summary.unassignedSeats, 850, 80);
+  const totalProducts = useAnimatedNumber(summary.totalProducts, 850, 120);
+
+  const kpis = [
+    { label: t('Мест'), value: totalSeats, tone: 'text-slate-900' },
+    { label: t('Выдано'), value: assignedSeats, tone: 'text-emerald-600' },
+    { label: t('Свободно'), value: unassignedSeats, tone: 'text-amber-600' },
+    { label: t('Программ'), value: totalProducts, tone: 'text-slate-900' },
+  ];
+
+  return (
+    <div className={`${PANEL} dash-widget-software ${dashboardStaggerClass(staggerIndex, 2)}`}>
+      <h2 className={`${TITLE} shrink-0`}>{t('Мониторинг ПО')}</h2>
+
+      <DashKpiRow items={kpis} />
+
+      {summary.rows.length === 0 ? (
+        <p className={`text-sm ${META} flex-1 min-h-0`}>{t('Нет данных')}</p>
+      ) : (
+        <div className="dash-mini-table dash-mini-table--licenses flex-1 min-h-0 overflow-auto scrollbar-none min-w-0">
+          <div className="dash-mini-table__head">
+            <span>{t('Программа')}</span>
+            <span className="text-right" title={t('Всего')}>
+              {t('Всего')}
+            </span>
+            <span className="text-right" title={t('Выдано')}>
+              {t('Выд.')}
+            </span>
+            <span className="text-right" title={t('Свободно')}>
+              {t('Св.')}
+            </span>
+          </div>
+          {summary.rows.map((row, i) => (
+            <div
+              key={row.id}
+              className="dash-mini-table__row dashboard-legend-item min-w-0"
+              style={{ animationDelay: `${280 + i * 70}ms` }}
+            >
+              <span className="truncate text-slate-800 font-medium" title={row.name}>
+                {row.name}
+              </span>
+              <span className="text-right tabular-nums font-semibold text-slate-900">{row.totalSeats}</span>
+              <span className="text-right tabular-nums font-semibold text-emerald-600">{row.assignedSeats}</span>
+              <span className="text-right tabular-nums font-semibold text-amber-600">{row.unassignedSeats}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <FooterLink label={t('Перейти к реестру ПО')} onClick={() => !editMode && onNavigate('software')} />
+    </div>
+  );
+}
+
+function InventoryCircularProgress({ percent }: { percent: number }) {
+  const { width, height } = useDashboardWidgetMetrics();
+  const animated = useAnimatedNumber(percent, 1200, 200);
+  const dim = Math.round(Math.max(84, Math.min(height * 0.48, width * 0.44, 164)));
+  const r = dim * 0.38;
+  const stroke = Math.max(5, dim * 0.065);
+  const c = 2 * Math.PI * r;
+  const offset = c - (animated / 100) * c;
+  const center = dim / 2;
+  const percentClass = dim >= 118 ? 'text-xl' : dim >= 96 ? 'text-lg' : 'text-base';
+
+  return (
+    <div className="relative shrink-0 dash-widget-progress" style={{ width: dim, height: dim }}>
+      <svg width={dim} height={dim} viewBox={`0 0 ${dim} ${dim}`} className="-rotate-90">
+        <circle cx={center} cy={center} r={r} fill="none" stroke="#e2e8f0" strokeWidth={stroke} />
+        <circle
+          cx={center}
+          cy={center}
+          r={r}
+          fill="none"
+          stroke="#3b82f6"
+          strokeWidth={stroke}
+          strokeLinecap="round"
+          strokeDasharray={c}
+          strokeDashoffset={offset}
+          className="transition-all duration-700"
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+        <span className={`${percentClass} font-bold text-slate-900 tabular-nums leading-none`}>{animated}%</span>
+      </div>
+    </div>
+  );
+}
+
 function InventoryDetailCard({
   staggerIndex,
   audits,
@@ -542,63 +730,69 @@ function InventoryDetailCard({
   onNavigate: (tabId: string) => void;
 }) {
   const { t } = useTranslation();
-  const showAuditMeta = true;
+  const { width } = useDashboardWidgetMetrics();
+  const stackStats = width < 200;
 
   return (
-    <div className={`${PANEL} text-left ${dashboardStaggerClass(staggerIndex, 2)}`}>
-      <h2 className={`${TITLE} mb-2`}>{t('Инвентаризация')}</h2>
-      {audits.length > 0 ? (
-        <select
-          value={selectedAudit?.id ?? ''}
-          onChange={(e) => onAuditSelectionChange(e.target.value)}
-          className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 cursor-pointer shrink-0 mb-2"
-        >
-          {audits.map((audit) => (
-            <option key={audit.id} value={audit.id}>
-              {audit.title} ({audit.date})
-            </option>
-          ))}
-        </select>
-      ) : (
-        <p className={`text-xs ${META} shrink-0 mb-2`}>{t('Нет запланированных инвентаризаций')}</p>
-      )}
-      {selectedAudit && (
-        <div className="flex flex-wrap items-center gap-1.5 mb-2 shrink-0">
-          <span
-            className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold border ${auditStatusTone(selectedAudit.status)}`}
+    <div className={`${PANEL} dash-widget-inventory text-left ${dashboardStaggerClass(staggerIndex, 2)}`}>
+      <div className="shrink-0 space-y-1.5">
+        <h2 className={TITLE}>{t('Инвентаризация')}</h2>
+        {audits.length > 0 ? (
+          <select
+            value={selectedAudit?.id ?? ''}
+            onChange={(e) => onAuditSelectionChange(e.target.value)}
+            className="dash-select w-full text-sm py-1.5 px-2.5 bg-white"
           >
-            {t(selectedAudit.status)}
-          </span>
-          {auditCard.objectLabel && showAuditMeta && (
-            <span className="text-xs text-indigo-700 font-semibold bg-indigo-50 px-2 py-0.5 rounded-md truncate max-w-full">
-              {t('Объект')}: {auditCard.objectLabel}
+            {audits.map((audit) => (
+              <option key={audit.id} value={audit.id}>
+                {audit.title} ({audit.date})
+              </option>
+            ))}
+          </select>
+        ) : (
+          <p className={`text-[11px] ${META}`}>{t('Нет запланированных инвентаризаций')}</p>
+        )}
+        {selectedAudit && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className={`dash-status-badge ${auditStatusTone(selectedAudit.status)}`}>
+              {t(selectedAudit.status)}
             </span>
-          )}
-        </div>
-      )}
-      <div className="flex flex-1 min-h-0 gap-3 items-center">
-        <CircularProgress percent={inventoryProgress.percent} compact />
-        <div className={`flex-1 min-w-0 space-y-1 text-sm text-slate-700`}>
-          <p className="leading-snug">
+            {auditCard.objectLabel && (
+              <span className="text-xs text-indigo-700 font-semibold bg-indigo-50 px-2 py-1 rounded-md truncate max-w-full">
+                {t('Объект')}: {auditCard.objectLabel}
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div
+        className={`dash-widget-inventory-progress flex flex-1 min-h-0 gap-2.5 items-center ${
+          stackStats ? 'flex-col text-center' : 'flex-row'
+        }`}
+      >
+        <InventoryCircularProgress percent={inventoryProgress.percent} />
+        <div className={`dash-inventory-stats flex-1 min-w-0 flex flex-col justify-center gap-1.5 ${stackStats ? 'items-center' : ''}`}>
+          <p className="text-sm leading-snug text-slate-700">
             {t('Проверено')}:{' '}
             <strong className="text-slate-900 tabular-nums">
               {inventoryProgress.checked}/{inventoryProgress.total}
             </strong>
           </p>
-          <p className="leading-snug">
+          <p className="text-sm leading-snug text-slate-700">
             {t('Осталось')}:{' '}
             <strong className="text-slate-900 tabular-nums">
               {inventoryProgress.remaining} {t('позиций')}
             </strong>
           </p>
-          <p className="leading-snug">
+          <p className="text-sm leading-snug text-slate-700">
             {t('Объектов')}:{' '}
             <strong className="text-slate-900 tabular-nums">
               {inventoryProgress.objectsDone} {t('из')} {inventoryProgress.objectsTotal}
             </strong>
           </p>
-          {selectedAudit && showAuditMeta && (
-            <div className="pt-1.5 mt-1 border-t border-slate-100 space-y-1 text-xs leading-snug">
+          {selectedAudit && (
+            <div className="pt-1.5 mt-0.5 border-t border-slate-100 space-y-1 text-[11px] leading-snug text-left w-full">
               <p>
                 <span className="text-slate-500 font-semibold">{t('Кто проводит:')}</span>{' '}
                 <span className="text-slate-800">{auditCard.conductorUser || t('Не указан')}</span>
@@ -641,6 +835,7 @@ const WarehouseCategoryCard: React.FC<{
   chartsReady,
   reduceMotion,
 }) => {
+  const { t } = useTranslation();
   const { tier, scale, width, height } = useDashboardWidgetMetrics();
   const delay = 420 + staggerIndex * 70;
   const animatedCount = useAnimatedNumber(count, 820, delay);
@@ -653,21 +848,21 @@ const WarehouseCategoryCard: React.FC<{
 
   return (
     <div
-      className={`rounded-xl border border-slate-100 bg-slate-50/60 flex flex-col gap-1.5 h-full min-h-0 p-2.5 group transition-all duration-300 hover:shadow-md hover:border-blue-200/80 hover:bg-white ${
+      className={`${CARD} dash-widget-warehouse flex flex-col gap-2 h-full min-h-0 group transition-all duration-300 hover:shadow-md hover:border-blue-200/80 ${
         dashboardStaggerClass(staggerIndex, 9)
       }`}
     >
-      <div className="flex items-start gap-2.5">
+      <div className="dash-warehouse-row flex items-center gap-3 min-w-0">
         <span
-          className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 dashboard-icon-pop transition-transform duration-300 group-hover:scale-110 ${iconBox} ${iconColor}`}
+          className={`dash-warehouse-row__icon w-9 h-9 rounded-lg flex items-center justify-center shrink-0 dashboard-icon-pop transition-transform duration-300 group-hover:scale-110 ${iconBox} ${iconColor}`}
           style={{ animationDelay: `${delay + 100}ms` }}
         >
           <Icon size={iconSize} />
         </span>
-        <div className="min-w-0 flex-1">
-          <p className={`text-xs font-medium ${META} leading-none`}>{label}</p>
+        <div className="dash-warehouse-row__text min-w-0 flex-1">
+          <p className="text-xs font-semibold text-slate-600 leading-snug">{label}</p>
           <p className="text-sm font-bold text-slate-900 leading-tight tabular-nums mt-0.5">
-            {animatedCount} <span className="text-xs font-semibold text-slate-500">шт.</span>
+            {animatedCount} <span className="text-xs font-semibold text-slate-500">{t('шт.')}</span>
           </p>
           <p className="text-xs font-semibold text-blue-600 mt-0.5 tabular-nums transition-colors duration-300 group-hover:text-blue-700">
             {formatMoney(animatedPrice)}
@@ -676,7 +871,7 @@ const WarehouseCategoryCard: React.FC<{
       </div>
       {showSpark && (
       <div
-        className="warehouse-spark-wrap flex-1 min-h-[24px] max-h-[40px] -mx-0.5 dashboard-spark-reveal"
+        className="warehouse-spark-wrap flex-1 min-h-[24px] max-h-[40px] dashboard-spark-reveal"
         style={{ animationDelay: `${delay + 180}ms` }}
         key={`spark-${width}x${height}`}
       >
@@ -1018,10 +1213,6 @@ function DashboardViewInner({
   );
 
   const lastUpdated = new Date().toLocaleTimeString(dateLocale, { hour: '2-digit', minute: '2-digit' });
-  const issuedPct = equipmentTotals.total > 0 ? ((equipmentTotals.issued / equipmentTotals.total) * 100).toFixed(1) : '0';
-  const warehousePct = equipmentTotals.total > 0 ? ((equipmentTotals.warehouse / equipmentTotals.total) * 100).toFixed(1) : '0';
-  const writtenOffPct = equipmentTotals.total > 0 ? ((equipmentTotals.writtenOff / equipmentTotals.total) * 100).toFixed(1) : '0';
-
   const renderStatCard = (id: StatCardId, staggerIndex: number) => {
     switch (id) {
       case 'computers':
@@ -1148,16 +1339,13 @@ function DashboardViewInner({
     switch (id) {
       case 'dynamics':
         return (
-          <div className={`${PANEL} dashboard-chart-glow ${dashboardStaggerClass(staggerIndex, 1)}`}>
+          <div className={`${PANEL} ${dashboardStaggerClass(staggerIndex, 1)}`}>
             <div className="flex items-center justify-between mb-2 shrink-0">
               <h2 className={TITLE}>{t('Динамика оборудования')}</h2>
               <select
                 value={dynamicsPeriod}
                 onChange={(e) => setDynamicsPeriod(e.target.value as DynamicsPeriod)}
-                className="text-xs font-medium text-slate-600 bg-slate-50 pl-2.5 pr-7 py-1 rounded-lg border border-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300 cursor-pointer appearance-none bg-[length:10px] bg-[right_8px_center] bg-no-repeat"
-                style={{
-                  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
-                }}
+                className="dash-select"
                 aria-label={t('Период')}
               >
                 <option value="month">{t('Месяц')}</option>
@@ -1180,37 +1368,29 @@ function DashboardViewInner({
                 </ResponsiveContainer>
               )}
             </DashChartArea>
-            <div className="dash-widget-stats grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3 pt-3 border-t border-slate-100 shrink-0">
-              <DynamicsStatBox
-                label={t('Всего единиц')}
-                value={equipmentTotals.total}
-                suffix={periodDelta > 0 ? `+${periodDelta} ${t('за период')}` : undefined}
-                suffixClassName="text-emerald-600"
-              />
-              <DynamicsStatBox label={t('Выдано')} value={equipmentTotals.issued} suffix={`${issuedPct}%`} />
-              <DynamicsStatBox label={t('На складе')} value={equipmentTotals.warehouse} suffix={`${warehousePct}%`} />
-              <DynamicsStatBox label={t('Списано')} value={equipmentTotals.writtenOff} suffix={`${writtenOffPct}%`} />
-            </div>
+            <DynamicsKpiFooter equipmentTotals={equipmentTotals} periodDelta={periodDelta} />
           </div>
         );
       case 'status_chart':
         return (
           <div className={`${PANEL} dash-widget-status ${dashboardStaggerClass(staggerIndex, 1)}`}>
-            <h2 className={`${TITLE} mb-1.5`}>{t('Статусы оборудования')}</h2>
-            <div className="flex items-center gap-2 w-full shrink-0">
-              <StatusChartDonut
-                slices={statusSlices}
-                total={statusTotal}
-                motion={statusMotion}
-                tooltipStyle={chartTooltip}
-              />
-              <div className="dash-widget-legend flex flex-col gap-1 flex-1 min-w-0">
+            <h2 className={`${TITLE} mb-1 shrink-0`}>{t('Статусы оборудования')}</h2>
+            <div className="dash-widget-status__body">
+              <div className="dash-widget-status__chart">
+                <StatusChartDonut
+                  slices={statusSlices}
+                  total={statusTotal}
+                  motion={statusMotion}
+                  tooltipStyle={chartTooltip}
+                />
+              </div>
+              <div className="dash-status-legend">
                 {statusSlices.map((s, i) => (
-                  <StatusLegendRow key={s.name} name={s.name} color={s.color} value={s.value} total={statusTotal} rowIndex={i} />
+                  <StatusLegendRow key={s.name} name={s.name} color={s.color} value={s.value} rowIndex={i} />
                 ))}
               </div>
             </div>
-            <div className={`flex items-center gap-1.5 text-xs ${META} mt-auto pt-2 border-t border-slate-100 shrink-0`}>
+            <div className={`flex items-center gap-1.5 text-[11px] ${META} mt-auto pt-2 border-t border-slate-100 shrink-0`}>
               <span>
                 {t('Последнее обновление')}: {t('сегодня')}, {lastUpdated}
               </span>
@@ -1224,9 +1404,7 @@ function DashboardViewInner({
             <div className="flex items-center justify-between mb-2 shrink-0">
               <h2 className={TITLE}>{t('Требуют внимания')}</h2>
               {alerts.length > 0 && (
-                <span className="bg-red-500 text-white text-xs font-bold min-w-[20px] h-5 px-1.5 rounded-full flex items-center justify-center">
-                  {alerts.length}
-                </span>
+                <span className="dash-badge-count">{alerts.length}</span>
               )}
             </div>
             <AlertsWidgetList alerts={alerts} editMode={editMode} onNavigate={onNavigate} />
@@ -1242,31 +1420,23 @@ function DashboardViewInner({
     switch (id) {
       case 'network_summary':
         return (
-          <div className={`${PANEL} ${dashboardStaggerClass(staggerIndex, 2)}`}>
-            <h2 className={`${TITLE} mb-2`}>{t('Сетевое оборудование')}</h2>
+          <div className={`${PANEL} dash-widget-network ${dashboardStaggerClass(staggerIndex, 2)}`}>
+            <h2 className={`${TITLE} mb-2 shrink-0`}>{t('Сетевое оборудование')}</h2>
             {networkSummary.length === 0 ? (
               <div className="flex-1 min-h-0 flex items-start">
                 <p className={`text-sm ${META}`}>{t('Нет данных')}</p>
               </div>
             ) : (
-              <div className="space-y-1 flex-1 min-h-0 overflow-auto">
-                <div className={`grid grid-cols-[1fr_3.2em_5em] gap-2 ${CAPTION} pb-2 border-b border-slate-100`}>
-                  <span>{t('Тип')}</span>
-                  <span className="text-right">{t('Количество')}</span>
-                  <span>{t('Устройства')}</span>
-                </div>
-                {networkSummary.map((row, i) => (
-                  <div
-                    key={row.type}
-                    className="dashboard-legend-item grid grid-cols-[1fr_52px_80px] gap-2 items-center py-2 border-b border-slate-50 last:border-0"
-                    style={{ animationDelay: `${300 + i * 100}ms` }}
-                  >
-                    <span className={`${BODY} truncate`}>{t(row.type)}</span>
-                    <span className="text-sm font-bold text-slate-900 text-right tabular-nums">{row.count}</span>
-                    <AnimatedBar percent={Math.round((row.count / maxNetworkCount) * 100)} delay={350 + i * 100} />
-                  </div>
-                ))}
-              </div>
+              <DashMetricTable
+                rows={networkSummary.map((row) => ({
+                  id: row.type,
+                  label: t(row.type),
+                  count: row.count,
+                }))}
+                maxCount={maxNetworkCount}
+                nameHeader={t('Тип')}
+                countHeader={t('Кол-во')}
+              />
             )}
             <FooterLink label={t('Перейти к сетевому оборудованию')} onClick={() => !editMode && onNavigate('network')} />
           </div>
@@ -1311,23 +1481,20 @@ function DashboardViewInner({
         );
       case 'by_object':
         return (
-          <div className={`${PANEL} ${dashboardStaggerClass(staggerIndex, 2)}`}>
-            <h2 className={`${TITLE} mb-2`}>{t('Оборудование по объектам')}</h2>
-            <div className="space-y-3 flex-1 min-h-0 overflow-auto">
-              {byObject.length === 0 ? (
-                <p className={`text-sm ${META}`}>{t('Нет данных')}</p>
-              ) : (
-                byObject.map((obj, i) => (
-                  <div key={obj.name} className="dashboard-legend-item" style={{ animationDelay: `${300 + i * 90}ms` }}>
-                    <div className="flex justify-between text-sm mb-1.5 gap-2">
-                      <span className="text-slate-700 truncate font-medium">{obj.name}</span>
-                      <span className="font-bold text-slate-900 shrink-0 tabular-nums">{obj.count}</span>
-                    </div>
-                    <AnimatedBar percent={Math.round((obj.count / maxObjectCount) * 100)} delay={400 + i * 90} tall />
-                  </div>
-                ))
-              )}
-            </div>
+          <div className={`${PANEL} dash-widget-by-object ${dashboardStaggerClass(staggerIndex, 2)}`}>
+            <h2 className={`${TITLE} mb-2 shrink-0`}>{t('Оборудование по объектам')}</h2>
+            {byObject.length === 0 ? (
+              <p className={`text-sm ${META} flex-1 min-h-0`}>{t('Нет данных')}</p>
+            ) : (
+              <DashBarList
+                rows={byObject.map((obj) => ({
+                  id: obj.name,
+                  label: obj.name,
+                  count: obj.count,
+                }))}
+                maxCount={maxObjectCount}
+              />
+            )}
             <FooterLink label={t('Смотреть все объекты')} onClick={() => !editMode && onNavigate('objects')} />
           </div>
         );
@@ -1347,48 +1514,12 @@ function DashboardViewInner({
         );
       case 'software_monitoring':
         return (
-          <div className={`${PANEL} dash-widget-software ${dashboardStaggerClass(staggerIndex, 2)}`}>
-            <div className="flex items-center justify-between gap-2 shrink-0">
-              <h2 className={`${TITLE} leading-tight`}>{t('Мониторинг ПО')}</h2>
-              {softwareMonitoring.rows.length === 0 && (
-                <span className={`text-xs ${META} shrink-0`}>{t('Нет данных')}</span>
-              )}
-            </div>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 shrink-0">
-              <DynamicsStatBox compact label={t('Всего мест')} value={softwareMonitoring.totalSeats} />
-              <DynamicsStatBox compact label={t('Выдано')} value={softwareMonitoring.assignedSeats} suffixClassName="text-emerald-600" />
-              <DynamicsStatBox
-                compact
-                label={t('Не задействовано')}
-                value={softwareMonitoring.unassignedSeats}
-                suffixClassName="text-amber-600"
-              />
-              <DynamicsStatBox compact label={t('Всего программ')} value={softwareMonitoring.totalProducts} />
-            </div>
-            {softwareMonitoring.rows.length > 0 && (
-              <div className="flex-1 min-h-0 overflow-auto">
-                <div className={`grid grid-cols-[1fr_4.5em_5.5em_5.5em] gap-2 ${CAPTION} pb-1.5 border-b border-slate-100 sticky top-0 bg-white`}>
-                  <span>{t('Программа')}</span>
-                  <span className="text-right">{t('Всего')}</span>
-                  <span className="text-right">{t('Выдано')}</span>
-                  <span className="text-right">{t('Не задействовано')}</span>
-                </div>
-                {softwareMonitoring.rows.map((row, i) => (
-                  <div
-                    key={row.id}
-                    className="dashboard-legend-item grid grid-cols-[1fr_4.5em_5.5em_5.5em] gap-2 items-center py-1.5 border-b border-slate-50 last:border-0"
-                    style={{ animationDelay: `${280 + i * 70}ms` }}
-                  >
-                    <span className={`${BODY} truncate font-medium`}>{row.name}</span>
-                    <span className="text-sm font-bold text-slate-900 text-right tabular-nums">{row.totalSeats}</span>
-                    <span className="text-sm font-bold text-emerald-700 text-right tabular-nums">{row.assignedSeats}</span>
-                    <span className="text-sm font-bold text-amber-700 text-right tabular-nums">{row.unassignedSeats}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-            <FooterLink label={t('Перейти к реестру ПО')} onClick={() => !editMode && onNavigate('software')} />
-          </div>
+          <SoftwareMonitoringWidget
+            summary={softwareMonitoring}
+            editMode={editMode}
+            staggerIndex={staggerIndex}
+            onNavigate={onNavigate}
+          />
         );
       default:
         return null;

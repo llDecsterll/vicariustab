@@ -1,6 +1,8 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { GripVertical, X } from 'lucide-react';
 import {
+  buildResponsiveLayout,
+  DASHBOARD_LAYOUT_FULL_WIDTH_PX,
   dashboardWidgetLabelKey,
   type GridLayout,
   type GridLayoutItem,
@@ -16,6 +18,7 @@ import {
   type ResizeHandle,
 } from '../utils/dashboardGridMetrics';
 import { useTranslation } from '../utils/i18n';
+import { useDashboardLayout } from './DashboardLayoutContext';
 import DashboardWidgetScaler from './DashboardWidgetScaler';
 
 interface DashboardGridLayoutProps {
@@ -45,12 +48,56 @@ type Interaction =
       origin: GridLayoutItem;
     };
 
+type PendingPointer =
+  | {
+      kind: 'move';
+      id: string;
+      pointerId: number;
+      startX: number;
+      startY: number;
+      origin: GridLayoutItem;
+    }
+  | {
+      kind: 'resize';
+      id: string;
+      pointerId: number;
+      handle: ResizeHandle;
+      startX: number;
+      startY: number;
+      origin: GridLayoutItem;
+    };
+
+const DRAG_THRESHOLD_PX = 5;
+
 function layoutSignature(items: GridLayout): string {
   return items.map((item) => `${item.i}:${item.x},${item.y},${item.w},${item.h}`).join('|');
 }
 
 function updateLayoutItem(items: GridLayout, nextItem: GridLayoutItem): GridLayout {
   return items.map((item) => (item.i === nextItem.i ? nextItem : item));
+}
+
+function pendingToInteraction(pending: PendingPointer): Interaction {
+  if (pending.kind === 'move') {
+    return {
+      kind: 'move',
+      id: pending.id,
+      pointerId: pending.pointerId,
+      startX: pending.startX,
+      startY: pending.startY,
+      origin: pending.origin,
+    };
+  }
+
+  return {
+    kind: 'resize',
+    id: pending.id,
+    pointerId: pending.pointerId,
+    handle: pending.handle,
+    startX: pending.startX,
+    startY: pending.startY,
+    origin: pending.origin,
+  };
 }
 
 export default function DashboardGridLayout({
@@ -61,11 +108,13 @@ export default function DashboardGridLayout({
   children,
 }: DashboardGridLayoutProps) {
   const { t } = useTranslation();
+  const { selectedWidgetId, setSelectedWidgetId } = useDashboardLayout();
   const containerRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
   const [liveLayout, setLiveLayout] = useState(layout);
   const [interaction, setInteraction] = useState<Interaction | null>(null);
   const interactionRef = useRef<Interaction | null>(null);
+  const pendingRef = useRef<PendingPointer | null>(null);
   const metricsRef = useRef<GridMetrics | null>(null);
   const layoutPropKey = layoutSignature(layout);
 
@@ -95,11 +144,25 @@ export default function DashboardGridLayout({
   metricsRef.current = metrics;
 
   useEffect(() => {
-    if (!interaction) return;
+    if (!editMode) return;
 
     const onPointerMove = (event: PointerEvent) => {
-      const active = interactionRef.current;
+      const pending = pendingRef.current;
       const currentMetrics = metricsRef.current;
+
+      if (pending && !interactionRef.current && event.pointerId === pending.pointerId) {
+        const dx = event.clientX - pending.startX;
+        const dy = event.clientY - pending.startY;
+        if (Math.hypot(dx, dy) >= DRAG_THRESHOLD_PX) {
+          const next = pendingToInteraction(pending);
+          interactionRef.current = next;
+          setInteraction(next);
+          pendingRef.current = null;
+        }
+        return;
+      }
+
+      const active = interactionRef.current;
       if (!active || !currentMetrics || event.pointerId !== active.pointerId) return;
 
       const dx = event.clientX - active.startX;
@@ -119,6 +182,13 @@ export default function DashboardGridLayout({
     };
 
     const onPointerUp = (event: PointerEvent) => {
+      const pending = pendingRef.current;
+      if (pending && !interactionRef.current && event.pointerId === pending.pointerId) {
+        setSelectedWidgetId(pending.id);
+        pendingRef.current = null;
+        return;
+      }
+
       const active = interactionRef.current;
       const currentMetrics = metricsRef.current;
       if (!active || !currentMetrics || event.pointerId !== active.pointerId) return;
@@ -136,6 +206,7 @@ export default function DashboardGridLayout({
         return next;
       });
 
+      setSelectedWidgetId(active.id);
       setInteraction(null);
       interactionRef.current = null;
     };
@@ -149,27 +220,35 @@ export default function DashboardGridLayout({
       window.removeEventListener('pointerup', onPointerUp);
       window.removeEventListener('pointercancel', onPointerUp);
     };
-  }, [interaction, onLayoutChange]);
+  }, [editMode, onLayoutChange, setSelectedWidgetId]);
 
-  const startMove = useCallback(
-    (item: GridLayoutItem, event: React.PointerEvent) => {
+  const queuePointer = useCallback(
+    (pending: PendingPointer, event: React.PointerEvent) => {
       if (!editMode || event.button !== 0) return;
       event.preventDefault();
       event.stopPropagation();
-      (event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId);
 
-      const next: Interaction = {
-        kind: 'move',
-        id: item.i,
-        pointerId: event.pointerId,
-        startX: event.clientX,
-        startY: event.clientY,
-        origin: { ...item },
-      };
-      interactionRef.current = next;
-      setInteraction(next);
+      pendingRef.current = pending;
+      setSelectedWidgetId(pending.id);
     },
-    [editMode]
+    [editMode, setSelectedWidgetId]
+  );
+
+  const startMove = useCallback(
+    (item: GridLayoutItem, event: React.PointerEvent) => {
+      queuePointer(
+        {
+          kind: 'move',
+          id: item.i,
+          pointerId: event.pointerId,
+          startX: event.clientX,
+          startY: event.clientY,
+          origin: { ...item },
+        },
+        event
+      );
+    },
+    [queuePointer]
   );
 
   const startResize = useCallback(
@@ -178,7 +257,7 @@ export default function DashboardGridLayout({
       event.preventDefault();
       event.stopPropagation();
 
-      const next: Interaction = {
+      const pending: PendingPointer = {
         kind: 'resize',
         id: item.i,
         pointerId: event.pointerId,
@@ -187,33 +266,63 @@ export default function DashboardGridLayout({
         startY: event.clientY,
         origin: { ...item },
       };
+      pendingRef.current = pending;
+      setSelectedWidgetId(item.i);
+
+      const next = pendingToInteraction(pending);
       interactionRef.current = next;
       setInteraction(next);
+      pendingRef.current = null;
     },
-    [editMode]
+    [editMode, setSelectedWidgetId]
   );
+
+  const displayLayout = useMemo(() => {
+    if (editMode || width < 1) return liveLayout;
+    return buildResponsiveLayout(liveLayout, width);
+  }, [editMode, liveLayout, width]);
+
+  const responsiveView = !editMode && width > 0 && width < DASHBOARD_LAYOUT_FULL_WIDTH_PX;
 
   if (!metrics) {
     return <div ref={containerRef} className="dashboard-grid-root min-h-[400px]" />;
   }
 
-  const canvasHeight = gridContainerHeight(liveLayout, metrics) + (editMode ? 72 : 0);
+  const canvasHeight = gridContainerHeight(displayLayout, metrics) + (editMode ? 72 : 0);
   const activeId = interaction?.id ?? null;
 
   return (
     <div
       ref={containerRef}
-      className={`dashboard-grid-root ${editMode ? 'dashboard-grid-root--edit' : ''}`}
+      className={`dashboard-grid-root ${editMode ? 'dashboard-grid-root--edit' : ''} ${
+        responsiveView ? 'dashboard-grid-root--responsive' : ''
+      }`}
     >
-      <div className="dashboard-grid-canvas relative w-full" style={{ height: canvasHeight }}>
-        {liveLayout.map((item) => {
+      <div
+        className="dashboard-grid-canvas relative w-full"
+        style={{ height: canvasHeight }}
+        onPointerDown={(event) => {
+          if (editMode && event.target === event.currentTarget) {
+            setSelectedWidgetId(null);
+          }
+        }}
+      >
+        {displayLayout.map((item) => {
           const { left, top, width: itemWidth, height: itemHeight } = gridItemToPixels(item, metrics);
           const isActive = activeId === item.i;
+          const isSelected = selectedWidgetId === item.i;
 
           return (
             <div
               key={item.i}
-              className={`dashboard-grid-item ${editMode ? 'dashboard-grid-item--edit' : ''} ${isActive ? 'dashboard-grid-item--active' : ''}`}
+              className={[
+                'dashboard-grid-item',
+                editMode ? 'dashboard-grid-item--edit' : 'dashboard-grid-item--view',
+                isSelected ? 'dashboard-grid-item--selected' : '',
+                isActive ? 'dashboard-grid-item--active' : '',
+              ]
+                .filter(Boolean)
+                .join(' ')}
               style={{
                 left,
                 top,

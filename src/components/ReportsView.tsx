@@ -612,7 +612,7 @@ export default function ReportsView({
               <h1 className="text-2xl font-bold">{t("ОТЧЕТ ПО УЧЕТУ ИТ-ИНВЕНТАРЯ")}</h1>
               <p className="text-xs text-slate-500 mt-1">{t("Область аналитики:")}<strong className="text-slate-850">{reportScope === 'company' ? 'Вся компания' : `Объект: ${selectedObjectName}`}</strong>
               </p>
-              <p className="text-xs text-slate-500">Сформирован автоматически системой учета • {new Date().toLocaleDateString('ru-RU')}</p>
+              <p className="text-xs text-slate-500">{t('Сформирован автоматически системой учета')} • {new Date().toLocaleDateString(language === 'zh' ? 'zh-CN' : language === 'en' ? 'en-US' : 'ru-RU')}</p>
             </div>
             <span className="font-bold text-xs uppercase text-slate-500">{t("Экземпляр №1")}</span>
           </div>

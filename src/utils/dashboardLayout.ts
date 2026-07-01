@@ -53,7 +53,7 @@ export type DashboardWidgetId =
   | `warehouse:${WarehouseStripId}`;
 
 export const DASHBOARD_GRID_COLS = 12;
-export const DASHBOARD_ROW_HEIGHT = 40;
+export const DASHBOARD_ROW_HEIGHT = 36;
 export const DASHBOARD_GRID_MARGIN: [number, number] = [8, 8];
 export const DASHBOARD_HEADER_EDIT_SLOT_ID = 'dashboard-header-edit-slot';
 
@@ -66,11 +66,20 @@ export interface DashboardLayoutStateV1 {
 }
 
 export interface DashboardLayoutState {
-  version: 6;
+  version: 10;
   items: GridLayout;
 }
 
-const STORAGE_KEY = 'vicariustab_dashboard_layout_v6';
+interface StoredDashboardLayout {
+  version: number;
+  items: GridLayout;
+}
+
+const STORAGE_KEY = 'vicariustab_dashboard_layout_v10';
+const STORAGE_KEY_V9 = 'vicariustab_dashboard_layout_v9';
+const STORAGE_KEY_V8 = 'vicariustab_dashboard_layout_v8';
+const STORAGE_KEY_V7 = 'vicariustab_dashboard_layout_v7';
+const STORAGE_KEY_V6 = 'vicariustab_dashboard_layout_v6';
 const STORAGE_KEY_V5 = 'vicariustab_dashboard_layout_v5';
 const STORAGE_KEY_V4 = 'vicariustab_dashboard_layout_v4';
 const STORAGE_KEY_V3 = 'vicariustab_dashboard_layout_v3';
@@ -127,14 +136,14 @@ const WIDGET_SIZE: Record<
   'stat:cameras': { w: 2, h: 2, minW: 1, minH: 2, maxW: 4, maxH: 4 },
   'stat:consumables': { w: 2, h: 2, minW: 1, minH: 2, maxW: 4, maxH: 4 },
   'stat:other': { w: 2, h: 2, minW: 1, minH: 2, maxW: 4, maxH: 4 },
-  'analytics:dynamics': { w: 6, h: 5, minW: 4, minH: 4, maxW: 12, maxH: 12 },
-  'analytics:status_chart': { w: 4, h: 4, minW: 3, minH: 3, maxW: 12, maxH: 12 },
-  'analytics:alerts': { w: 2, h: 7, minW: 2, minH: 4, maxW: 12, maxH: 12 },
-  'detail:network_summary': { w: 6, h: 3, minW: 2, minH: 3, maxW: 12, maxH: 14 },
+  'analytics:dynamics': { w: 6, h: 6, minW: 4, minH: 5, maxW: 12, maxH: 12 },
+  'analytics:status_chart': { w: 4, h: 6, minW: 3, minH: 4, maxW: 12, maxH: 12 },
+  'analytics:alerts': { w: 2, h: 6, minW: 2, minH: 4, maxW: 12, maxH: 12 },
+  'detail:network_summary': { w: 6, h: 6, minW: 3, minH: 4, maxW: 12, maxH: 14 },
   'detail:activities': { w: 4, h: 6, minW: 2, minH: 5, maxW: 12, maxH: 14 },
-  'detail:by_object': { w: 6, h: 3, minW: 2, minH: 3, maxW: 12, maxH: 14 },
-  'detail:inventory': { w: 2, h: 6, minW: 2, minH: 5, maxW: 12, maxH: 14 },
-  'detail:software_monitoring': { w: 6, h: 3, minW: 4, minH: 3, maxW: 12, maxH: 8 },
+  'detail:by_object': { w: 6, h: 4, minW: 2, minH: 3, maxW: 12, maxH: 14 },
+  'detail:inventory': { w: 2, h: 12, minW: 2, minH: 8, maxW: 12, maxH: 14 },
+  'detail:software_monitoring': { w: 6, h: 5, minW: 4, minH: 4, maxW: 12, maxH: 8 },
   'warehouse:title': { w: 12, h: 1, minW: 3, minH: 1, maxW: 12, maxH: 2 },
   'warehouse:laptops': { w: 2, h: 3, minW: 1, minH: 2, maxW: 6, maxH: 8 },
   'warehouse:monitors': { w: 2, h: 3, minW: 1, minH: 2, maxW: 6, maxH: 8 },
@@ -159,34 +168,37 @@ function gridItem(id: DashboardWidgetId, x: number, y: number): GridLayoutItem {
   };
 }
 
+function statCardItem(id: StatCardId, x: number, y: number): GridLayoutItem {
+  const base = gridItem(`stat:${id}`, x, y);
+  return { ...base, w: 3, minW: 2, maxW: 6 };
+}
+
 export function buildDefaultGridLayout(): GridLayout {
   const items: GridLayoutItem[] = [];
 
-  // Верхний ряд: 6 сводных карточек
-  (['computers', 'employees', 'warehouse', 'network', 'printers', 'cameras'] as const).forEach((id, index) => {
-    items.push(gridItem(`stat:${id}`, index * 2, 0));
+  // Два ряда по 4 сводные карточки
+  (['computers', 'employees', 'warehouse', 'network'] as const).forEach((id, index) => {
+    items.push(statCardItem(id, index * 3, 0));
+  });
+  (['printers', 'cameras', 'consumables', 'other'] as const).forEach((id, index) => {
+    items.push(statCardItem(id, index * 3, 2));
   });
 
-  // Левые карточки + динамика + уведомления
-  items.push(gridItem('stat:consumables', 0, 2));
-  items.push(gridItem('stat:other', 2, 2));
-  items.push(gridItem('analytics:dynamics', 4, 2));
-  items.push(gridItem('analytics:alerts', 10, 2));
-
-  // Левая колонка: статусы и последние действия
+  // Ряд 1 (y=4, h=6): статусы | динамика | алерты
   items.push(gridItem('analytics:status_chart', 0, 4));
-  items.push(gridItem('detail:activities', 0, 9));
+  items.push(gridItem('analytics:dynamics', 4, 4));
+  items.push(gridItem('analytics:alerts', 10, 4));
 
-  // Центральная колонка: сеть, мониторинг ПО, по объектам
-  items.push(gridItem('detail:network_summary', 4, 7));
-  items.push(gridItem('detail:software_monitoring', 4, 10));
-  items.push(gridItem('detail:by_object', 4, 13));
+  // Ряд 2 (y=10, h=6): действия | сеть; инвентаризация — высокая правая колонка
+  items.push(gridItem('detail:activities', 0, 10));
+  items.push(gridItem('detail:network_summary', 4, 10));
+  items.push(gridItem('detail:inventory', 10, 10));
 
-  // Правая колонка: инвентаризация
-  items.push(gridItem('detail:inventory', 10, 9));
+  // Ряд 3–4 (центр): мониторинг ПО → по объектам
+  items.push(gridItem('detail:software_monitoring', 4, 16));
+  items.push(gridItem('detail:by_object', 4, 21));
 
-  // Нижняя полоса склада
-  const warehouseTitleY = 16;
+  const warehouseTitleY = 25;
   items.push(gridItem('warehouse:title', 0, warehouseTitleY));
   WAREHOUSE_IDS.forEach((id, index) => {
     items.push(gridItem(`warehouse:${id}`, index * 2, warehouseTitleY + 1));
@@ -196,9 +208,41 @@ export function buildDefaultGridLayout(): GridLayout {
 }
 
 export const DEFAULT_DASHBOARD_LAYOUT: DashboardLayoutState = {
-  version: 6,
+  version: 10,
   items: buildDefaultGridLayout(),
 };
+
+function applyCanonicalDashboardLayout(items: GridLayout): GridLayout {
+  const templates = buildDefaultGridLayout();
+  const byId = new Map(items.map((item) => [item.i, item]));
+
+  return templates.map((template) => {
+    const existing = byId.get(template.i);
+    if (!existing) return { ...template };
+    return {
+      ...existing,
+      x: template.x,
+      y: template.y,
+      w: template.w,
+      h: template.h,
+      minW: template.minW,
+      minH: template.minH,
+      maxW: template.maxW,
+      maxH: template.maxH,
+    };
+  });
+}
+
+function tightenStoredLayout(items: GridLayout): GridLayout {
+  let next = sanitizeLayoutItems(items);
+  if (hasOverlappingGridItems(next)) {
+    next = applyCanonicalDashboardLayout(next);
+    if (hasOverlappingGridItems(next)) {
+      return buildDefaultGridLayout();
+    }
+  }
+  return next;
+}
 
 function mergeOrder<T extends string>(saved: unknown, defaults: readonly T[]): T[] {
   if (!Array.isArray(saved)) return [...defaults];
@@ -395,33 +439,121 @@ export function getWidgetCatalogGroups(): { labelKey: string; ids: DashboardWidg
   ];
 }
 
-export function compactLayoutVertically(items: GridLayout): GridLayout {
-  const sorted = [...items].sort((a, b) => a.y - b.y || a.x - b.x);
-  const placed: GridLayoutItem[] = [];
+export const DASHBOARD_LAYOUT_FULL_WIDTH_PX = 1024;
+export const DASHBOARD_LAYOUT_TABLET_STACK_PX = 768;
+
+function sortLayoutReadingOrder(items: GridLayout): GridLayout {
+  return [...items].sort((a, b) => a.y - b.y || a.x - b.x || a.i.localeCompare(b.i));
+}
+
+function isWideDashboardWidget(item: GridLayoutItem): boolean {
+  return item.w >= 6 || item.h >= 5;
+}
+
+/** View-only reflow for narrow viewports; saved layout in localStorage is unchanged. */
+export function buildResponsiveLayout(items: GridLayout, containerWidth: number): GridLayout {
+  if (!items.length || containerWidth >= DASHBOARD_LAYOUT_FULL_WIDTH_PX) {
+    return items;
+  }
+
+  const sorted = sortLayoutReadingOrder(items);
+
+  if (containerWidth < DASHBOARD_LAYOUT_TABLET_STACK_PX) {
+    let y = 0;
+    return sorted.map((item) => {
+      const h = Math.max(item.h, item.minH ?? 2);
+      const next: GridLayoutItem = { ...item, x: 0, y, w: 12, h };
+      y += h;
+      return next;
+    });
+  }
+
+  const result: GridLayoutItem[] = [];
+  let y = 0;
+
+  for (let index = 0; index < sorted.length; ) {
+    const item = sorted[index];
+
+    if (isWideDashboardWidget(item)) {
+      const h = Math.max(item.h, item.minH ?? 2);
+      result.push({ ...item, x: 0, y, w: 12, h });
+      y += h;
+      index += 1;
+      continue;
+    }
+
+    const sibling = sorted[index + 1];
+    if (sibling && !isWideDashboardWidget(sibling) && item.w <= 3 && sibling.w <= 3) {
+      const h = Math.max(item.h, sibling.h, item.minH ?? 2, sibling.minH ?? 2);
+      result.push({ ...item, x: 0, y, w: 6, h });
+      result.push({ ...sibling, x: 6, y, w: 6, h });
+      y += h;
+      index += 2;
+      continue;
+    }
+
+    const h = Math.max(item.h, item.minH ?? 2);
+    result.push({ ...item, x: 0, y, w: 12, h });
+    y += h;
+    index += 1;
+  }
+
+  return result;
+}
+
+export function packDashboardLayout(items: GridLayout): GridLayout {
+  const warehouseTitle = items.find((item) => item.i === 'warehouse:title');
+  const warehouseStrip = items
+    .filter((item) => item.i.startsWith('warehouse:') && item.i !== 'warehouse:title')
+    .sort((a, b) => a.x - b.x || a.i.localeCompare(b.i));
+  const main = items.filter((item) => !item.i.startsWith('warehouse:'));
+
+  const sorted = [...main].sort((a, b) => a.y - b.y || a.x - b.x || a.i.localeCompare(b.i));
+  const packed: GridLayoutItem[] = [];
 
   for (const item of sorted) {
     let y = 0;
-    let fits = false;
-    while (!fits) {
-      const collision = placed.some(
-        (p) =>
+    while (
+      packed.some(
+        (placed) =>
           !(
-            item.x + item.w <= p.x ||
-            p.x + p.w <= item.x ||
-            y + item.h <= p.y ||
-            p.y + p.h <= y
+            item.x + item.w <= placed.x ||
+            placed.x + placed.w <= item.x ||
+            y + item.h <= placed.y ||
+            placed.y + placed.h <= y
           )
-      );
-      if (!collision) {
-        fits = true;
-      } else {
-        y += 1;
-      }
+      )
+    ) {
+      y += 1;
     }
-    placed.push({ ...item, y });
+    packed.push({ ...item, y });
   }
 
-  return placed;
+  if (!warehouseTitle && warehouseStrip.length === 0) {
+    return packed;
+  }
+
+  let maxY = 0;
+  for (const item of packed) {
+    maxY = Math.max(maxY, item.y + item.h);
+  }
+
+  const result: GridLayoutItem[] = [...packed];
+  if (warehouseTitle) {
+    result.push({ ...warehouseTitle, x: 0, y: maxY, w: 12 });
+    maxY += warehouseTitle.h;
+  }
+
+  warehouseStrip.forEach((item) => {
+    result.push({ ...item, y: maxY });
+  });
+
+  return result;
+}
+
+/** @deprecated use packDashboardLayout */
+export function compactLayoutVertically(items: GridLayout): GridLayout {
+  return packDashboardLayout(items);
 }
 
 function cellsOverlap(a: GridLayoutItem, b: GridLayoutItem): boolean {
@@ -458,32 +590,61 @@ function finalizeLoadedLayout(items: GridLayout): GridLayout {
       return buildDefaultGridLayout();
     }
   }
-  if (hasOverlappingGridItems(next)) {
-    return buildDefaultGridLayout();
-  }
-  return next;
+  return tightenStoredLayout(next);
 }
 
 export function loadDashboardLayout(): DashboardLayoutState {
   try {
-    const rawV6 = localStorage.getItem(STORAGE_KEY);
+    const rawV10 = localStorage.getItem(STORAGE_KEY);
+    if (rawV10) {
+      const parsed = JSON.parse(rawV10) as DashboardLayoutState;
+      if (parsed.version === 10 && Array.isArray(parsed.items)) {
+        return { version: 10, items: finalizeLoadedLayout(parsed.items) };
+      }
+    }
+
+    const rawV9 = localStorage.getItem(STORAGE_KEY_V9);
+    if (rawV9) {
+      const parsed = JSON.parse(rawV9) as StoredDashboardLayout;
+      if (parsed.version === 9 && Array.isArray(parsed.items)) {
+        return { version: 10, items: applyCanonicalDashboardLayout(parsed.items) };
+      }
+    }
+
+    const rawV8 = localStorage.getItem(STORAGE_KEY_V8);
+    if (rawV8) {
+      const parsed = JSON.parse(rawV8) as StoredDashboardLayout;
+      if (parsed.version === 8 && Array.isArray(parsed.items)) {
+        return { version: 10, items: applyCanonicalDashboardLayout(parsed.items) };
+      }
+    }
+
+    const rawV7 = localStorage.getItem(STORAGE_KEY_V7);
+    if (rawV7) {
+      const parsed = JSON.parse(rawV7) as StoredDashboardLayout;
+      if (parsed.version === 7 && Array.isArray(parsed.items)) {
+        return { version: 10, items: applyCanonicalDashboardLayout(parsed.items) };
+      }
+    }
+
+    const rawV6 = localStorage.getItem(STORAGE_KEY_V6);
     if (rawV6) {
-      const parsed = JSON.parse(rawV6) as DashboardLayoutState;
+      const parsed = JSON.parse(rawV6) as StoredDashboardLayout;
       if (parsed.version === 6 && Array.isArray(parsed.items)) {
-        return { version: 6, items: finalizeLoadedLayout(parsed.items) };
+        return { version: 10, items: applyCanonicalDashboardLayout(parsed.items) };
       }
     }
 
     const rawV5 = localStorage.getItem(STORAGE_KEY_V5);
     if (rawV5) {
-      return { version: 6, items: buildDefaultGridLayout() };
+      return { version: 10, items: buildDefaultGridLayout() };
     }
 
     const rawV4 = localStorage.getItem(STORAGE_KEY_V4);
     if (rawV4) {
-      const parsed = JSON.parse(rawV4) as DashboardLayoutState;
+      const parsed = JSON.parse(rawV4) as StoredDashboardLayout;
       if (parsed.version === 4 && Array.isArray(parsed.items)) {
-        return { version: 6, items: buildDefaultGridLayout() };
+        return { version: 10, items: buildDefaultGridLayout() };
       }
     }
 
@@ -491,7 +652,7 @@ export function loadDashboardLayout(): DashboardLayoutState {
     if (rawV3) {
       const parsed = JSON.parse(rawV3) as { version: number; items: GridLayout };
       if (parsed.version === 3 && Array.isArray(parsed.items)) {
-        return { version: 6, items: buildDefaultGridLayout() };
+        return { version: 10, items: buildDefaultGridLayout() };
       }
     }
 
@@ -499,24 +660,24 @@ export function loadDashboardLayout(): DashboardLayoutState {
     if (rawV2) {
       const parsed = JSON.parse(rawV2) as { version: number; items: GridLayout };
       if (parsed.version === 2 && Array.isArray(parsed.items)) {
-        return { version: 6, items: buildDefaultGridLayout() };
+        return { version: 10, items: buildDefaultGridLayout() };
       }
     }
 
     const rawV1 = localStorage.getItem(STORAGE_KEY_V1);
     if (rawV1) {
       const parsed = JSON.parse(rawV1) as DashboardLayoutStateV1;
-      return { version: 6, items: buildDefaultGridLayout() };
+      return { version: 10, items: buildDefaultGridLayout() };
     }
   } catch {
     /* ignore */
   }
-  return { version: 6, items: buildDefaultGridLayout() };
+  return { version: 10, items: buildDefaultGridLayout() };
 }
 
 export function saveDashboardLayout(layout: DashboardLayoutState): void {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: 6, items: layout.items }));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: 10, items: layout.items }));
   } catch {
     /* ignore */
   }

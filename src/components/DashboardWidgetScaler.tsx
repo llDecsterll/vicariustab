@@ -28,12 +28,15 @@ export function useDashboardWidgetMetrics(): DashboardWidgetMetrics {
 }
 
 export function useDashChartTypography() {
+  const { tier, width, height } = useDashboardWidgetMetrics();
+  const compact = tier === 'xs' || tier === 'sm' || width < 320 || height < 180;
+
   return {
-    tick: 11,
-    axisWidth: 28,
-    strokeWidth: 2,
-    dotRadius: 3,
-    tooltipFontSize: 12,
+    tick: compact ? 9 : width < 420 ? 10 : 11,
+    axisWidth: compact ? 22 : width < 420 ? 24 : 28,
+    strokeWidth: compact ? 1.75 : 2,
+    dotRadius: compact ? 2.5 : 3,
+    tooltipFontSize: compact ? 11 : 12,
   };
 }
 
@@ -66,7 +69,9 @@ function resolveScale(_width: number, _height: number, _kind: DashboardWidgetKin
   return 1;
 }
 
-function resolveFontSize(): number {
+function resolveFontSize(width: number, height: number, tier: DashboardWidgetTier): number {
+  if (tier === 'xs' || width < 220 || height < 100) return 12;
+  if (tier === 'sm' || width < 300) return 13;
   return 14;
 }
 
@@ -91,12 +96,13 @@ export default function DashboardWidgetScaler({
       const { width, height } = el.getBoundingClientRect();
       if (width < 1 || height < 1) return;
       const scale = resolveScale(width, height, kind);
+      const tier = resolveTier(width, height, kind);
       setMetrics({
         width: Math.round(width),
         height: Math.round(height),
         scale,
-        tier: resolveTier(width, height, kind),
-        fontSize: resolveFontSize(),
+        tier,
+        fontSize: resolveFontSize(width, height, tier),
         kind,
       });
     };
@@ -115,6 +121,7 @@ export default function DashboardWidgetScaler({
         style={
           {
             '--dash-scale': 1,
+            fontSize: `${metrics.fontSize}px`,
           } as React.CSSProperties
         }
       >

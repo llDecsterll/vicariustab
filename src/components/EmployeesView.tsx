@@ -434,7 +434,7 @@ export default function EmployeesView({
               {/* Hardware assigned details */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Закрепленное оборудование ({empHardware.length})</span>
+                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{t('Закрепленное оборудование')} ({empHardware.length})</span>
                   {empHardware.length > 0 && !isViewer && (
                     <button
                       onClick={() => handleOpenTransfer(emp)}
