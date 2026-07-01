@@ -65,6 +65,7 @@ import {
   countEmployeeDashboardStats,
   countWarehouseStripComputers,
   countWarehouseStripNetwork,
+  buildSoftwareMonitoringSummary,
   type DynamicsPeriod,
 } from '../utils/dashboardAnalytics';
 import {
@@ -83,22 +84,20 @@ import {
 } from '../utils/dashboardI18n';
 import {
   DashboardLayoutProvider,
-  DashboardSections,
-  DashboardDraggableWidget,
   useDashboardLayout,
 } from './DashboardLayoutContext';
-import {
-  analyticsWidgetColClass,
-  type AnalyticsWidgetId,
-  type DetailCardId,
-  type StatCardId,
-  type WarehouseStripId,
-} from '../utils/dashboardLayout';
+import DashboardGridLayout from './DashboardGridLayout';
+import { useDashboardWidgetMetrics, useDashChartTypography } from './DashboardWidgetScaler';
+import type { AnalyticsWidgetId, DetailCardId, StatCardId, WarehouseStripId } from '../utils/dashboardLayout';
 
 const CARD = 'bg-white rounded-2xl border border-slate-100 shadow-sm';
-const TITLE = 'font-bold text-sm text-slate-900';
-const MUTED = 'text-slate-500';
-const LINK = 'text-blue-600 text-[11px] font-semibold flex items-center gap-1 hover:text-blue-700 transition-colors';
+const PANEL = `${CARD} dash-widget-panel flex flex-col h-full min-h-0 overflow-hidden`;
+const STAT = `${CARD} dash-widget-stat flex flex-col justify-start gap-1.5 text-left h-full min-h-0 w-full`;
+const TITLE = 'text-sm font-bold text-slate-900 shrink-0';
+const CAPTION = 'text-[11px] font-bold uppercase tracking-wider text-slate-400';
+const BODY = 'text-sm text-slate-700';
+const META = 'text-xs text-slate-500';
+const LINK = 'text-xs font-semibold text-blue-600 flex items-center gap-1 hover:text-blue-700 transition-colors';
 
 interface DashboardViewProps {
   objects: ObjectItem[];
@@ -136,11 +135,146 @@ function buildSparkline(base: number) {
   return factors.map((f, i) => ({ i, v: Math.max(0, Math.round(base * f)) }));
 }
 
+function DashChartArea({ children }: { children: React.ReactNode }) {
+  const { width, height } = useDashboardWidgetMetrics();
+  return (
+    <div className="dash-widget-chart flex-1 min-h-0 w-full" key={`chart-${width}x${height}`}>
+      {children}
+    </div>
+  );
+}
+
+function DynamicsChartInner({
+  data,
+  motion,
+  chartGrid,
+  chartTick,
+  chartTooltip,
+  lineDotFill,
+  t,
+}: {
+  data: ReturnType<typeof buildEquipmentDynamicsSeries>;
+  motion: ReturnType<typeof chartMotionProps>;
+  chartGrid: string;
+  chartTick: string;
+  chartTooltip: object;
+  lineDotFill: string;
+  t: (key: string) => string;
+}) {
+  const typo = useDashChartTypography();
+  return (
+    <ComposedChart data={data} margin={{ top: 4, right: 4, left: -8, bottom: 0 }}>
+      <defs>
+        <linearGradient id="dashDynamicsFill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.22} />
+          <stop offset="100%" stopColor="#3b82f6" stopOpacity={0} />
+        </linearGradient>
+      </defs>
+      <CartesianGrid strokeDasharray="3 3" stroke={chartGrid} vertical={false} />
+      <XAxis dataKey="month" tick={{ fontSize: typo.tick, fill: chartTick }} axisLine={false} tickLine={false} />
+      <YAxis
+        tick={{ fontSize: typo.tick, fill: chartTick }}
+        axisLine={false}
+        tickLine={false}
+        width={typo.axisWidth}
+        allowDecimals={false}
+      />
+      <Tooltip
+        contentStyle={{ ...chartTooltip, fontSize: typo.tooltipFontSize }}
+        labelFormatter={(l) => `${t('Месяц')}: ${l}`}
+        cursor={{ stroke: '#3b82f6', strokeWidth: 1, strokeDasharray: '4 4' }}
+      />
+      <Area type="monotone" dataKey="count" fill="url(#dashDynamicsFill)" stroke="none" tooltipType="none" {...motion} animationBegin={150} />
+      <Line
+        type="monotone"
+        dataKey="count"
+        stroke="#3b82f6"
+        strokeWidth={typo.strokeWidth}
+        dot={{ r: typo.dotRadius, fill: lineDotFill, stroke: '#3b82f6', strokeWidth: 1.5 }}
+        activeDot={{ r: typo.dotRadius + 1.5, fill: '#3b82f6', stroke: '#fff', strokeWidth: 2 }}
+        name={t('Добавлено')}
+        {...motion}
+        animationBegin={200}
+      />
+    </ComposedChart>
+  );
+}
+
+function useVisibleAlertCount(): number {
+  const { height } = useDashboardWidgetMetrics();
+  if (height > 360) return 5;
+  if (height > 280) return 4;
+  if (height > 200) return 3;
+  return 2;
+}
+
 function FooterLink({ label, onClick }: { label: string; onClick: () => void }) {
   return (
-    <button type="button" onClick={onClick} className={`${LINK} mt-4`}>
+    <button type="button" onClick={onClick} className={`${LINK} mt-auto pt-2 shrink-0 self-start`}>
       {label} <ArrowRight size={12} />
     </button>
+  );
+}
+
+function AlertsWidgetList({
+  alerts,
+  editMode,
+  onNavigate,
+}: {
+  alerts: ReturnType<typeof buildDashboardAlerts>;
+  editMode: boolean;
+  onNavigate: (tabId: string) => void;
+}) {
+  const { t } = useTranslation();
+  const visibleCount = useVisibleAlertCount();
+
+  return (
+    <div className="space-y-2 flex-1 min-h-0 overflow-auto">
+      {alerts.length === 0 ? (
+        <p className={`text-xs ${META} text-center py-6`}>{t('Нет срочных уведомлений')}</p>
+      ) : (
+        alerts.slice(0, visibleCount).map((a, i) => {
+          const localized = translateDashboardAlert(a, t);
+          return (
+            <button
+              key={a.id}
+              type="button"
+              onClick={() => !editMode && onNavigate(a.tab)}
+              className={`dashboard-rise w-full text-left p-2.5 rounded-xl border text-sm transition-colors ${
+                a.tone === 'danger'
+                  ? 'bg-rose-50 border-rose-100 text-rose-800'
+                  : 'bg-amber-50 border-amber-100 text-amber-900'
+              }`}
+              style={{ animationDelay: `${200 + i * 80}ms` }}
+            >
+              <div className="flex items-start gap-2.5">
+                <span
+                  className={`p-1.5 rounded-lg shrink-0 ${
+                    a.tone === 'danger' ? 'bg-rose-100 text-rose-600' : 'bg-amber-100 text-amber-600'
+                  }`}
+                >
+                  <AlertTriangle size={14} />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className={`text-xs font-semibold leading-snug text-slate-900`}>{localized.title}</p>
+                  <p className={`text-xs text-slate-600 mt-0.5`}>{localized.subtitle}</p>
+                  {localized.detail && <p className={`text-xs ${META} mt-0.5`}>{localized.detail}</p>}
+                </div>
+                {localized.badge && (
+                  <span
+                    className={`shrink-0 text-[9px] font-bold px-2 py-1 rounded-md whitespace-nowrap ${
+                      a.tone === 'danger' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'
+                    }`}
+                  >
+                    {localized.badge}
+                  </span>
+                )}
+              </div>
+            </button>
+          );
+        })
+      )}
+    </div>
   );
 }
 
@@ -149,21 +283,29 @@ function DynamicsStatBox({
   value,
   suffix,
   suffixClassName = 'text-slate-400',
+  compact = false,
 }: {
   label: string;
   value: number;
   suffix?: React.ReactNode;
   suffixClassName?: string;
+  compact?: boolean;
 }) {
   const displayed = useAnimatedNumber(value, 850, 0);
 
   return (
-    <div className="rounded-xl border border-slate-100 bg-white px-3.5 py-3 min-h-[74px] flex flex-col justify-between">
-      <p className={`text-[11px] font-medium ${MUTED} leading-none`}>{label}</p>
-      <div className="flex items-end justify-between gap-2 mt-3">
-        <span className="text-[22px] font-bold text-slate-900 tabular-nums leading-none">{displayed}</span>
+    <div
+      className={`rounded-xl border border-slate-100 bg-slate-50/80 flex flex-col justify-center p-2.5 min-h-0 ${
+        compact ? 'min-h-0' : 'min-h-[52px]'
+      }`}
+    >
+      <p className={`text-[11px] font-bold uppercase tracking-wider ${META} leading-none line-clamp-2`}>{label}</p>
+      <div className={`flex items-end justify-between gap-2 ${compact ? 'mt-1' : 'mt-1.5'}`}>
+        <span className="text-sm font-bold text-slate-900 tabular-nums leading-none">
+          {displayed}
+        </span>
         {suffix != null && suffix !== '' && (
-          <span className={`text-[11px] font-medium tabular-nums pb-0.5 shrink-0 text-right ${suffixClassName}`}>
+          <span className={`text-xs font-medium tabular-nums pb-0.5 shrink-0 text-right ${suffixClassName}`}>
             {suffix}
           </span>
         )}
@@ -180,6 +322,7 @@ function StatCard({
   onClick,
   iconBg,
   staggerIndex = 0,
+  interactive = true,
 }: {
   label: string;
   numericValue: number;
@@ -188,24 +331,45 @@ function StatCard({
   onClick: () => void;
   iconBg: string;
   staggerIndex?: number;
+  interactive?: boolean;
 }) {
-  const displayed = useAnimatedNumber(numericValue, 850, staggerIndex * 50);
+  const { t } = useTranslation();
+  const Tag = interactive ? 'button' : 'div';
+  const iconSize = 16;
 
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`${CARD} p-3.5 flex flex-col text-left hover:shadow-md hover:border-blue-200 transition-all group min-h-[104px] ${dashboardStaggerClass(staggerIndex)}`}
+    <Tag
+      type={interactive ? 'button' : undefined}
+      onClick={interactive ? onClick : undefined}
+      aria-label={interactive ? `${label}: ${numericValue}` : undefined}
+      className={`${STAT} ${
+        interactive ? 'hover:shadow-md hover:border-blue-200 transition-all group cursor-pointer' : ''
+      } ${dashboardStaggerClass(staggerIndex)}`}
     >
-      <div className="flex items-start gap-2.5 mb-2">
-        <div className={`p-2 rounded-xl shrink-0 transition-transform duration-300 group-hover:scale-105 ${iconBg}`}>
-          {icon}
+      <div className="flex items-center gap-2.5 w-full min-h-0 flex-1">
+        <div
+          className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-transform duration-300 ${
+            interactive ? 'group-hover:scale-105' : ''
+          } ${iconBg}`}
+        >
+          {React.isValidElement(icon)
+            ? React.cloneElement(icon as React.ReactElement<{ size?: number }>, { size: iconSize })
+            : icon}
         </div>
-        <span className={`text-[11px] font-semibold ${MUTED} leading-tight pt-0.5`}>{label}</span>
+
+        <div className="flex flex-col justify-center gap-0.5 min-w-0 flex-1 py-0.5">
+          <span className="text-xs font-semibold text-slate-600 leading-tight line-clamp-2">{label}</span>
+          {subDetail ? (
+            <div className={`text-[11px] ${META} leading-snug line-clamp-2`}>{subDetail}</div>
+          ) : null}
+        </div>
+
+        <div className="flex flex-col items-center justify-center shrink-0 self-stretch border-l border-slate-100 pl-2.5 min-w-[2.5rem]">
+          <span className="text-lg font-bold text-slate-700 tabular-nums leading-none">{numericValue}</span>
+          <span className="text-[9px] text-slate-400 mt-1 lowercase tracking-wide">{t('Всего')}</span>
+        </div>
       </div>
-      <div className="text-[26px] font-bold text-slate-900 leading-none tabular-nums pl-0.5">{displayed}</div>
-      {subDetail && <div className={`text-[10px] ${MUTED} mt-2 leading-relaxed`}>{subDetail}</div>}
-    </button>
+    </Tag>
   );
 }
 
@@ -233,36 +397,101 @@ const StatusLegendRow: React.FC<{
 
   return (
     <div
-      className="dashboard-legend-item flex gap-2.5 min-w-0"
+      className="dashboard-legend-item flex items-center gap-2 min-w-0"
       style={{ animationDelay: `${400 + rowIndex * 120}ms` }}
     >
       <span
-        className="w-2.5 h-2.5 rounded-full shrink-0 mt-1"
+        className="w-2 h-2 rounded-full shrink-0"
         style={{ backgroundColor: color }}
       />
-      <div className="min-w-0">
-        <p className="text-[11px] font-bold text-slate-800 leading-snug">{t(name)}</p>
-        <p className="text-[10px] text-slate-400 tabular-nums mt-0.5">
-          {animatedPct}% ({value})
-        </p>
-      </div>
+      <span className="text-xs font-semibold text-slate-800 leading-none truncate">{t(name)}</span>
+      <span className="text-xs text-slate-400 tabular-nums leading-none shrink-0 ml-auto">
+        {animatedPct}% ({value})
+      </span>
     </div>
   );
 };
 
-function CircularProgress({ percent, size = 'md' }: { percent: number; size?: 'md' | 'lg' }) {
+function StatusTotalBadge({ total }: { total: number }) {
   const { t } = useTranslation();
+  const animatedTotal = useAnimatedNumber(total, 360, 0);
+
+  return (
+    <div className="flex flex-col items-center justify-center shrink-0 border-r border-slate-100 pr-2.5 mr-0.5 min-w-[2.75rem]">
+      <span className="text-base font-bold text-slate-900 tabular-nums leading-none">{animatedTotal}</span>
+      <span className={`text-[9px] ${META} mt-0.5 lowercase tracking-wide`}>{t('Всего')}</span>
+    </div>
+  );
+}
+
+function StatusChartDonut({
+  slices,
+  total,
+  motion,
+  tooltipStyle,
+}: {
+  slices: ReturnType<typeof buildEquipmentStatusSlices>;
+  total: number;
+  motion: ReturnType<typeof fastChartMotionProps>;
+  tooltipStyle: React.CSSProperties;
+}) {
+  const activeSlices = slices.filter((s) => s.value > 0);
+  const chartDim = 64;
+
+  if (activeSlices.length === 0) {
+    return <StatusTotalBadge total={total} />;
+  }
+
+  return (
+    <div className="relative shrink-0 border-r border-slate-100 pr-2.5 mr-0.5" style={{ width: chartDim, height: chartDim }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <PieChart margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
+          <Pie
+            data={activeSlices}
+            cx="50%"
+            cy="50%"
+            innerRadius="52%"
+            outerRadius="88%"
+            paddingAngle={2}
+            dataKey="value"
+            startAngle={90}
+            endAngle={-270}
+            stroke="none"
+            {...motion}
+            animationBegin={0}
+          >
+            {activeSlices.map((entry) => (
+              <Cell key={entry.name} fill={entry.color} stroke="transparent" />
+            ))}
+          </Pie>
+          <Tooltip contentStyle={tooltipStyle} />
+        </PieChart>
+      </ResponsiveContainer>
+      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center">
+        <span className="text-xs font-bold text-slate-900 tabular-nums leading-none">{total}</span>
+      </div>
+    </div>
+  );
+}
+
+function CircularProgress({ percent, compact = false }: { percent: number; compact?: boolean }) {
+  const { t } = useTranslation();
+  const { width, height, scale } = useDashboardWidgetMetrics();
   const animated = useAnimatedNumber(percent, 1200, 200);
-  const large = size === 'lg';
-  const dim = large ? 152 : 100;
-  const r = large ? 58 : 38;
-  const stroke = large ? 9 : 7;
+  const maxDim = compact ? 92 : height < 240 ? 108 : 168;
+  const minDim = compact ? 52 : 64;
+  const dim = Math.round(
+    Math.min(Math.max(Math.min(width, height) * (compact ? 0.42 : 0.48), minDim), maxDim) *
+      Math.min(scale, 1.12)
+  );
+  const r = dim * 0.38;
+  const stroke = Math.max(4, dim * 0.06);
   const c = 2 * Math.PI * r;
   const offset = c - (animated / 100) * c;
   const center = dim / 2;
 
   return (
-    <div className="relative shrink-0" style={{ width: dim, height: dim }}>
+    <div className="relative shrink-0 dash-widget-progress" style={{ width: dim, height: dim }}>
       <svg width={dim} height={dim} viewBox={`0 0 ${dim} ${dim}`} className="-rotate-90">
         <circle cx={center} cy={center} r={r} fill="none" stroke="#e2e8f0" strokeWidth={stroke} />
         <circle
@@ -279,11 +508,110 @@ function CircularProgress({ percent, size = 'md' }: { percent: number; size?: 'm
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className={`${large ? 'text-3xl' : 'text-xl'} font-bold text-slate-900 tabular-nums leading-none`}>
+        <span
+          className="text-sm font-bold text-slate-900 tabular-nums leading-none"
+          style={{ fontSize: compact ? '12px' : '14px' }}
+        >
           {animated}%
         </span>
-        <span className={`${large ? 'text-xs mt-1' : 'text-[9px] mt-0.5'} text-slate-500`}>{t('Прогресс')}</span>
+        {!compact && <span className="text-xs text-slate-500 mt-0.5">{t('Прогресс')}</span>}
       </div>
+    </div>
+  );
+}
+
+function InventoryDetailCard({
+  staggerIndex,
+  audits,
+  selectedAudit,
+  auditCard,
+  inventoryProgress,
+  editMode,
+  auditStatusTone,
+  onAuditSelectionChange,
+  onNavigate,
+}: {
+  staggerIndex: number;
+  audits: InventoryAudit[];
+  selectedAudit: InventoryAudit | undefined;
+  auditCard: ReturnType<typeof buildDashboardAuditCard>;
+  inventoryProgress: ReturnType<typeof buildDashboardAuditCard>['progress'];
+  editMode: boolean;
+  auditStatusTone: (status: InventoryAudit['status']) => string;
+  onAuditSelectionChange: (auditId: string) => void;
+  onNavigate: (tabId: string) => void;
+}) {
+  const { t } = useTranslation();
+  const showAuditMeta = true;
+
+  return (
+    <div className={`${PANEL} text-left ${dashboardStaggerClass(staggerIndex, 2)}`}>
+      <h2 className={`${TITLE} mb-2`}>{t('Инвентаризация')}</h2>
+      {audits.length > 0 ? (
+        <select
+          value={selectedAudit?.id ?? ''}
+          onChange={(e) => onAuditSelectionChange(e.target.value)}
+          className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 cursor-pointer shrink-0 mb-2"
+        >
+          {audits.map((audit) => (
+            <option key={audit.id} value={audit.id}>
+              {audit.title} ({audit.date})
+            </option>
+          ))}
+        </select>
+      ) : (
+        <p className={`text-xs ${META} shrink-0 mb-2`}>{t('Нет запланированных инвентаризаций')}</p>
+      )}
+      {selectedAudit && (
+        <div className="flex flex-wrap items-center gap-1.5 mb-2 shrink-0">
+          <span
+            className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold border ${auditStatusTone(selectedAudit.status)}`}
+          >
+            {t(selectedAudit.status)}
+          </span>
+          {auditCard.objectLabel && showAuditMeta && (
+            <span className="text-xs text-indigo-700 font-semibold bg-indigo-50 px-2 py-0.5 rounded-md truncate max-w-full">
+              {t('Объект')}: {auditCard.objectLabel}
+            </span>
+          )}
+        </div>
+      )}
+      <div className="flex flex-1 min-h-0 gap-3 items-center">
+        <CircularProgress percent={inventoryProgress.percent} compact />
+        <div className={`flex-1 min-w-0 space-y-1 text-sm text-slate-700`}>
+          <p className="leading-snug">
+            {t('Проверено')}:{' '}
+            <strong className="text-slate-900 tabular-nums">
+              {inventoryProgress.checked}/{inventoryProgress.total}
+            </strong>
+          </p>
+          <p className="leading-snug">
+            {t('Осталось')}:{' '}
+            <strong className="text-slate-900 tabular-nums">
+              {inventoryProgress.remaining} {t('позиций')}
+            </strong>
+          </p>
+          <p className="leading-snug">
+            {t('Объектов')}:{' '}
+            <strong className="text-slate-900 tabular-nums">
+              {inventoryProgress.objectsDone} {t('из')} {inventoryProgress.objectsTotal}
+            </strong>
+          </p>
+          {selectedAudit && showAuditMeta && (
+            <div className="pt-1.5 mt-1 border-t border-slate-100 space-y-1 text-xs leading-snug">
+              <p>
+                <span className="text-slate-500 font-semibold">{t('Кто проводит:')}</span>{' '}
+                <span className="text-slate-800">{auditCard.conductorUser || t('Не указан')}</span>
+              </p>
+              <p>
+                <span className="text-slate-500 font-semibold">{t('Кто принимает:')}</span>{' '}
+                <span className="text-slate-800">{auditCard.controllerUser || t('Не указан')}</span>
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+      <FooterLink label={t('Перейти к инвентаризации')} onClick={() => !editMode && onNavigate('inventory')} />
     </div>
   );
 }
@@ -313,37 +641,44 @@ const WarehouseCategoryCard: React.FC<{
   chartsReady,
   reduceMotion,
 }) => {
+  const { tier, scale, width, height } = useDashboardWidgetMetrics();
   const delay = 420 + staggerIndex * 70;
   const animatedCount = useAnimatedNumber(count, 820, delay);
   const animatedPrice = useAnimatedNumber(price, 920, delay + 90);
   const sparkData = useMemo(() => buildSparkline(Math.max(count, 1)), [count]);
   const sparkMotion = fastChartMotionProps(reduceMotion);
   const gradientId = `wh-spark-${staggerIndex}`;
+  const iconSize = Math.round(14 + scale * 4);
+  const showSpark = tier !== 'xs' && height > 100;
 
   return (
     <div
-      className={`rounded-xl border border-slate-100 bg-slate-50/60 p-3 flex flex-col gap-2 group transition-all duration-300 hover:shadow-md hover:border-blue-200/80 hover:bg-white hover:-translate-y-0.5 ${dashboardStaggerClass(staggerIndex, 9)}`}
+      className={`rounded-xl border border-slate-100 bg-slate-50/60 flex flex-col gap-1.5 h-full min-h-0 p-2.5 group transition-all duration-300 hover:shadow-md hover:border-blue-200/80 hover:bg-white ${
+        dashboardStaggerClass(staggerIndex, 9)
+      }`}
     >
       <div className="flex items-start gap-2.5">
         <span
           className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 dashboard-icon-pop transition-transform duration-300 group-hover:scale-110 ${iconBox} ${iconColor}`}
           style={{ animationDelay: `${delay + 100}ms` }}
         >
-          <Icon size={17} />
+          <Icon size={iconSize} />
         </span>
         <div className="min-w-0 flex-1">
-          <p className={`text-[10px] font-medium ${MUTED} leading-none`}>{label}</p>
-          <p className="text-lg font-bold text-slate-900 leading-tight tabular-nums mt-1">
-            {animatedCount} <span className="text-[11px] font-semibold text-slate-500">шт.</span>
+          <p className={`text-xs font-medium ${META} leading-none`}>{label}</p>
+          <p className="text-sm font-bold text-slate-900 leading-tight tabular-nums mt-0.5">
+            {animatedCount} <span className="text-xs font-semibold text-slate-500">шт.</span>
           </p>
-          <p className="text-[11px] font-semibold text-blue-600 mt-0.5 tabular-nums transition-colors duration-300 group-hover:text-blue-700">
+          <p className="text-xs font-semibold text-blue-600 mt-0.5 tabular-nums transition-colors duration-300 group-hover:text-blue-700">
             {formatMoney(animatedPrice)}
           </p>
         </div>
       </div>
+      {showSpark && (
       <div
-        className="h-7 -mx-0.5 dashboard-spark-reveal"
+        className="warehouse-spark-wrap flex-1 min-h-[24px] max-h-[40px] -mx-0.5 dashboard-spark-reveal"
         style={{ animationDelay: `${delay + 180}ms` }}
+        key={`spark-${width}x${height}`}
       >
         {chartsReady && (
           <ResponsiveContainer width="100%" height="100%">
@@ -377,6 +712,7 @@ const WarehouseCategoryCard: React.FC<{
           </ResponsiveContainer>
         )}
       </div>
+      )}
     </div>
   );
 };
@@ -395,13 +731,14 @@ function DashboardViewInner({
   computers,
   employees,
   warehouseItems,
+  softwareItems = [],
   warehouses = [],
   activities,
   audits,
   onNavigate,
 }: DashboardViewProps) {
   const { t, language } = useTranslation();
-  const { layout, editMode } = useDashboardLayout();
+  const { editMode, gridItems, updateGridLayout, removeWidget } = useDashboardLayout();
   const [chartsReady, setChartsReady] = useState(false);
   const [reduceMotion, setReduceMotion] = useState(false);
   const [dynamicsPeriod, setDynamicsPeriod] = useState<DynamicsPeriod>('quarter');
@@ -476,12 +813,7 @@ function DashboardViewInner({
     () => buildEquipmentStatusSlices(computers, networkDevices),
     [computers, networkDevices]
   );
-  const activeStatusSlices = useMemo(
-    () => statusSlices.filter((s) => s.value > 0),
-    [statusSlices]
-  );
   const statusTotal = statusSlices.reduce((s, x) => s + x.value, 0);
-  const animatedStatusTotal = useAnimatedNumber(statusTotal, 360, 0);
 
   const dateLocale = language === 'en' ? 'en-US' : language === 'zh' ? 'zh-CN' : 'ru-RU';
 
@@ -567,6 +899,10 @@ function DashboardViewInner({
   const alerts = useMemo(
     () => buildDashboardAlerts({ computers: activeComputers, audits }),
     [activeComputers, audits]
+  );
+  const softwareMonitoring = useMemo(
+    () => buildSoftwareMonitoringSummary(softwareItems),
+    [softwareItems]
   );
 
   const recentActivities = activities.slice(0, 4);
@@ -698,6 +1034,7 @@ function DashboardViewInner({
             iconBg="bg-blue-50 text-blue-600"
             onClick={() => !editMode && onNavigate('computers')}
             staggerIndex={staggerIndex}
+            interactive={!editMode}
           />
         );
       case 'employees':
@@ -716,6 +1053,7 @@ function DashboardViewInner({
             iconBg="bg-violet-50 text-violet-600"
             onClick={() => !editMode && onNavigate('employees')}
             staggerIndex={staggerIndex}
+            interactive={!editMode}
           />
         );
       case 'warehouse':
@@ -725,13 +1063,15 @@ function DashboardViewInner({
             numericValue={warehouseCount}
             subDetail={
               <span>
-                {t('На сумму')}: <strong className="text-slate-600 font-semibold">{formatMoney(warehouseCostSum)}</strong>
+                {t('На сумму')}:{' '}
+                <strong className="text-slate-600 font-semibold">{formatMoney(warehouseCostSum)}</strong>
               </span>
             }
             icon={<Warehouse size={18} />}
             iconBg="bg-emerald-50 text-emerald-600"
             onClick={() => !editMode && onNavigate('warehouse')}
             staggerIndex={staggerIndex}
+            interactive={!editMode}
           />
         );
       case 'network':
@@ -744,6 +1084,7 @@ function DashboardViewInner({
             iconBg="bg-blue-50 text-blue-600"
             onClick={() => !editMode && onNavigate('network')}
             staggerIndex={staggerIndex}
+            interactive={!editMode}
           />
         );
       case 'printers':
@@ -756,6 +1097,7 @@ function DashboardViewInner({
             iconBg="bg-violet-50 text-violet-600"
             onClick={() => !editMode && onNavigate('orgtech')}
             staggerIndex={staggerIndex}
+            interactive={!editMode}
           />
         );
       case 'cameras':
@@ -768,6 +1110,7 @@ function DashboardViewInner({
             iconBg="bg-slate-100 text-slate-500"
             onClick={() => !editMode && onNavigate('surveillance')}
             staggerIndex={staggerIndex}
+            interactive={!editMode}
           />
         );
       case 'consumables':
@@ -780,6 +1123,7 @@ function DashboardViewInner({
             iconBg="bg-emerald-50 text-emerald-600"
             onClick={() => !editMode && onNavigate('consumables')}
             staggerIndex={staggerIndex}
+            interactive={!editMode}
           />
         );
       case 'other':
@@ -792,6 +1136,7 @@ function DashboardViewInner({
             iconBg="bg-slate-100 text-slate-500"
             onClick={() => !editMode && onNavigate('other_equip')}
             staggerIndex={staggerIndex}
+            interactive={!editMode}
           />
         );
       default:
@@ -803,13 +1148,13 @@ function DashboardViewInner({
     switch (id) {
       case 'dynamics':
         return (
-          <div className={`${CARD} p-5 dashboard-chart-glow flex flex-col ${dashboardStaggerClass(staggerIndex, 1)}`}>
-            <div className="flex items-center justify-between mb-4">
+          <div className={`${PANEL} dashboard-chart-glow ${dashboardStaggerClass(staggerIndex, 1)}`}>
+            <div className="flex items-center justify-between mb-2 shrink-0">
               <h2 className={TITLE}>{t('Динамика оборудования')}</h2>
               <select
                 value={dynamicsPeriod}
                 onChange={(e) => setDynamicsPeriod(e.target.value as DynamicsPeriod)}
-                className="text-[10px] font-medium text-slate-600 bg-slate-50 pl-2.5 pr-7 py-1 rounded-lg border border-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300 cursor-pointer appearance-none bg-[length:10px] bg-[right_8px_center] bg-no-repeat"
+                className="text-xs font-medium text-slate-600 bg-slate-50 pl-2.5 pr-7 py-1 rounded-lg border border-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300 cursor-pointer appearance-none bg-[length:10px] bg-[right_8px_center] bg-no-repeat"
                 style={{
                   backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
                 }}
@@ -820,37 +1165,22 @@ function DashboardViewInner({
                 <option value="year">{t('Год')}</option>
               </select>
             </div>
-            <div className="h-[190px]">
+            <DashChartArea>
               {chartsReady && (
-                <ResponsiveContainer key={dynamicsPeriod} width="100%" height="100%">
-                  <ComposedChart data={dynamicsData} margin={{ top: 4, right: 4, left: -12, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="dashDynamicsFill" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.22} />
-                        <stop offset="100%" stopColor="#3b82f6" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke={chartGrid} vertical={false} />
-                    <XAxis dataKey="month" tick={{ fontSize: 10, fill: chartTick }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fontSize: 10, fill: chartTick }} axisLine={false} tickLine={false} width={28} allowDecimals={false} />
-                    <Tooltip contentStyle={chartTooltip} labelFormatter={(l) => `${t('Месяц')}: ${l}`} cursor={{ stroke: '#3b82f6', strokeWidth: 1, strokeDasharray: '4 4' }} />
-                    <Area type="monotone" dataKey="count" fill="url(#dashDynamicsFill)" stroke="none" tooltipType="none" {...motion} animationBegin={150} />
-                    <Line
-                      type="monotone"
-                      dataKey="count"
-                      stroke="#3b82f6"
-                      strokeWidth={2.5}
-                      dot={{ r: 4, fill: lineDotFill, stroke: '#3b82f6', strokeWidth: 2 }}
-                      activeDot={{ r: 6, fill: '#3b82f6', stroke: '#fff', strokeWidth: 2 }}
-                      name={t('Добавлено')}
-                      {...motion}
-                      animationBegin={200}
-                    />
-                  </ComposedChart>
+                <ResponsiveContainer width="100%" height="100%">
+                  <DynamicsChartInner
+                    data={dynamicsData}
+                    motion={motion}
+                    chartGrid={chartGrid}
+                    chartTick={chartTick}
+                    chartTooltip={chartTooltip}
+                    lineDotFill={lineDotFill}
+                    t={t}
+                  />
                 </ResponsiveContainer>
               )}
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mt-4 pt-4 border-t border-slate-100">
+            </DashChartArea>
+            <div className="dash-widget-stats grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3 pt-3 border-t border-slate-100 shrink-0">
               <DynamicsStatBox
                 label={t('Всего единиц')}
                 value={equipmentTotals.total}
@@ -865,47 +1195,22 @@ function DashboardViewInner({
         );
       case 'status_chart':
         return (
-          <div className={`${CARD} p-4 flex flex-col ${dashboardStaggerClass(staggerIndex, 1)}`}>
-            <h2 className={`${TITLE} mb-3`}>{t('Статусы оборудования')}</h2>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6 flex-1 min-h-[160px] sm:min-h-[190px]">
-              <div className="relative h-[140px] w-[140px] sm:h-[190px] sm:w-[190px] shrink-0">
-                {activeStatusSlices.length > 0 && (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
-                      <Pie
-                        data={activeStatusSlices}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius="52%"
-                        outerRadius="88%"
-                        paddingAngle={2}
-                        dataKey="value"
-                        startAngle={90}
-                        endAngle={-270}
-                        stroke="none"
-                        {...statusMotion}
-                        animationBegin={0}
-                      >
-                        {activeStatusSlices.map((entry) => (
-                          <Cell key={entry.name} fill={entry.color} stroke="transparent" />
-                        ))}
-                      </Pie>
-                      <Tooltip contentStyle={chartTooltip} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                )}
-                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center">
-                  <span className="text-[28px] font-bold text-slate-900 tabular-nums leading-none">{animatedStatusTotal}</span>
-                  <span className={`text-[10px] ${MUTED} mt-0.5`}>{t('Всего')}</span>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-2.5 w-full sm:w-auto max-w-sm sm:max-w-none">
+          <div className={`${PANEL} dash-widget-status ${dashboardStaggerClass(staggerIndex, 1)}`}>
+            <h2 className={`${TITLE} mb-1.5`}>{t('Статусы оборудования')}</h2>
+            <div className="flex items-center gap-2 w-full shrink-0">
+              <StatusChartDonut
+                slices={statusSlices}
+                total={statusTotal}
+                motion={statusMotion}
+                tooltipStyle={chartTooltip}
+              />
+              <div className="dash-widget-legend flex flex-col gap-1 flex-1 min-w-0">
                 {statusSlices.map((s, i) => (
                   <StatusLegendRow key={s.name} name={s.name} color={s.color} value={s.value} total={statusTotal} rowIndex={i} />
                 ))}
               </div>
             </div>
-            <div className={`flex items-center gap-1.5 text-[10px] ${MUTED} mt-3 pt-2.5 border-t border-slate-100`}>
+            <div className={`flex items-center gap-1.5 text-xs ${META} mt-auto pt-2 border-t border-slate-100 shrink-0`}>
               <span>
                 {t('Последнее обновление')}: {t('сегодня')}, {lastUpdated}
               </span>
@@ -915,57 +1220,16 @@ function DashboardViewInner({
         );
       case 'alerts':
         return (
-          <div className={`${CARD} p-5 flex flex-col ${dashboardStaggerClass(staggerIndex, 1)}`}>
-            <div className="flex items-center justify-between mb-4">
+          <div className={`${PANEL} ${dashboardStaggerClass(staggerIndex, 1)}`}>
+            <div className="flex items-center justify-between mb-2 shrink-0">
               <h2 className={TITLE}>{t('Требуют внимания')}</h2>
               {alerts.length > 0 && (
-                <span className="bg-red-500 text-white text-[10px] font-bold min-w-[20px] h-5 px-1.5 rounded-full flex items-center justify-center">
+                <span className="bg-red-500 text-white text-xs font-bold min-w-[20px] h-5 px-1.5 rounded-full flex items-center justify-center">
                   {alerts.length}
                 </span>
               )}
             </div>
-            <div className="space-y-2 flex-1">
-              {alerts.length === 0 ? (
-                <p className={`text-xs ${MUTED} text-center py-10`}>{t('Нет срочных уведомлений')}</p>
-              ) : (
-                alerts.slice(0, 2).map((a, i) => {
-                  const localized = translateDashboardAlert(a, t);
-                  return (
-                    <button
-                      key={a.id}
-                      type="button"
-                      onClick={() => !editMode && onNavigate(a.tab)}
-                      className={`dashboard-rise w-full text-left p-3 rounded-xl border text-xs transition-colors ${
-                        a.tone === 'danger'
-                          ? 'bg-rose-50 border-rose-100 text-rose-800'
-                          : 'bg-amber-50 border-amber-100 text-amber-900'
-                      }`}
-                      style={{ animationDelay: `${200 + i * 80}ms` }}
-                    >
-                      <div className="flex items-start gap-2.5">
-                        <span className={`p-1.5 rounded-lg shrink-0 ${a.tone === 'danger' ? 'bg-rose-100 text-rose-600' : 'bg-amber-100 text-amber-600'}`}>
-                          <AlertTriangle size={14} />
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <p className="font-semibold leading-snug text-slate-900">{localized.title}</p>
-                          <p className="text-[11px] text-slate-600 mt-0.5">{localized.subtitle}</p>
-                          {localized.detail && <p className={`text-[10px] ${MUTED} mt-0.5`}>{localized.detail}</p>}
-                        </div>
-                        {localized.badge && (
-                          <span
-                            className={`shrink-0 text-[9px] font-bold px-2 py-1 rounded-md whitespace-nowrap ${
-                              a.tone === 'danger' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'
-                            }`}
-                          >
-                            {localized.badge}
-                          </span>
-                        )}
-                      </div>
-                    </button>
-                  );
-                })
-              )}
-            </div>
+            <AlertsWidgetList alerts={alerts} editMode={editMode} onNavigate={onNavigate} />
             {alerts.length > 0 && <FooterLink label={t('Смотреть все')} onClick={() => !editMode && onNavigate('warranties')} />}
           </div>
         );
@@ -978,13 +1242,15 @@ function DashboardViewInner({
     switch (id) {
       case 'network_summary':
         return (
-          <div className={`${CARD} p-5 flex flex-col ${dashboardStaggerClass(staggerIndex, 2)}`}>
-            <h2 className={`${TITLE} mb-4`}>{t('Сетевое оборудование')}</h2>
+          <div className={`${PANEL} ${dashboardStaggerClass(staggerIndex, 2)}`}>
+            <h2 className={`${TITLE} mb-2`}>{t('Сетевое оборудование')}</h2>
             {networkSummary.length === 0 ? (
-              <p className={`text-xs ${MUTED}`}>{t('Нет данных')}</p>
+              <div className="flex-1 min-h-0 flex items-start">
+                <p className={`text-sm ${META}`}>{t('Нет данных')}</p>
+              </div>
             ) : (
-              <div className="space-y-1 flex-1">
-                <div className="grid grid-cols-[1fr_52px_80px] gap-2 text-[10px] font-semibold uppercase tracking-wide text-slate-400 pb-2 border-b border-slate-100">
+              <div className="space-y-1 flex-1 min-h-0 overflow-auto">
+                <div className={`grid grid-cols-[1fr_3.2em_5em] gap-2 ${CAPTION} pb-2 border-b border-slate-100`}>
                   <span>{t('Тип')}</span>
                   <span className="text-right">{t('Количество')}</span>
                   <span>{t('Устройства')}</span>
@@ -995,8 +1261,8 @@ function DashboardViewInner({
                     className="dashboard-legend-item grid grid-cols-[1fr_52px_80px] gap-2 items-center py-2 border-b border-slate-50 last:border-0"
                     style={{ animationDelay: `${300 + i * 100}ms` }}
                   >
-                    <span className="text-[12px] text-slate-700 truncate">{t(row.type)}</span>
-                    <span className="text-[12px] font-bold text-slate-900 text-right tabular-nums">{row.count}</span>
+                    <span className={`${BODY} truncate`}>{t(row.type)}</span>
+                    <span className="text-sm font-bold text-slate-900 text-right tabular-nums">{row.count}</span>
                     <AnimatedBar percent={Math.round((row.count / maxNetworkCount) * 100)} delay={350 + i * 100} />
                   </div>
                 ))}
@@ -1007,11 +1273,11 @@ function DashboardViewInner({
         );
       case 'activities':
         return (
-          <div className={`${CARD} p-5 flex flex-col ${dashboardStaggerClass(staggerIndex, 2)}`}>
-            <h2 className={`${TITLE} mb-4`}>{t('Последние действия')}</h2>
-            <div className="space-y-0 flex-1">
+          <div className={`${PANEL} ${dashboardStaggerClass(staggerIndex, 2)}`}>
+            <h2 className={`${TITLE} mb-2`}>{t('Последние действия')}</h2>
+            <div className="space-y-0 flex-1 min-h-0 overflow-auto scrollbar-none">
               {recentActivities.length === 0 ? (
-                <p className={`text-xs ${MUTED}`}>{t('Журнал пуст')}</p>
+                <p className={`text-xs ${META}`}>{t('Журнал пуст')}</p>
               ) : (
                 recentActivities.map((act, i) => {
                   const { icon: Icon, box } = pickActivityStyle(act.action, act.detail);
@@ -1020,19 +1286,19 @@ function DashboardViewInner({
                   return (
                     <div
                       key={act.id}
-                      className="dashboard-legend-item flex gap-3 py-3 border-b border-slate-50 last:border-0"
+                      className="dashboard-legend-item flex gap-2.5 py-2 border-b border-slate-50 last:border-0"
                       style={{ animationDelay: `${250 + i * 70}ms` }}
                     >
-                      <span className={`p-2 rounded-xl h-fit shrink-0 ${box}`}>
+                      <span className={`p-1.5 rounded-lg h-fit shrink-0 ${box}`}>
                         <Icon size={14} />
                       </span>
                       <div className="min-w-0 flex-1">
-                        <p className="text-[12px] font-semibold text-slate-800 leading-snug">
-                          {actionLabel}
-                          {detailLabel ? `. ${detailLabel}` : ''}
-                        </p>
+                        <p className="text-xs font-semibold leading-snug text-slate-900">{actionLabel}</p>
+                        {detailLabel ? (
+                          <p className={`text-xs text-slate-600 mt-0.5 leading-snug`}>{detailLabel}</p>
+                        ) : null}
                       </div>
-                      <span className={`text-[10px] ${MUTED} shrink-0 tabular-nums self-start pt-0.5`}>
+                      <span className={`text-xs ${META} shrink-0 tabular-nums self-start pt-0.5`}>
                         {formatDashboardActivityTime(act.timestamp, language, t)}
                       </span>
                     </div>
@@ -1045,15 +1311,15 @@ function DashboardViewInner({
         );
       case 'by_object':
         return (
-          <div className={`${CARD} p-5 flex flex-col ${dashboardStaggerClass(staggerIndex, 2)}`}>
-            <h2 className={`${TITLE} mb-4`}>{t('Оборудование по объектам')}</h2>
-            <div className="space-y-3 flex-1">
+          <div className={`${PANEL} ${dashboardStaggerClass(staggerIndex, 2)}`}>
+            <h2 className={`${TITLE} mb-2`}>{t('Оборудование по объектам')}</h2>
+            <div className="space-y-3 flex-1 min-h-0 overflow-auto">
               {byObject.length === 0 ? (
-                <p className={`text-xs ${MUTED}`}>{t('Нет данных')}</p>
+                <p className={`text-sm ${META}`}>{t('Нет данных')}</p>
               ) : (
                 byObject.map((obj, i) => (
                   <div key={obj.name} className="dashboard-legend-item" style={{ animationDelay: `${300 + i * 90}ms` }}>
-                    <div className="flex justify-between text-[12px] mb-1.5 gap-2">
+                    <div className="flex justify-between text-sm mb-1.5 gap-2">
                       <span className="text-slate-700 truncate font-medium">{obj.name}</span>
                       <span className="font-bold text-slate-900 shrink-0 tabular-nums">{obj.count}</span>
                     </div>
@@ -1067,77 +1333,61 @@ function DashboardViewInner({
         );
       case 'inventory':
         return (
-          <div className={`${CARD} p-6 sm:p-8 flex flex-col items-center text-center min-h-[300px] ${dashboardStaggerClass(staggerIndex, 2)}`}>
-            <div className="w-full max-w-[280px] space-y-3 mb-4">
-              <h2 className={`${TITLE} text-center`}>{t('Инвентаризация')}</h2>
-              {audits.length > 0 ? (
-                <select
-                  value={selectedAudit?.id ?? ''}
-                  onChange={(e) => handleAuditSelectionChange(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 cursor-pointer"
-                >
-                  {audits.map((audit) => (
-                    <option key={audit.id} value={audit.id}>
-                      {audit.title} ({audit.date})
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <p className={`text-xs ${MUTED}`}>{t('Нет запланированных инвентаризаций')}</p>
+          <InventoryDetailCard
+            staggerIndex={staggerIndex}
+            audits={audits}
+            selectedAudit={selectedAudit}
+            auditCard={auditCard}
+            inventoryProgress={inventoryProgress}
+            editMode={editMode}
+            auditStatusTone={auditStatusTone}
+            onAuditSelectionChange={handleAuditSelectionChange}
+            onNavigate={onNavigate}
+          />
+        );
+      case 'software_monitoring':
+        return (
+          <div className={`${PANEL} dash-widget-software ${dashboardStaggerClass(staggerIndex, 2)}`}>
+            <div className="flex items-center justify-between gap-2 shrink-0">
+              <h2 className={`${TITLE} leading-tight`}>{t('Мониторинг ПО')}</h2>
+              {softwareMonitoring.rows.length === 0 && (
+                <span className={`text-xs ${META} shrink-0`}>{t('Нет данных')}</span>
               )}
-              {selectedAudit && (
-                <div className="flex flex-col items-center gap-2">
-                  <span
-                    className={`inline-flex items-center px-2.5 py-0.5 rounded-lg text-[10px] font-bold border ${auditStatusTone(selectedAudit.status)}`}
-                  >
-                    {t(selectedAudit.status)}
-                  </span>
-                  {auditCard.objectLabel && (
-                    <p className="text-[10px] text-indigo-700 font-semibold bg-indigo-50 px-2 py-1 rounded-lg">
-                      {t('Объект')}: {auditCard.objectLabel}
-                    </p>
-                  )}
+            </div>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 shrink-0">
+              <DynamicsStatBox compact label={t('Всего мест')} value={softwareMonitoring.totalSeats} />
+              <DynamicsStatBox compact label={t('Выдано')} value={softwareMonitoring.assignedSeats} suffixClassName="text-emerald-600" />
+              <DynamicsStatBox
+                compact
+                label={t('Не задействовано')}
+                value={softwareMonitoring.unassignedSeats}
+                suffixClassName="text-amber-600"
+              />
+              <DynamicsStatBox compact label={t('Всего программ')} value={softwareMonitoring.totalProducts} />
+            </div>
+            {softwareMonitoring.rows.length > 0 && (
+              <div className="flex-1 min-h-0 overflow-auto">
+                <div className={`grid grid-cols-[1fr_4.5em_5.5em_5.5em] gap-2 ${CAPTION} pb-1.5 border-b border-slate-100 sticky top-0 bg-white`}>
+                  <span>{t('Программа')}</span>
+                  <span className="text-right">{t('Всего')}</span>
+                  <span className="text-right">{t('Выдано')}</span>
+                  <span className="text-right">{t('Не задействовано')}</span>
                 </div>
-              )}
-            </div>
-            <div className="flex flex-col items-center justify-center gap-5 sm:gap-6 flex-1 w-full">
-              <CircularProgress percent={inventoryProgress.percent} size="lg" />
-              <div className="space-y-2.5 text-sm text-slate-700 w-full max-w-[260px] text-left">
-                <p>
-                  {t('Проверено')}:{' '}
-                  <strong className="text-slate-900 tabular-nums text-base">
-                    {inventoryProgress.checked}/{inventoryProgress.total}
-                  </strong>
-                </p>
-                <p>
-                  {t('Осталось')}:{' '}
-                  <strong className="text-slate-900 tabular-nums text-base">
-                    {inventoryProgress.remaining} {t('позиций')}
-                  </strong>
-                </p>
-                <p>
-                  {t('Объектов')}:{' '}
-                  <strong className="text-slate-900 tabular-nums text-base">
-                    {inventoryProgress.objectsDone} {t('из')} {inventoryProgress.objectsTotal}
-                  </strong>
-                </p>
-                {selectedAudit && (
-                  <div className="pt-2 mt-1 border-t border-slate-100 space-y-2 text-[11px]">
-                    <p>
-                      <span className="text-slate-500 font-semibold">{t('Кто проводит:')}</span>{' '}
-                      <span className="text-slate-800 font-medium">{auditCard.conductorUser || t('Не указан')}</span>
-                    </p>
-                    <p>
-                      <span className="text-slate-500 font-semibold">{t('Кто принимает:')}</span>{' '}
-                      <span className="text-slate-800 font-medium">{auditCard.controllerUser || t('Не указан')}</span>
-                    </p>
+                {softwareMonitoring.rows.map((row, i) => (
+                  <div
+                    key={row.id}
+                    className="dashboard-legend-item grid grid-cols-[1fr_4.5em_5.5em_5.5em] gap-2 items-center py-1.5 border-b border-slate-50 last:border-0"
+                    style={{ animationDelay: `${280 + i * 70}ms` }}
+                  >
+                    <span className={`${BODY} truncate font-medium`}>{row.name}</span>
+                    <span className="text-sm font-bold text-slate-900 text-right tabular-nums">{row.totalSeats}</span>
+                    <span className="text-sm font-bold text-emerald-700 text-right tabular-nums">{row.assignedSeats}</span>
+                    <span className="text-sm font-bold text-amber-700 text-right tabular-nums">{row.unassignedSeats}</span>
                   </div>
-                )}
+                ))}
               </div>
-            </div>
-            <div className="w-full flex justify-center mt-6">
-              <FooterLink label={t('Перейти к инвентаризации')} onClick={() => !editMode && onNavigate('inventory')} />
-            </div>
+            )}
+            <FooterLink label={t('Перейти к реестру ПО')} onClick={() => !editMode && onNavigate('software')} />
           </div>
         );
       default:
@@ -1145,97 +1395,77 @@ function DashboardViewInner({
     }
   };
 
-  return (
-    <div className="space-y-4 max-w-[1600px]">
-      <DashboardSections>
-        {(sectionId) => {
-          switch (sectionId) {
-            case 'stat_cards':
-              return (
-                <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-3" key={`stats-${layout.statCards.join('-')}`}>
-                  {layout.statCards.map((id, i) => (
-                    <React.Fragment key={id}>
-                      <DashboardDraggableWidget scope="stat" blockId={id} className="h-full">
-                        {renderStatCard(id, i)}
-                      </DashboardDraggableWidget>
-                    </React.Fragment>
-                  ))}
-                </div>
-              );
-            case 'analytics_row':
-              return (
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-4" key={`analytics-${layout.analytics.join('-')}`}>
-                  {layout.analytics.map((id, i) => (
-                    <React.Fragment key={id}>
-                      <DashboardDraggableWidget
-                        scope="analytics"
-                        blockId={id}
-                        className={`${analyticsWidgetColClass(id)} h-full`}
-                      >
-                        {renderAnalyticsWidget(id, i)}
-                      </DashboardDraggableWidget>
-                    </React.Fragment>
-                  ))}
-                </div>
-              );
-            case 'details_row':
-              return (
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4" key={`details-${layout.detailCards.join('-')}`}>
-                  {layout.detailCards.map((id, i) => (
-                    <React.Fragment key={id}>
-                      <DashboardDraggableWidget scope="detail" blockId={id} className="h-full">
-                        {renderDetailCard(id, i)}
-                      </DashboardDraggableWidget>
-                    </React.Fragment>
-                  ))}
-                </div>
-              );
-            case 'warehouse_strip':
-              return (
-                <div className={`${CARD} p-5 dashboard-chart-glow ${dashboardStaggerClass(0, 8)}`}>
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-                    <h2 className="font-bold text-[15px] text-slate-900">{t('Оборудование на складе')}</h2>
-                    <button
-                      type="button"
-                      onClick={() => !editMode && onNavigate('warehouse')}
-                      className={`${LINK} text-sm self-start sm:self-auto`}
-                    >
-                      {t('Перейти на склад')} <ArrowRight size={14} />
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3" key={`warehouse-${layout.warehouseStrip.join('-')}`}>
-                    {layout.warehouseStrip.map((id, i) => {
-                      const item = warehouseStripById[id];
-                      return (
-                        <React.Fragment key={id}>
-                          <DashboardDraggableWidget scope="warehouse" blockId={id} className="h-full">
-                            <WarehouseCategoryCard
-                              label={item.label}
-                              count={item.count}
-                              price={item.price}
-                              formatMoney={formatMoney}
-                              icon={item.icon}
-                              iconBox={item.iconBox}
-                              iconColor={item.iconColor}
-                              sparkColor={item.sparkColor}
-                              staggerIndex={i}
-                              chartsReady={chartsReady}
-                              reduceMotion={reduceMotion}
-                            />
-                          </DashboardDraggableWidget>
-                        </React.Fragment>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            default:
-              return null;
-          }
-        }}
-      </DashboardSections>
+  const renderWidget = (widgetId: string): React.ReactNode => {
+    if (widgetId === 'warehouse:title') {
+      return (
+        <div className={`${CARD} dash-widget-strip-title px-4 py-2.5 flex flex-row items-center justify-between gap-3 h-full min-h-0`}>
+          <h2 className={`${TITLE} leading-tight`}>{t('Оборудование на складе')}</h2>
+          <button
+            type="button"
+            onClick={() => !editMode && onNavigate('warehouse')}
+            className={`${LINK} shrink-0`}
+          >
+            {t('Перейти на склад')} <ArrowRight size={14} />
+          </button>
+        </div>
+      );
+    }
 
-      <footer className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pt-1 pb-2 text-[11px] text-slate-400">
+    if (widgetId.startsWith('stat:')) {
+      const id = widgetId.slice(5) as StatCardId;
+      const index = ['computers', 'employees', 'warehouse', 'network', 'printers', 'cameras', 'consumables', 'other'].indexOf(id);
+      return renderStatCard(id, Math.max(0, index));
+    }
+
+    if (widgetId.startsWith('analytics:')) {
+      const id = widgetId.slice(10) as AnalyticsWidgetId;
+      const index = ['dynamics', 'status_chart', 'alerts'].indexOf(id);
+      return renderAnalyticsWidget(id, Math.max(0, index));
+    }
+
+    if (widgetId.startsWith('detail:')) {
+      const id = widgetId.slice(7) as DetailCardId;
+      const index = ['network_summary', 'activities', 'by_object', 'inventory', 'software_monitoring'].indexOf(id);
+      return renderDetailCard(id, Math.max(0, index));
+    }
+
+    if (widgetId.startsWith('warehouse:')) {
+      const id = widgetId.slice(10) as WarehouseStripId;
+      const item = warehouseStripById[id];
+      if (!item) return null;
+      const index = ['laptops', 'monitors', 'desktops', 'printers', 'switches', 'access_points'].indexOf(id);
+      return (
+        <WarehouseCategoryCard
+          label={item.label}
+          count={item.count}
+          price={item.price}
+          formatMoney={formatMoney}
+          icon={item.icon}
+          iconBox={item.iconBox}
+          iconColor={item.iconColor}
+          sparkColor={item.sparkColor}
+          staggerIndex={Math.max(0, index)}
+          chartsReady={chartsReady}
+          reduceMotion={reduceMotion}
+        />
+      );
+    }
+
+    return null;
+  };
+
+  return (
+    <div className="dashboard-page w-full max-w-[1600px] mx-auto">
+      <DashboardGridLayout
+        layout={gridItems}
+        editMode={editMode}
+        onLayoutChange={updateGridLayout}
+        onRemoveWidget={editMode ? removeWidget : undefined}
+      >
+        {renderWidget}
+      </DashboardGridLayout>
+
+      <footer className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pt-4 pb-2 text-xs text-slate-400">
         <span>
           © {COPYRIGHT_YEAR} {t('Инвентаризация оборудования')}. {t('Все права защищены')}.
         </span>

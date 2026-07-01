@@ -13,6 +13,7 @@ import { translateNotificationText, translateSecurityText } from '../utils/local
 import { Search, Bell, Laptop, Network, Users, Building2, X, PanelLeftOpen, Settings, Globe, ChevronDown, ChevronRight, LogOut, Package } from 'lucide-react';
 import { ComputerItem, NetworkDevice, EmployeeItem, ObjectItem, SystemUser, SoftwareItem, InventoryAudit, WarehouseItem } from '../types';
 import BrandLogo from './BrandLogo';
+import { DASHBOARD_HEADER_EDIT_SLOT_ID } from '../utils/dashboardLayout';
 import CountryFlag, { languageToFlagCode } from './CountryFlag';
 import ModalCloseButton from './ModalCloseButton';
 import {
@@ -516,13 +517,18 @@ export default function Header({
           </button>
         )}
         {isDashboard ? (
-          <div className="min-w-0">
-            <h1 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight truncate">
-              {t('Добро пожаловать')}, {currentUser.name.split(' ')[0]} 👋
-            </h1>
-            <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5 line-clamp-2 sm:line-clamp-none">
-              {t('Обзор состояния вашей инфраструктуры на сегодня')}
-            </p>
+          <div className="min-w-0 flex items-start gap-2 sm:gap-2.5">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 min-w-0">
+                <h1 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight truncate">
+                  {t('Добро пожаловать')}, {currentUser.name.split(' ')[0]} 👋
+                </h1>
+                <div id={DASHBOARD_HEADER_EDIT_SLOT_ID} className="shrink-0" />
+              </div>
+              <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5 line-clamp-2 sm:line-clamp-none">
+                {t('Обзор состояния вашей инфраструктуры на сегодня')}
+              </p>
+            </div>
           </div>
         ) : (
           <>

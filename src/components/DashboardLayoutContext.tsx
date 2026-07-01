@@ -1,38 +1,33 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { Check, LayoutDashboard, RotateCcw } from 'lucide-react';
-import DashboardDraggableBlock from './DashboardDraggableBlock';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { Check, LayoutDashboard, Pencil, Plus, RotateCcw } from 'lucide-react';
 import { useTranslation } from '../utils/i18n';
 import {
-  DEFAULT_DASHBOARD_LAYOUT,
+  DASHBOARD_HEADER_EDIT_SLOT_ID,
+  buildDefaultGridLayout,
+  dashboardWidgetLabelKey,
+  findPlacementForWidget,
+  getAvailableWidgets,
+  getWidgetCatalogGroups,
+  hasOverlappingGridItems,
   loadDashboardLayout,
-  moveListItem,
+  sanitizeLayoutItems,
   saveDashboardLayout,
-  shiftListItem,
-  type AnalyticsWidgetId,
   type DashboardLayoutState,
-  type DashboardSectionId,
-  type DetailCardId,
-  type StatCardId,
-  type WarehouseStripId,
+  type DashboardWidgetId,
+  type GridLayout,
 } from '../utils/dashboardLayout';
-
-export type DashboardDragScope = 'section' | 'stat' | 'analytics' | 'detail' | 'warehouse';
-
-export interface DashboardDragState {
-  scope: DashboardDragScope | null;
-  id: string | null;
-}
 
 interface DashboardLayoutContextValue {
   layout: DashboardLayoutState;
+  gridItems: GridLayout;
   editMode: boolean;
-  dragState: DashboardDragState;
+  availableWidgets: DashboardWidgetId[];
   setEditMode: (value: boolean) => void;
   resetLayout: () => void;
-  beginDrag: (scope: DashboardDragScope, id: string) => void;
-  endDrag: () => void;
-  dropOn: (scope: DashboardDragScope, targetId: string) => void;
-  shiftItem: (scope: DashboardDragScope, id: string, direction: -1 | 1) => void;
+  updateGridLayout: (items: GridLayout) => void;
+  removeWidget: (widgetId: string) => void;
+  addWidget: (widgetId: DashboardWidgetId) => void;
 }
 
 const DashboardLayoutContext = createContext<DashboardLayoutContextValue | null>(null);
@@ -45,55 +40,120 @@ export function useDashboardLayout(): DashboardLayoutContextValue {
   return ctx;
 }
 
-function DashboardEditToolbar() {
+function DashboardHeaderEditPortal() {
   const { t } = useTranslation();
-  const { editMode, setEditMode, resetLayout } = useDashboardLayout();
+  const { editMode, setEditMode } = useDashboardLayout();
+  const [slot, setSlot] = useState<HTMLElement | null>(null);
 
-  if (!editMode) {
-    return (
-      <div className="flex justify-end px-0.5 mb-2">
-        <button
-          type="button"
-          onClick={() => setEditMode(true)}
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-semibold text-blue-700 bg-blue-50 border border-blue-200 shadow-sm hover:bg-blue-100 hover:border-blue-300 transition-colors"
-        >
-          <LayoutDashboard size={16} />
-          {t('Настроить дашборд')}
-        </button>
-      </div>
-    );
-  }
+  useEffect(() => {
+    const resolve = () => setSlot(document.getElementById(DASHBOARD_HEADER_EDIT_SLOT_ID));
+    resolve();
+    const observer = new MutationObserver(resolve);
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, []);
+
+  if (!slot || editMode) return null;
+
+  return createPortal(
+    <button
+      type="button"
+      onClick={() => setEditMode(true)}
+      title={t('Настроить дашборд')}
+      aria-label={t('Настроить дашборд')}
+      className="inline-flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-xl text-blue-700 bg-blue-50 border border-blue-200 shadow-sm hover:bg-blue-100 hover:border-blue-300 hover:text-blue-800 transition-colors"
+    >
+      <Pencil size={16} strokeWidth={2.25} className="sm:hidden" />
+      <Pencil size={17} strokeWidth={2.25} className="hidden sm:block" />
+    </button>,
+    slot
+  );
+}
+
+function DashboardEditBanner() {
+  const { t } = useTranslation();
+  const { setEditMode, resetLayout, availableWidgets, addWidget } = useDashboardLayout();
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  const catalog = getWidgetCatalogGroups()
+    .map((group) => ({
+      ...group,
+      ids: group.ids.filter((id) => availableWidgets.includes(id)),
+    }))
+    .filter((group) => group.ids.length > 0);
 
   return (
     <div className="dashboard-edit-banner sticky top-0 z-40 mb-3 rounded-2xl border border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50/90 px-4 py-3 shadow-md backdrop-blur-sm">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-[13px] font-bold text-blue-900 flex items-center gap-2">
-            <LayoutDashboard size={16} className="shrink-0" />
-            {t('Режим настройки дашборда')}
-          </p>
-          <p className="text-[11px] text-blue-800/80 mt-1 leading-relaxed">
-            {t('Используйте стрелки или перетаскивание ⋮⋮. Ряды — целые блоки, карточки — внутри ряда.')}
-          </p>
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[13px] font-bold text-blue-900 flex items-center gap-2">
+              <LayoutDashboard size={16} className="shrink-0" />
+              {t('Режим настройки дашборда')}
+            </p>
+            <p className="text-[11px] text-blue-800/80 mt-1 leading-relaxed">
+              {t(
+                'Перетаскивайте и меняйте размер виджетов. Удаляйте кнопкой ×, добавляйте из каталога. Содержимое подстраивается под размер.'
+              )}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => setPickerOpen((open) => !open)}
+              disabled={availableWidgets.length === 0}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold text-blue-700 bg-white border border-blue-200 hover:border-blue-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              <Plus size={13} />
+              {t('Добавить виджет')}
+            </button>
+            <button
+              type="button"
+              onClick={resetLayout}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold text-slate-600 bg-white border border-slate-200 hover:border-slate-300 transition-colors"
+            >
+              <RotateCcw size={13} />
+              {t('Сбросить')}
+            </button>
+            <button
+              type="button"
+              onClick={() => setEditMode(false)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-[11px] font-semibold text-white bg-blue-600 hover:bg-blue-700 shadow-sm transition-colors"
+            >
+              <Check size={14} />
+              {t('Готово')}
+            </button>
+          </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2 shrink-0">
-          <button
-            type="button"
-            onClick={resetLayout}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold text-slate-600 bg-white border border-slate-200 hover:border-slate-300 transition-colors"
-          >
-            <RotateCcw size={13} />
-            {t('Сбросить')}
-          </button>
-          <button
-            type="button"
-            onClick={() => setEditMode(false)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-[11px] font-semibold text-white bg-blue-600 hover:bg-blue-700 shadow-sm transition-colors"
-          >
-            <Check size={14} />
-            {t('Готово')}
-          </button>
-        </div>
+
+        {pickerOpen && catalog.length > 0 && (
+          <div className="rounded-xl border border-blue-200/80 bg-white/90 p-3 max-h-56 overflow-y-auto">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {catalog.map((group) => (
+                <div key={group.labelKey}>
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-1.5">
+                    {t(group.labelKey)}
+                  </p>
+                  <div className="flex flex-col gap-1">
+                    {group.ids.map((id) => (
+                      <button
+                        key={id}
+                        type="button"
+                        onClick={() => {
+                          addWidget(id);
+                          setPickerOpen(false);
+                        }}
+                        className="text-left px-2.5 py-1.5 rounded-lg text-[11px] font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-800 transition-colors"
+                      >
+                        {t(dashboardWidgetLabelKey(id))}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -101,200 +161,88 @@ function DashboardEditToolbar() {
 
 export function DashboardLayoutProvider({ children }: { children: React.ReactNode }) {
   const [layout, setLayout] = useState<DashboardLayoutState>(loadDashboardLayout);
-  const [editMode, setEditMode] = useState(false);
-  const [dragState, setDragState] = useState<DashboardDragState>({ scope: null, id: null });
-  const dragRef = useRef<DashboardDragState>({ scope: null, id: null });
+  const [editMode, setEditModeRaw] = useState(false);
+
+  const setEditMode = useCallback((value: boolean) => {
+    if (value) {
+      setLayout((prev) =>
+        hasOverlappingGridItems(prev.items)
+          ? { version: 6, items: buildDefaultGridLayout() }
+          : prev
+      );
+    }
+    setEditModeRaw(value);
+  }, []);
 
   useEffect(() => {
     saveDashboardLayout(layout);
   }, [layout]);
 
-  const beginDrag = useCallback((scope: DashboardDragScope, id: string) => {
-    const next = { scope, id };
-    dragRef.current = next;
-    setDragState(next);
+  const updateGridLayout = useCallback((items: GridLayout) => {
+    setLayout({ version: 6, items: sanitizeLayoutItems(items) });
   }, []);
-
-  const endDrag = useCallback(() => {
-    const cleared = { scope: null, id: null };
-    dragRef.current = cleared;
-    setDragState(cleared);
-  }, []);
-
-  const applyListUpdate = useCallback(
-    (scope: DashboardDragScope, updater: (prev: DashboardLayoutState) => DashboardLayoutState) => {
-      setLayout((prev) => updater(prev));
-    },
-    []
-  );
-
-  const dropOn = useCallback(
-    (scope: DashboardDragScope, targetId: string) => {
-      const { scope: dragScope, id: draggedId } = dragRef.current;
-      if (!draggedId || dragScope !== scope || draggedId === targetId) {
-        endDrag();
-        return;
-      }
-
-      applyListUpdate(scope, (prev) => {
-        switch (scope) {
-          case 'section':
-            return {
-              ...prev,
-              sections: moveListItem(prev.sections, draggedId as DashboardSectionId, targetId as DashboardSectionId),
-            };
-          case 'stat':
-            return {
-              ...prev,
-              statCards: moveListItem(prev.statCards, draggedId as StatCardId, targetId as StatCardId),
-            };
-          case 'analytics':
-            return {
-              ...prev,
-              analytics: moveListItem(prev.analytics, draggedId as AnalyticsWidgetId, targetId as AnalyticsWidgetId),
-            };
-          case 'detail':
-            return {
-              ...prev,
-              detailCards: moveListItem(prev.detailCards, draggedId as DetailCardId, targetId as DetailCardId),
-            };
-          case 'warehouse':
-            return {
-              ...prev,
-              warehouseStrip: moveListItem(
-                prev.warehouseStrip,
-                draggedId as WarehouseStripId,
-                targetId as WarehouseStripId
-              ),
-            };
-          default:
-            return prev;
-        }
-      });
-      endDrag();
-    },
-    [applyListUpdate, endDrag]
-  );
-
-  const shiftItem = useCallback(
-    (scope: DashboardDragScope, id: string, direction: -1 | 1) => {
-      setLayout((prev) => {
-        let next: DashboardLayoutState;
-        switch (scope) {
-          case 'section':
-            next = { ...prev, sections: shiftListItem(prev.sections, id as DashboardSectionId, direction) };
-            break;
-          case 'stat':
-            next = { ...prev, statCards: shiftListItem(prev.statCards, id as StatCardId, direction) };
-            break;
-          case 'analytics':
-            next = { ...prev, analytics: shiftListItem(prev.analytics, id as AnalyticsWidgetId, direction) };
-            break;
-          case 'detail':
-            next = { ...prev, detailCards: shiftListItem(prev.detailCards, id as DetailCardId, direction) };
-            break;
-          case 'warehouse':
-            next = {
-              ...prev,
-              warehouseStrip: shiftListItem(prev.warehouseStrip, id as WarehouseStripId, direction),
-            };
-            break;
-          default:
-            return prev;
-        }
-        return next;
-      });
-    },
-    []
-  );
 
   const resetLayout = useCallback(() => {
-    setLayout({ ...DEFAULT_DASHBOARD_LAYOUT });
-    endDrag();
-  }, [endDrag]);
+    setLayout({
+      version: 6,
+      items: buildDefaultGridLayout().map((item) => ({ ...item })),
+    });
+  }, []);
+
+  const removeWidget = useCallback((widgetId: string) => {
+    setLayout((prev) => {
+      const next = prev.items.filter((item) => item.i !== widgetId);
+      if (next.length === 0) {
+        return prev;
+      }
+      return { version: 6, items: next };
+    });
+  }, []);
+
+  const addWidget = useCallback((widgetId: DashboardWidgetId) => {
+    setLayout((prev) => {
+      if (prev.items.some((item) => item.i === widgetId)) {
+        return prev;
+      }
+      const placement = findPlacementForWidget(prev.items, widgetId);
+      return { version: 6, items: [...prev.items, placement] };
+    });
+  }, []);
+
+  const availableWidgets = useMemo(
+    () => getAvailableWidgets(layout.items),
+    [layout.items]
+  );
 
   const value = useMemo(
     () => ({
       layout,
+      gridItems: layout.items,
       editMode,
-      dragState,
+      availableWidgets,
       setEditMode,
       resetLayout,
-      beginDrag,
-      endDrag,
-      dropOn,
-      shiftItem,
+      updateGridLayout,
+      removeWidget,
+      addWidget,
     }),
-    [layout, editMode, dragState, resetLayout, beginDrag, endDrag, dropOn, shiftItem]
+    [
+      layout,
+      editMode,
+      availableWidgets,
+      setEditMode,
+      resetLayout,
+      updateGridLayout,
+      removeWidget,
+      addWidget,
+    ]
   );
 
   return (
     <DashboardLayoutContext.Provider value={value}>
-      <DashboardEditToolbar />
-      <div className={editMode ? 'dashboard-edit-mode space-y-4 relative' : 'space-y-4'}>{children}</div>
+      <DashboardHeaderEditPortal />
+      {editMode && <DashboardEditBanner />}
+      <div className={editMode ? 'dashboard-edit-mode' : undefined}>{children}</div>
     </DashboardLayoutContext.Provider>
-  );
-}
-
-interface DashboardDraggableWidgetProps {
-  scope: DashboardDragScope;
-  blockId: string;
-  children: React.ReactNode;
-  className?: string;
-  variant?: 'widget' | 'section';
-}
-
-export function DashboardDraggableWidget({
-  scope,
-  blockId,
-  children,
-  className = '',
-  variant = 'widget',
-}: DashboardDraggableWidgetProps) {
-  const { dragState, editMode, layout, beginDrag, endDrag, dropOn, shiftItem } = useDashboardLayout();
-
-  return (
-    <DashboardDraggableBlock
-      scope={scope}
-      blockId={blockId}
-      dragState={dragState}
-      editMode={editMode}
-      layout={layout}
-      onDragStart={beginDrag}
-      onDrop={dropOn}
-      onDragEnd={endDrag}
-      onShift={shiftItem}
-      className={className}
-      variant={variant}
-    >
-      {children}
-    </DashboardDraggableBlock>
-  );
-}
-
-interface DashboardSectionShellProps {
-  sectionId: DashboardSectionId;
-  children: React.ReactNode;
-}
-
-export function DashboardSectionShell({ sectionId, children }: DashboardSectionShellProps) {
-  return (
-    <DashboardDraggableWidget scope="section" blockId={sectionId} variant="section">
-      {children}
-    </DashboardDraggableWidget>
-  );
-}
-
-export function DashboardSections({ children }: { children: (sectionId: DashboardSectionId) => React.ReactNode }) {
-  const { layout } = useDashboardLayout();
-
-  return (
-    <>
-      {layout.sections.map((sectionId) => (
-        <React.Fragment key={sectionId}>
-          <DashboardSectionShell sectionId={sectionId}>{children(sectionId)}</DashboardSectionShell>
-        </React.Fragment>
-      ))}
-    </>
   );
 }

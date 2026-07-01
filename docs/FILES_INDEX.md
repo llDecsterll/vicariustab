@@ -1,9 +1,9 @@
-# Vicariustab — полный индекс файлов (v2.0.16)
+# Vicariustab — полный индекс файлов (v2.0.21)
 
 **Repo:** https://github.com/llDecsterll/vicariustab  
-**Обновлено:** 22.06.2026
+**Обновлено:** 30.06.2026
 
-Навигация для разработчиков и AI-агентов. Runtime-артефакты (`node_modules/`, `dist/`, `db.json`) не перечислены.
+Навигация для разработчиков и AI-агентов. Runtime-артефакты (`node_modules/`, `dist/`, `db.json`, `sessions_store.enc`) не перечислены.
 
 ---
 
@@ -40,17 +40,20 @@
 | `types.ts` | Доменные типы (objects, computers, warehouse, users…) |
 | `initialData.ts` | Seed из `workspaceSeed.json` |
 | `emptyWorkspace.ts` | Пустой workspace (purge client) |
+| `index.css` | Глобальные стили |
 | `config/appConfig.ts` | `APP_VERSION`, update repo URL |
 | `config/updateRepo.ts` | URL репозитория GitHub |
 | `legal/copyright.ts` | Copyright strings |
 
-### `src/components/` (39 файлов)
+### `src/components/` (41 файл)
 
 | Файл | Назначение |
 |------|------------|
 | `Sidebar.tsx` | Навигация, trial badge |
 | `Header.tsx` | Верхняя панель |
-| `DashboardView.tsx` | KPI, графики |
+| `DashboardView.tsx` | KPI, графики, draggable layout |
+| `DashboardDraggableBlock.tsx` | Перетаскиваемый блок дашборда |
+| `DashboardLayoutContext.tsx` | Context раскладки дашборда |
 | `ObjectsView.tsx` | Объекты/локации |
 | `ComputersView.tsx` | ПК, периферия, оргтехника, видео, расходники, другое |
 | `NetworkView.tsx` | Сетевое оборудование |
@@ -88,7 +91,7 @@
 | `ModalCloseButton.tsx` | Кнопка закрытия модалки |
 | `CopyrightFooter.tsx` | Футер |
 
-### `src/utils/` (41 файл)
+### `src/utils/` (45 файлов)
 
 | Файл | Назначение |
 |------|------------|
@@ -96,6 +99,7 @@
 | `equipmentFields.ts` | Inv/batch/SN, split `/рN`, allocate |
 | `equipmentDelete.ts` | Каскад, preview, software links |
 | `warehouseRouting.ts` | Тип→группа, `WAREHOUSE_TYPE_TAB`, dedup UI |
+| `warehouseLifecycleEngine.ts` | Pure lifecycle simulator (31 subtype) |
 | `markPendingWriteOff.ts` | Частичное «На списание» |
 | `cancelPendingWriteOff.ts` | Отмена списания + restore computers |
 | `restoreWriteOff.ts` | Восстановление из истории |
@@ -104,6 +108,7 @@
 | **Лицензия и sync** | |
 | `license.ts` | Trial, активация, `canUseBackup/Excel/Update` |
 | `licenseCryptoClient.ts` | Ed25519 verify (client) |
+| `softwareLicenseUtils.ts` | Утилиты лицензий ПО |
 | `backupLicensePolicy.ts` | Strip license из backup |
 | `workspaceSync.ts` | persist + revision retry |
 | **Auth и API** | |
@@ -134,6 +139,7 @@
 | `dashboardAnalytics.ts` | KPI, slices |
 | `dashboardI18n.ts` | Переводы дашборда |
 | `dashboardAnimation.ts` | Анимации |
+| `dashboardLayout.ts` | Сохранение раскладки дашборда |
 | `reportAnalytics.ts` | Аналитика отчётов |
 | **Прочее** | |
 | `updateCheck.ts` | GitHub update UI |
@@ -144,7 +150,7 @@
 
 ---
 
-## `server/` — бэкенд (18 модулей)
+## `server/` — бэкенд (19 модулей + seed)
 
 | Файл | Назначение |
 |------|------------|
@@ -160,6 +166,7 @@
 | `backupLicensePolicy.ts` | Strip license server-side |
 | `licenseCore.ts` | `evaluateLicenseFromState` |
 | `licenseCrypto.ts` | Ed25519 verify/sign |
+| `licenseInstallFields.ts` | `preserveServerInstallLicenseFields` |
 | `licenseKeyFormat.ts` | Parse UTKIN keys |
 | `licensePublicKey.ts` | Public key (auto-generated) |
 | `updateEngine.ts` | Apply GitHub update |
@@ -180,27 +187,33 @@
 | `verify-install.mjs` | Проверка установки |
 | `capture-screenshots.mjs` | Скриншоты README |
 | `generate-license-keypair.mjs` | Ed25519 keypair |
-| `audit-i18n.cjs` | Аудит i18n |
-| `extract-untranslated.cjs` | Непереведённые строки |
-| `patch-i18n.cjs` | Патч i18n |
+| `sync-license-public-from-pem.mjs` | Синхронизация public key из PEM |
+| `setup-domain.mjs` / `setup-domain.sh` | Настройка домена |
 | `normalize-release.cjs` | Нормализация релиза |
 | `apply-copyright-header.cjs` | Заголовки copyright |
 
-### `scripts/audit-tests/` (11 файлов)
+### `scripts/audit-tests/` (15 suite + runner)
 
 | Файл | Тестов | Покрытие |
 |------|--------|----------|
-| `unit-equipment.mjs` | 7 | inv, batch, merge specs |
-| `unit-lifecycle.mjs` | 6 | return, purge, stock line |
+| `unit-equipment.mjs` | 19 | inv, batch, merge, serials |
+| `unit-lifecycle.mjs` | 11 | return, purge, stock line |
 | `unit-validation.mjs` | 6 | workspaceValidation |
 | `unit-warehouse-excel.mjs` | 5 | Excel import/export |
-| `unit-writeoff.mjs` | 6 | partial write-off, cancel, restore |
+| `unit-writeoff.mjs` | 18 | partial write-off, cancel, restore |
+| `unit-restore-writeoff.mjs` | 14 | restore from history |
+| `unit-warehouse-full-lifecycle.mjs` | 63 | 31 subtype × 2 scenarios |
 | `unit-routing.mjs` | 4 | группы оборудования |
 | `unit-backup-license.mjs` | 4 | backup license strip |
+| `unit-license-server.mjs` | 9 | Ed25519, evaluateLicense |
+| `unit-license-install.mjs` | 2 | preserveServerInstallLicenseFields |
+| `unit-sql-persistence.mjs` | 4 | SQL round-trip, key cleanup |
 | `integration-api.mjs` | 5 | API + auth (needs server) |
 | `security.mjs` | 3 | rate limit, 401 |
 | `load-concurrent.mjs` | 1 | revision conflict |
 | `run-all.mjs` | — | Runner всех suite |
+
+**Итого:** ~168 тестов (`npm run test:audit`). `test:unit` — 144 (2 skip без keyserver PEM). Integration/load требуют сервер на `:8098`.
 
 ---
 
@@ -210,7 +223,7 @@
 |------|------------|
 | `FILES_INDEX.md` | Этот файл — полный каталог |
 | `RELEASE_AUDIT_v2.0.16.md` | Отчёт аудита релиза |
-| `RELEASE_AUDIT_v2.0.16.md` | Отчёт аудита v2.0.16 |
+| `screenshots/{en,ru,zh}/` | Скриншоты для README |
 
 ---
 
@@ -220,17 +233,17 @@
 |------|------|
 | Workspace root | `../FILES_INDEX.md` — весь Cursorbase + keyserver |
 | Workspace | `.cursor/rules/workspace-overview.mdc` |
-| Workspace | `.cursor/rules/keyserver-local.mdc` — **локально, не в git** |
 | Workspace | `.cursor/rules/product-vicariustab.mdc` |
 | Workspace | `.cursor/rules/equipment-lifecycle.mdc` |
 | Workspace | `.cursor/rules/server-backend.mdc` |
+| Workspace | `.cursor/rules/keyserver-local.mdc` — **локально, не в git** |
+| Keyserver | `keyserver/LOCAL_INDEX.md` — **не публиковать** |
 | Git repo | `product/.cursor/rules/project-index.mdc` |
 | Git repo | `product/.cursor/rules/files-map.mdc` |
-| Keyserver | `keyserver/LOCAL_INDEX.md` — **не публиковать** |
 
 ---
 
-## License gates (v2.0.16)
+## License gates (v2.0.21)
 
 | Функция | Client | Server |
 |---------|--------|--------|
@@ -238,9 +251,10 @@
 | Backup | `canUseBackup` | `requireActivatedLicense` |
 | Update apply | `canUseSystemUpdate` | `requireActivatedLicense` |
 | Write data | `checkLicenseBlocked` (expired) | `requireValidLicenseForWrite` |
+| Install license | — | `preserveServerInstallLicenseFields` |
 
 ---
 
 ## npm scripts
 
-`dev` · `build` · `start` · `lint` · `check:i18n` · `test:unit` (27) · `test:audit` (40) · `test:all` · `verify` · `verify:install` · `screenshots` · `license:keypair`
+`dev` · `build` · `start` · `lint` · `check:i18n` · `test:unit` (144) · `test:audit` (~168) · `test:all` · `verify` · `verify:install` · `screenshots` · `license:keypair` · `license:sync-public` · `setup:domain`

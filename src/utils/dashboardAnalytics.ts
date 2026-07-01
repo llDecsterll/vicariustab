@@ -23,6 +23,10 @@ import {
   resolveNetworkDeviceType,
   resolveWarehouseComputerRoute,
 } from './warehouseRouting';
+import {
+  countAssignedLicenseSeats,
+  ensureLicenseSeats,
+} from './softwareLicenseUtils';
 
 export interface EquipmentStatusSlice {
   name: string;
@@ -552,6 +556,53 @@ export function buildSoftwareLicenseDashboard(
     });
 
   return { rows, totalSeats, totalCostRub, expiringSoon, expired, recentPurchases };
+}
+
+export interface SoftwareMonitoringRow {
+  id: string;
+  name: string;
+  totalSeats: number;
+  assignedSeats: number;
+  unassignedSeats: number;
+  status: SoftwareItem['status'];
+}
+
+export interface SoftwareMonitoringSummary {
+  rows: SoftwareMonitoringRow[];
+  totalProducts: number;
+  totalSeats: number;
+  assignedSeats: number;
+  unassignedSeats: number;
+}
+
+export function buildSoftwareMonitoringSummary(softwareItems: SoftwareItem[]): SoftwareMonitoringSummary {
+  const active = softwareItems.filter(
+    (item) => item.status !== 'Списано' && item.status !== 'На списание'
+  );
+
+  const rows: SoftwareMonitoringRow[] = active
+    .map((item) => {
+      const seats = ensureLicenseSeats(item);
+      const assignedSeats = countAssignedLicenseSeats(seats);
+      const totalSeats = seats.length;
+      return {
+        id: item.id,
+        name: item.name,
+        totalSeats,
+        assignedSeats,
+        unassignedSeats: totalSeats - assignedSeats,
+        status: item.status,
+      };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name, 'ru'));
+
+  return {
+    rows,
+    totalProducts: rows.length,
+    totalSeats: rows.reduce((sum, row) => sum + row.totalSeats, 0),
+    assignedSeats: rows.reduce((sum, row) => sum + row.assignedSeats, 0),
+    unassignedSeats: rows.reduce((sum, row) => sum + row.unassignedSeats, 0),
+  };
 }
 
 export function buildDashboardAlerts(params: {

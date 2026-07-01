@@ -5114,6 +5114,31 @@ const dictionary: Record<string, Record<Language, string>> = {
     en: "All apps",
     zh: "总应用数"
   },
+  "Мониторинг ПО": {
+    ru: "Мониторинг ПО",
+    en: "Software monitoring",
+    zh: "软件监控"
+  },
+  "Не задействовано": {
+    ru: "Не задействовано",
+    en: "Unassigned",
+    zh: "未使用"
+  },
+  "Всего мест": {
+    ru: "Всего мест",
+    en: "Total seats",
+    zh: "总席位"
+  },
+  "Программа": {
+    ru: "Программа",
+    en: "Application",
+    zh: "程序"
+  },
+  "Перейти к реестру ПО": {
+    ru: "Перейти к реестру ПО",
+    en: "Open software registry",
+    zh: "打开软件登记"
+  },
   "Активных лицензий": {
     ru: "Активных лицензий",
     en: "Active software licenses",

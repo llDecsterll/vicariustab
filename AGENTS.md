@@ -20,8 +20,8 @@ PORT=8080 npm start
 
 ```bash
 npm run lint && npm run check:i18n
-npm run test:unit      # 99 unit tests
-npm run test:audit     # ~109 (npm start на :8098)
+npm run test:unit      # 144 unit tests
+npm run test:audit     # ~168 (npm start на :8098)
 npm run verify http://127.0.0.1:8080
 ```
 
@@ -32,18 +32,20 @@ npm run verify http://127.0.0.1:8080
 | State + CRUD | `src/App.tsx` |
 | Типы | `src/types.ts` |
 | Склад UI | `src/components/WarehouseView.tsx` |
+| Lifecycle engine | `warehouseLifecycleEngine.ts` |
 | Списание | `markPendingWriteOff.ts`, `cancelPendingWriteOff.ts`, `restoreWriteOff.ts`, `warehousePendingMerge.ts` |
 | Excel | `warehouseExcel.ts` |
 | Оборудование | `equipmentFields.ts`, `equipmentDelete.ts`, `warehouseRouting.ts` |
-| Лицензия | `license.ts`, `server/licenseCore.ts` |
+| Лицензия | `license.ts`, `server/licenseCore.ts`, `server/licenseInstallFields.ts` |
 | Gated | `canUseWarehouseExcel`, `canUseBackup`, `canUseSystemUpdate`, `requireActivatedLicense` |
 | Backup | `backupLicensePolicy.ts` (client + server) |
 | Sync | `workspaceSync.ts` |
 | Auth | `sessionAuth.ts`, `server/sessionEngine.ts`, `server/apiAuth.ts` |
-| Data | `server/dataStore.ts` |
+| Data | `server/dataStore.ts` (JSON + MySQL/PostgreSQL) |
 | Update | `updateEngine.ts`, `githubUpdateCheck.ts`, `updateCheck.ts` |
 | Print | `printDocument.ts`, `ActPrintContent.tsx`, `DocumentPrintShell.tsx` |
-| Dashboard | `DashboardView.tsx`, `dashboardAnalytics.ts` |
+| Dashboard | `DashboardView.tsx`, `dashboardAnalytics.ts`, `dashboardLayout.ts` |
+| Software | `SoftwareView.tsx`, `softwareLicenseUtils.ts` |
 | Express | `server.ts` |
 
 ## UI tabs
@@ -54,27 +56,31 @@ npm run verify http://127.0.0.1:8080
 
 | Файл | Тестов |
 |------|--------|
-| unit-equipment.mjs | 8 |
-| unit-lifecycle.mjs | 9 |
+| unit-equipment.mjs | 19 |
+| unit-lifecycle.mjs | 11 |
 | unit-validation.mjs | 6 |
 | unit-warehouse-excel.mjs | 5 |
-| unit-writeoff.mjs | 16 |
-| unit-restore-writeoff.mjs | 13 |
-| unit-warehouse-full-lifecycle.mjs | 32 |
+| unit-writeoff.mjs | 18 |
+| unit-restore-writeoff.mjs | 14 |
+| unit-warehouse-full-lifecycle.mjs | 63 |
 | unit-routing.mjs | 4 |
 | unit-backup-license.mjs | 4 |
-| unit-license-server.mjs | 7 |
+| unit-license-server.mjs | 9 |
+| unit-license-install.mjs | 2 |
+| unit-sql-persistence.mjs | 4 |
 | integration-api.mjs | 5 |
 | security.mjs | 3 |
 | load-concurrent.mjs | 1 |
 
-**Итого:** ~109 автотестов (`npm run test:audit`). `test:unit` — 99 без сервера. Integration/load требуют сервер на `:8098`.
+**Итого:** ~168 автотестов (`npm run test:audit`). `test:unit` — 144 без сервера. Integration/load требуют сервер на `:8098`.
 
 ## Cursor rules
 
 - `product/.cursor/rules/project-index.mdc`
 - `product/.cursor/rules/files-map.mdc`
 - `../.cursor/rules/` (workspace Cursorbase)
+- `../.cursor/rules/keyserver-local.mdc` — keyserver (локально)
+- `../keyserver/LOCAL_INDEX.md` — keyserver каталог
 
 ## Документация
 
@@ -82,4 +88,4 @@ npm run verify http://127.0.0.1:8080
 |------|------------|
 | `docs/FILES_INDEX.md` | Полный индекс всех файлов |
 | `docs/RELEASE_AUDIT_v2.0.16.md` | Аудит релиза |
-| `docs/RELEASE_AUDIT_v2.0.16.md` | Аудит v2.0.16 |
+| `CHANGELOG.md` | История v2.0.15–2.0.21 |
