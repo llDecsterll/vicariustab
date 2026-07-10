@@ -120,6 +120,181 @@ const dictionary: Record<string, Record<Language, string>> = {
     en: "Cybersecurity",
     zh: "网络安全"
   },
+  "Двухэтапная аутентификация (2FA)": {
+    ru: "Двухэтапная аутентификация (2FA)",
+    en: "Two-factor authentication (2FA)",
+    zh: "双因素认证 (2FA)"
+  },
+  "Защитите учётную запись кодом из Google Authenticator, Microsoft Authenticator или аналога.": {
+    ru: "Защитите учётную запись кодом из Google Authenticator, Microsoft Authenticator или аналога.",
+    en: "Protect your account with a code from Google Authenticator, Microsoft Authenticator, or similar.",
+    zh: "使用 Google Authenticator、Microsoft Authenticator 或类似应用中的验证码保护您的账户。"
+  },
+  "2FA включена": {
+    ru: "2FA включена",
+    en: "2FA enabled",
+    zh: "已启用 2FA"
+  },
+  "2FA не включена": {
+    ru: "2FA не включена",
+    en: "2FA not enabled",
+    zh: "未启用 2FA"
+  },
+  "Включить 2FA": {
+    ru: "Включить 2FA",
+    en: "Enable 2FA",
+    zh: "启用 2FA"
+  },
+  "Подготовка…": {
+    ru: "Подготовка…",
+    en: "Preparing…",
+    zh: "准备中…"
+  },
+  "1. Установите приложение аутентификатора на телефон. 2. Добавьте учётную запись по секрету или ссылке ниже. 3. Введите 6-значный код для подтверждения.": {
+    ru: "1. Установите приложение аутентификатора на телефон. 2. Добавьте учётную запись по секрету или ссылке ниже. 3. Введите 6-значный код для подтверждения.",
+    en: "1. Install an authenticator app on your phone. 2. Add the account using the secret or link below. 3. Enter the 6-digit code to confirm.",
+    zh: "1. 在手机上安装身份验证器应用。2. 使用下方密钥或链接添加账户。3. 输入 6 位验证码进行确认。"
+  },
+  "Секретный ключ": {
+    ru: "Секретный ключ",
+    en: "Secret key",
+    zh: "密钥"
+  },
+  "Код подтверждения": {
+    ru: "Код подтверждения",
+    en: "Confirmation code",
+    zh: "确认码"
+  },
+  "Проверка…": {
+    ru: "Проверка…",
+    en: "Verifying…",
+    zh: "验证中…"
+  },
+  "Подтвердить и включить": {
+    ru: "Подтвердить и включить",
+    en: "Confirm and enable",
+    zh: "确认并启用"
+  },
+  "Для отключения 2FA введите текущий код из приложения аутентификатора.": {
+    ru: "Для отключения 2FA введите текущий код из приложения аутентификатора.",
+    en: "To disable 2FA, enter the current code from your authenticator app.",
+    zh: "要禁用 2FA，请输入身份验证器应用中的当前验证码。"
+  },
+  "Отключение…": {
+    ru: "Отключение…",
+    en: "Disabling…",
+    zh: "正在禁用…"
+  },
+  "Отключить 2FA": {
+    ru: "Отключить 2FA",
+    en: "Disable 2FA",
+    zh: "禁用 2FA"
+  },
+  "Не удалось начать настройку двухэтапной аутентификации.": {
+    ru: "Не удалось начать настройку двухэтапной аутентификации.",
+    en: "Failed to start two-factor authentication setup.",
+    zh: "无法开始双因素认证设置。"
+  },
+  "Введите 6-значный код из приложения аутентификатора.": {
+    ru: "Введите 6-значный код из приложения аутентификатора.",
+    en: "Enter the 6-digit code from your authenticator app.",
+    zh: "请输入身份验证器应用中的 6 位验证码。"
+  },
+  "Неверный код. Убедитесь, что время на телефоне синхронизировано.": {
+    ru: "Неверный код. Убедитесь, что время на телефоне синхронизировано.",
+    en: "Invalid code. Make sure your phone time is synchronized.",
+    zh: "验证码无效。请确保手机时间已同步。"
+  },
+  "Двухэтапная аутентификация успешно включена.": {
+    ru: "Двухэтапная аутентификация успешно включена.",
+    en: "Two-factor authentication enabled successfully.",
+    zh: "双因素认证已成功启用。"
+  },
+  "Неверный код двухэтапной аутентификации.": {
+    ru: "Неверный код двухэтапной аутентификации.",
+    en: "Invalid two-factor authentication code.",
+    zh: "双因素认证验证码无效。"
+  },
+  "Неверный код двухэтапной аутентификации. Попробуйте снова.": {
+    ru: "Неверный код двухэтапной аутентификации. Попробуйте снова.",
+    en: "Invalid two-factor code. Please try again.",
+    zh: "双因素验证码无效。请重试。"
+  },
+  "Двухэтапная аутентификация отключена.": {
+    ru: "Двухэтапная аутентификация отключена.",
+    en: "Two-factor authentication disabled.",
+    zh: "双因素认证已禁用。"
+  },
+  "Введите 6-значный код из приложения Google Authenticator или аналога.": {
+    ru: "Введите 6-значный код из приложения Google Authenticator или аналога.",
+    en: "Enter the 6-digit code from Google Authenticator or a similar app.",
+    zh: "请输入 Google Authenticator 或类似应用中的 6 位验证码。"
+  },
+  "Код двухэтапной аутентификации": {
+    ru: "Код двухэтапной аутентификации",
+    en: "Two-factor authentication code",
+    zh: "双因素认证验证码"
+  },
+  "Вернуться к вводу пароля": {
+    ru: "Вернуться к вводу пароля",
+    en: "Back to password entry",
+    zh: "返回密码输入"
+  },
+  "Подтвердить код": {
+    ru: "Подтвердить код",
+    en: "Confirm code",
+    zh: "确认验证码"
+  },
+  "Загрузка данных…": {
+    ru: "Загрузка данных…",
+    en: "Loading…",
+    zh: "正在加载…"
+  },
+  "Сессия истекла. Выйдите и войдите снова, затем повторите настройку 2FA.": {
+    ru: "Сессия истекла. Выйдите и войдите снова, затем повторите настройку 2FA.",
+    en: "Session expired. Log out and sign in again, then retry 2FA setup.",
+    zh: "会话已过期。请退出并重新登录，然后再次设置双因素认证。"
+  },
+  "Конфликт версий данных: загружены актуальные данные с сервера. Повторите изменение.": {
+    ru: "Конфликт версий данных: загружены актуальные данные с сервера. Повторите изменение.",
+    en: "Data version conflict: loaded the latest data from the server. Please retry your change.",
+    zh: "数据版本冲突：已从服务器加载最新数据。请重新执行您的更改。"
+  },
+  "Лицензия активна (ключ скрыт для вашей роли)": {
+    ru: "Лицензия активна (ключ скрыт для вашей роли)",
+    en: "License is active (key hidden for your role)",
+    zh: "许可证已激活（根据您的角色隐藏密钥）"
+  },
+  "Лицензия установки активна на сервере": {
+    ru: "Лицензия установки активна на сервере",
+    en: "Server installation license is active",
+    zh: "服务器安装许可证已激活"
+  },
+  "Клиент не активирован локальным ключом. Расширенные функции (Excel, резервные копии, обновления) доступны только после активации ключа администратором.": {
+    ru: "Клиент не активирован локальным ключом. Расширенные функции (Excel, резервные копии, обновления) доступны только после активации ключа администратором.",
+    en: "This client is not activated with a local license key. Advanced features (Excel, backups, updates) are available only after an administrator activates the key.",
+    zh: "此客户端未使用本地许可证密钥激活。高级功能（Excel、备份、更新）仅在管理员激活密钥后可用。"
+  },
+  "1. Установите приложение аутентификатора на телефон. 2. Отсканируйте QR-код или добавьте учётную запись по секрету. 3. Введите 6-значный код для подтверждения.": {
+    ru: "1. Установите приложение аутентификатора на телефон. 2. Отсканируйте QR-код или добавьте учётную запись по секрету. 3. Введите 6-значный код для подтверждения.",
+    en: "1. Install an authenticator app on your phone. 2. Scan the QR code or add the account with the secret key. 3. Enter the 6-digit code to confirm.",
+    zh: "1. 在手机上安装身份验证器应用。2. 扫描二维码或使用密钥添加账户。3. 输入 6 位验证码进行确认。"
+  },
+  "Не удалось загрузить статус 2FA.": {
+    ru: "Не удалось загрузить статус 2FA.",
+    en: "Failed to load 2FA status.",
+    zh: "无法加载双因素认证状态。"
+  },
+  "Учётная запись не найдена. Выйдите из системы и войдите снова.": {
+    ru: "Учётная запись не найдена. Выйдите из системы и войдите снова.",
+    en: "Account not found. Log out and sign in again.",
+    zh: "未找到账户。请退出并重新登录。"
+  },
+  "QR-код для настройки 2FA": {
+    ru: "QR-код для настройки 2FA",
+    en: "2FA setup QR code",
+    zh: "2FA 设置二维码"
+  },
   "Журнал действий": {
     ru: "Журнал действий",
     en: "Activity Log",
@@ -471,6 +646,16 @@ const dictionary: Record<string, Record<Language, string>> = {
     ru: "Поиск по оборудованию, серийному номеру, сотруднику...",
     en: "Search by hardware, serial number, employee...",
     zh: "按设备、序列号、员工搜索..."
+  },
+  "Результаты поиска ({count})": {
+    ru: "Результаты поиска ({count})",
+    en: "Search results ({count})",
+    zh: "搜索结果 ({count})"
+  },
+  'Ничего не найдено по запросу "{query}"': {
+    ru: 'Ничего не найдено по запросу "{query}"',
+    en: 'No results for "{query}"',
+    zh: '未找到与 "{query}" 匹配的结果'
   },
   "Все": {
     ru: "Все",
@@ -1541,6 +1726,11 @@ const dictionary: Record<string, Record<Language, string>> = {
     en: "Settings successfully saved to local device!",
     zh: "设置已成功保存到本地存储中！"
   },
+  "Личные настройки (язык, дашборд) сохраняются на сервере в вашем профиле и доступны с любого устройства.": {
+    ru: "Личные настройки (язык, дашборд) сохраняются на сервере в вашем профиле и доступны с любого устройства.",
+    en: "Personal settings (language, dashboard) are saved on the server in your profile and available on any device.",
+    zh: "个人设置（语言、仪表盘）保存在服务器上的您的个人资料中，可在任何设备上使用。"
+  },
 
   // Subheaders & details
   "Администратор": {
@@ -2490,7 +2680,7 @@ const dictionary: Record<string, Record<Language, string>> = {
   },
   "PNG, SVG, ICO, WEBP": {
     ru: "PNG, SVG, ICO, WEBP",
-    en: "PNG, SVG, ICO, WEBP",
+    en: "PNG, SVG, ICO and WEBP",
     zh: "PNG、SVG、ICO、WEBP"
   },
   "Ссылка на логотип сайта в верхней панели (URL)": {
@@ -3209,31 +3399,6 @@ const dictionary: Record<string, Record<Language, string>> = {
     en: "Error: Deletion is restricted for your role.",
     zh: "错误：您的角色被限制删除操作。"
   },
-  "Staff panel access logins (2)": {
-    ru: "Доступы в панель сотрудников (2)",
-    en: "Staff panel access logins (2)",
-    zh: "员工面板访问登录(2)"
-  },
-  "Roles dictate permissions for modifications and admin panels": {
-    ru: "Роли определяют права на изменения и администрирование",
-    en: "Roles dictate permissions for modifications and admin panels",
-    zh: "角色决定了修改和管理面板的权限"
-  },
-  "Your role:": {
-    ru: "Ваша роль:",
-    en: "Your role:",
-    zh: "您的角色："
-  },
-  "System Administrator": {
-    ru: "Системный Администратор",
-    en: "System Administrator",
-    zh: "系统管理员"
-  },
-  "Viewer / Auditor": {
-    ru: "Наблюдатель / Аудитор",
-    en: "Viewer / Auditor",
-    zh: "查看者/审核员"
-  },
   "ФИО СОТРУДНИКА": {
     ru: "ФИО СОТРУДНИКА",
     en: "EMPLOYEE FULL NAME",
@@ -3382,11 +3547,6 @@ const dictionary: Record<string, Record<Language, string>> = {
   "Оборудование не найдено по заданным фильтрам": {
     ru: "Оборудование не найдено по заданным фильтрам",
     en: "No equipment found matching the specified filters",
-    zh: "未找到符合指定过滤条件的设备"
-  },
-  "No devices found matching the specified filters": {
-    ru: "Устройства по заданным фильтрам не найдены",
-    en: "No devices found matching the specified filters",
     zh: "未找到符合指定过滤条件的设备"
   },
   "Склад пуст или товар по данному штрихкоду не найден.": {
@@ -4844,7 +5004,7 @@ const dictionary: Record<string, Record<Language, string>> = {
     en: "Sign in",
     zh: "登录系统"
   },
-  "© 2026 Utkin Vladislav Vyacheslavovich. All rights reserved.": {
+  "© 2026 Уткин Владислав Вячеславович. Все права защищены.": {
     ru: "© 2026 Уткин Владислав Вячеславович. Все права защищены.",
     en: "© 2026 Utkin Vladislav Vyacheslavovich. All rights reserved.",
     zh: "© 2026 乌金·弗拉迪斯拉夫·维亚切斯拉维奇。保留所有权利。"
@@ -7546,11 +7706,6 @@ const dictionary: Record<string, Record<Language, string>> = {
     en: "Email is too long.",
     zh: "电子邮箱过长。"
   },
-  "English (EN)": {
-    ru: "English (EN)",
-    en: "English (EN)",
-    zh: "English (EN)"
-  },
   "Не удалось найти запись для удаления.": {
     ru: "Не удалось найти запись для удаления.",
     en: "Could not find the record to delete.",
@@ -7960,12 +8115,7 @@ const dictionary: Record<string, Record<Language, string>> = {
     en: "Cannot delete department «{name}»: {count} employee(s) are assigned to it.",
     zh: "无法删除部门「{name}」：仍有 {count} 名员工归属该部门。"
   },
-  "Закрыть меню": { ru: "Закрыть меню", en: "Close menu", zh: "关闭菜单" },
-  "中文 (ZH)": {
-    ru: "中文 (ZH)",
-    en: "中文 (ZH)",
-    zh: "中文 (ZH)"
-  }
+  "Закрыть меню": { ru: "Закрыть меню", en: "Close menu", zh: "关闭菜单" }
 };
 
 export const useTranslation = () => React.useContext(LanguageContext);
@@ -7973,12 +8123,14 @@ export const useTranslation = () => React.useContext(LanguageContext);
 interface LanguageContextProps {
   language: Language;
   setLanguage: (lang: Language) => void;
+  applyLanguage: (lang: Language) => void;
   t: (key: string) => string;
 }
 
 const LanguageContext = React.createContext<LanguageContextProps>({
   language: 'ru',
   setLanguage: () => {},
+  applyLanguage: () => {},
   t: (k) => k,
 });
 
@@ -7988,10 +8140,18 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return (saved as Language) || 'ru';
   });
 
-  const setLanguage = (lang: Language) => {
-    localStorage.setItem('orbit_lang', lang);
+  const applyLanguage = React.useCallback((lang: Language) => {
+    try {
+      localStorage.setItem('orbit_lang', lang);
+    } catch {
+      /* ignore */
+    }
     setLanguageState(lang);
-  };
+  }, []);
+
+  const setLanguage = React.useCallback((lang: Language) => {
+    applyLanguage(lang);
+  }, [applyLanguage]);
 
   React.useEffect(() => {
     document.documentElement.lang = language;
@@ -8009,8 +8169,32 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   return (
-    <LanguageContext.Provider value={{ language, setLanguage, t }}>
+    <LanguageContext.Provider value={{ language, setLanguage, applyLanguage, t }}>
       {children}
     </LanguageContext.Provider>
   );
+};
+
+export const LanguagePersistProvider: React.FC<{
+  onPersist: (lang: Language) => void;
+  children: React.ReactNode;
+}> = ({ onPersist, children }) => {
+  const parent = React.useContext(LanguageContext);
+  const onPersistRef = React.useRef(onPersist);
+  onPersistRef.current = onPersist;
+
+  const setLanguage = React.useCallback(
+    (lang: Language) => {
+      parent.applyLanguage(lang);
+      onPersistRef.current(lang);
+    },
+    [parent]
+  );
+
+  const value = React.useMemo(
+    () => ({ ...parent, setLanguage }),
+    [parent, setLanguage]
+  );
+
+  return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>;
 };

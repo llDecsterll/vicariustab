@@ -1486,7 +1486,7 @@ export default function WarehouseView({
       window.alert(t('Нет позиций склада для экспорта по текущим фильтрам.'));
       return;
     }
-    exportWarehouseItemsToExcelFile(items);
+    void exportWarehouseItemsToExcelFile(items);
   };
 
   const handleWarehouseImportFileChange = async (
@@ -1515,7 +1515,7 @@ export default function WarehouseView({
 
       let rows;
       try {
-        rows = parseWarehouseExcelBuffer(buffer);
+        rows = await parseWarehouseExcelBuffer(buffer);
       } catch {
         rows = await parseWarehouseExcelFile(file);
       }

@@ -1,7 +1,7 @@
 # Vicariustab — полный индекс файлов (v2.0.21)
 
 **Repo:** https://github.com/llDecsterll/vicariustab  
-**Обновлено:** 30.06.2026
+**Обновлено:** 03.07.2026
 
 Навигация для разработчиков и AI-агентов. Runtime-артефакты (`node_modules/`, `dist/`, `db.json`, `sessions_store.enc`) не перечислены.
 
@@ -45,14 +45,15 @@
 | `config/updateRepo.ts` | URL репозитория GitHub |
 | `legal/copyright.ts` | Copyright strings |
 
-### `src/components/` (41 файл)
+### `src/components/` (42 файла)
 
 | Файл | Назначение |
 |------|------------|
 | `Sidebar.tsx` | Навигация, trial badge |
 | `Header.tsx` | Верхняя панель |
 | `DashboardView.tsx` | KPI, графики, draggable layout |
-| `DashboardDraggableBlock.tsx` | Перетаскиваемый блок дашборда |
+| `DashboardGridLayout.tsx` | Responsive grid, drag/resize виджетов |
+| `DashboardWidgetScaler.tsx` | Масштабирование виджетов по tier (xs–xl) |
 | `DashboardLayoutContext.tsx` | Context раскладки дашборда |
 | `ObjectsView.tsx` | Объекты/локации |
 | `ComputersView.tsx` | ПК, периферия, оргтехника, видео, расходники, другое |
@@ -91,7 +92,7 @@
 | `ModalCloseButton.tsx` | Кнопка закрытия модалки |
 | `CopyrightFooter.tsx` | Футер |
 
-### `src/utils/` (45 файлов)
+### `src/utils/` (46 файлов)
 
 | Файл | Назначение |
 |------|------------|
@@ -139,7 +140,8 @@
 | `dashboardAnalytics.ts` | KPI, slices |
 | `dashboardI18n.ts` | Переводы дашборда |
 | `dashboardAnimation.ts` | Анимации |
-| `dashboardLayout.ts` | Сохранение раскладки дашборда |
+| `dashboardLayout.ts` | Grid layout, responsive breakpoints |
+| `dashboardGridMetrics.ts` | Grid metrics, move/resize, pixel mapping |
 | `reportAnalytics.ts` | Аналитика отчётов |
 | **Прочее** | |
 | `updateCheck.ts` | GitHub update UI |
@@ -200,8 +202,8 @@
 | `unit-lifecycle.mjs` | 11 | return, purge, stock line |
 | `unit-validation.mjs` | 6 | workspaceValidation |
 | `unit-warehouse-excel.mjs` | 5 | Excel import/export |
-| `unit-writeoff.mjs` | 18 | partial write-off, cancel, restore |
-| `unit-restore-writeoff.mjs` | 14 | restore from history |
+| `unit-writeoff.mjs` | 17 | partial write-off, cancel, restore |
+| `unit-restore-writeoff.mjs` | 13 | restore from history |
 | `unit-warehouse-full-lifecycle.mjs` | 63 | 31 subtype × 2 scenarios |
 | `unit-routing.mjs` | 4 | группы оборудования |
 | `unit-backup-license.mjs` | 4 | backup license strip |
@@ -213,7 +215,7 @@
 | `load-concurrent.mjs` | 1 | revision conflict |
 | `run-all.mjs` | — | Runner всех suite |
 
-**Итого:** ~168 тестов (`npm run test:audit`). `test:unit` — 144 (2 skip без keyserver PEM). Integration/load требуют сервер на `:8098`.
+**Итого:** ~164 теста (`npm run test:audit`). `test:unit` — 144 (2 skip без keyserver PEM). Integration/load требуют сервер на `:8098`.
 
 ---
 
@@ -231,13 +233,14 @@
 
 | Путь | Файл |
 |------|------|
-| Workspace root | `../FILES_INDEX.md` — весь Cursorbase + keyserver |
+| Workspace root | `../FILES_INDEX.md` — весь Cursorbase + keyserver + skills |
 | Workspace | `.cursor/rules/workspace-overview.mdc` |
 | Workspace | `.cursor/rules/product-vicariustab.mdc` |
 | Workspace | `.cursor/rules/equipment-lifecycle.mdc` |
 | Workspace | `.cursor/rules/server-backend.mdc` |
 | Workspace | `.cursor/rules/keyserver-local.mdc` — **локально, не в git** |
 | Keyserver | `keyserver/LOCAL_INDEX.md` — **не публиковать** |
+| Agent skills | `../.agents/AGENTS_INDEX.md` — 84 skills |
 | Git repo | `product/.cursor/rules/project-index.mdc` |
 | Git repo | `product/.cursor/rules/files-map.mdc` |
 
@@ -257,4 +260,4 @@
 
 ## npm scripts
 
-`dev` · `build` · `start` · `lint` · `check:i18n` · `test:unit` (144) · `test:audit` (~168) · `test:all` · `verify` · `verify:install` · `screenshots` · `license:keypair` · `license:sync-public` · `setup:domain`
+`dev` · `build` · `start` · `lint` · `check:i18n` · `test:unit` (144) · `test:audit` (~164) · `test:all` · `verify` · `verify:install` · `screenshots` · `license:keypair` · `license:sync-public` · `setup:domain`

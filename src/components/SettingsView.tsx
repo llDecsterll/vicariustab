@@ -67,6 +67,7 @@ import { authHeaders } from '../utils/deviceFingerprint';
 import { isBlockedBackupKey, stripLicenseFromLocalBackupData } from '../utils/backupLicensePolicy';
 import { validateEmailField, validateLoginField, validatePasswordField } from '../utils/credentialValidation';
 import DocumentHeaderSettings from './DocumentHeaderSettings';
+import TwoFactorSettings from './TwoFactorSettings';
 
 interface SettingsViewProps {
   onPurgeWorkspace: () => Promise<boolean>;
@@ -109,6 +110,7 @@ interface SettingsViewProps {
   onDocumentHeaderPersist?: () => void;
   licenseStatus: {
     isActivated: boolean;
+    isInstallationLicensed?: boolean;
     licenseType: 'trial' | 'annual' | 'perpetual';
     trialDaysLeft: number;
     trialTimeLeftFormatted?: string;
@@ -127,6 +129,7 @@ interface SettingsViewProps {
   onDeactivate: () => void;
   onRefreshLicense?: () => void;
   onLogActivity?: (action: string, detail: string, type: 'create' | 'update' | 'delete' | 'system' | 'auth') => void;
+  onDataRevisionSync?: (revision: number) => void;
 }
 
 export default function SettingsView({
@@ -163,6 +166,7 @@ export default function SettingsView({
   onDeactivate,
   onRefreshLicense,
   onLogActivity,
+  onDataRevisionSync,
 }: SettingsViewProps) {
   const { language, setLanguage, t } = useTranslation();
 
@@ -1129,6 +1133,14 @@ export default function SettingsView({
         </form>
       </div>
 
+      <TwoFactorSettings
+        twoFactorEnabled={currentUser.twoFactorEnabled}
+        onStatusChange={(enabled) => {
+          if (onUpdateUser) onUpdateUser(currentUser.id, { twoFactorEnabled: enabled });
+        }}
+        onRevisionSync={onDataRevisionSync}
+      />
+
       {(currentUser.role === 'Admin' || currentUser.role === 'Editor') && (
         <>
           <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-4 animate-fade-in">
@@ -1542,6 +1554,10 @@ export default function SettingsView({
               </button>
             </div>
           </div>
+
+          <p className="text-[11px] text-slate-500 leading-relaxed">
+            {t('Личные настройки (язык, дашборд) сохраняются на сервере в вашем профиле и доступны с любого устройства.')}
+          </p>
 
           {saveSuccess && (
             <div className="p-2 bg-emerald-50 text-emerald-700 text-xs rounded-lg font-medium border border-emerald-150 flex items-center gap-2">
@@ -2090,9 +2106,20 @@ export default function SettingsView({
                     </div>
                   )}
 
-                  <div className="pt-2">{t("Активный ключ:")}<code className="bg-emerald-500/15 font-mono px-1.5 py-0.5 rounded text-[10.5px] font-semibold break-all">{licenseStatus.licenseKey}</code>
+                  <div className="pt-2">
+                    {isAdmin ? (
+                      <>
+                        {t('Активный ключ:')}
+                        <code className="bg-emerald-500/15 font-mono px-1.5 py-0.5 rounded text-[10.5px] font-semibold break-all">
+                          {licenseStatus.licenseKey}
+                        </code>
+                      </>
+                    ) : (
+                      <span className="text-emerald-700/80 italic">{t('Лицензия активна (ключ скрыт для вашей роли)')}</span>
+                    )}
                   </div>
                 </div>
+                {isAdmin && (
                 <button
                   type="button"
                   onClick={() => {
@@ -2102,6 +2129,21 @@ export default function SettingsView({
                   }}
                   className="mt-2 text-[10px] uppercase font-bold text-rose-650 hover:text-rose-700 tracking-wider transition-colors cursor-pointer block"
                 >{t("Сбросить / Деактивировать ключ")}</button>
+                )}
+              </div>
+            ) : licenseStatus.isInstallationLicensed ? (
+              <div className="p-4 bg-emerald-500/10 border border-emerald-500/25 rounded-2xl space-y-2 text-emerald-800">
+                <div className="flex items-center gap-2 font-bold text-sm">
+                  <ShieldCheck className="text-emerald-500" size={18} />
+                  <span>{t("Лицензия установки активна на сервере")}</span>
+                </div>
+                <div className="text-xs text-emerald-700/90 leading-relaxed font-sans space-y-1">
+                  <div>{t("Тип лицензии:")}<strong className="font-bold capitalize">{licenseStatus.licenseType === 'perpetual' ? t("Вечная (Без ограничений)") : t("Годовая")}</strong></div>
+                  {licenseStatus.licenseType !== 'perpetual' && licenseStatus.expiresYear && (
+                    <div>{t("Срок окончания действия:")}<strong className="font-bold">{licenseStatus.expiresYear} год</strong></div>
+                  )}
+                  <p className="pt-1 text-emerald-700/80 italic">{t("Клиент не активирован локальным ключом. Расширенные функции (Excel, резервные копии, обновления) доступны только после активации ключа администратором.")}</p>
+                </div>
               </div>
             ) : (
               <div className="p-5 bg-blue-600/10 border border-blue-500/25 rounded-2xl space-y-3.5 text-blue-900 shadow-sm">
@@ -2125,7 +2167,8 @@ export default function SettingsView({
               </div>
             )}
 
-            {/* Verification Form */}
+            {/* Verification Form — Admin only */}
+            {isAdmin && (
             <div className="space-y-2">
               <label className="block text-xs font-bold text-slate-500 uppercase">{t("ВВЕСТИ ЛИЦЕНЗИОННЫЙ КЛЮЧ АКТИВАЦИИ")}</label>
               
@@ -2185,6 +2228,7 @@ export default function SettingsView({
                 </div>
               )}
             </div>
+            )}
           </div>
         </div>
       </div>

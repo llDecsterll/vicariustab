@@ -1,7 +1,8 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Check, LayoutDashboard, Pencil, Plus, RotateCcw } from 'lucide-react';
 import { useTranslation } from '../utils/i18n';
+import { useUserPreferencesOptional } from './UserPreferencesProvider';
 import {
   DASHBOARD_HEADER_EDIT_SLOT_ID,
   buildDefaultGridLayout,
@@ -10,8 +11,8 @@ import {
   getAvailableWidgets,
   getWidgetCatalogGroups,
   hasOverlappingGridItems,
-  loadDashboardLayout,
   packDashboardLayout,
+  resolveDashboardLayout,
   sanitizeLayoutItems,
   saveDashboardLayout,
   type DashboardLayoutState,
@@ -168,15 +169,36 @@ function DashboardEditBanner() {
 }
 
 export function DashboardLayoutProvider({ children }: { children: React.ReactNode }) {
-  const [layout, setLayout] = useState<DashboardLayoutState>(loadDashboardLayout);
+  const prefsCtx = useUserPreferencesOptional();
+  const userId = prefsCtx?.userId ?? null;
+  const serverLayout = prefsCtx?.preferences?.dashboardLayout;
+  const persistPreferences = prefsCtx?.persistPreferences;
+
+  const [layout, setLayout] = useState<DashboardLayoutState>(() =>
+    resolveDashboardLayout(serverLayout, userId)
+  );
   const [editMode, setEditModeRaw] = useState(false);
   const [selectedWidgetId, setSelectedWidgetId] = useState<string | null>(null);
+
+  const skipPersistRef = useRef(false);
+  const isInitialLayoutEffectRef = useRef(true);
+
+  useEffect(() => {
+    const next = resolveDashboardLayout(serverLayout, userId);
+    setLayout((prev) => {
+      if (JSON.stringify(prev.items) === JSON.stringify(next.items)) return prev;
+      skipPersistRef.current = true;
+      return next;
+    });
+    setEditModeRaw(false);
+    setSelectedWidgetId(null);
+  }, [userId, serverLayout]);
 
   const setEditMode = useCallback((value: boolean) => {
     if (value) {
       setLayout((prev) =>
         hasOverlappingGridItems(prev.items)
-          ? { version: 10, items: buildDefaultGridLayout() }
+          ? { version: 11, items: buildDefaultGridLayout() }
           : prev
       );
     } else {
@@ -186,18 +208,24 @@ export function DashboardLayoutProvider({ children }: { children: React.ReactNod
   }, []);
 
   useEffect(() => {
-    saveDashboardLayout(layout);
-  }, [layout]);
+    saveDashboardLayout(layout, userId);
+    if (skipPersistRef.current || isInitialLayoutEffectRef.current) {
+      skipPersistRef.current = false;
+      isInitialLayoutEffectRef.current = false;
+      return;
+    }
+    persistPreferences?.({ dashboardLayout: layout });
+  }, [layout, userId, persistPreferences]);
 
   const updateGridLayout = useCallback((items: GridLayout) => {
     const sanitized = sanitizeLayoutItems(items);
     const packed = packDashboardLayout(sanitized);
-    setLayout({ version: 10, items: hasOverlappingGridItems(packed) ? sanitized : packed });
+    setLayout({ version: 11, items: hasOverlappingGridItems(packed) ? sanitized : packed });
   }, []);
 
   const resetLayout = useCallback(() => {
     setLayout({
-      version: 10,
+      version: 11,
       items: buildDefaultGridLayout().map((item) => ({ ...item })),
     });
   }, []);
@@ -208,7 +236,7 @@ export function DashboardLayoutProvider({ children }: { children: React.ReactNod
       if (next.length === 0) {
         return prev;
       }
-      return { version: 10, items: next };
+      return { version: 11, items: next };
     });
     setSelectedWidgetId((prev) => (prev === widgetId ? null : prev));
   }, []);
@@ -219,7 +247,7 @@ export function DashboardLayoutProvider({ children }: { children: React.ReactNod
         return prev;
       }
       const placement = findPlacementForWidget(prev.items, widgetId);
-      return { version: 10, items: [...prev.items, placement] };
+      return { version: 11, items: [...prev.items, placement] };
     });
   }, []);
 

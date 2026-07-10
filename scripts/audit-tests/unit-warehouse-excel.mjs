@@ -104,7 +104,7 @@ describe('warehouseExcel', () => {
     assert.ok(result.items.some((w) => w.inventoryNumber === 'MS-001'));
   });
 
-  it('reads legacy sheet name Склад', () => {
+  it('reads legacy sheet name Склад', async () => {
     const wb = XLSX.utils.book_new();
     const row = warehouseItemToExcelRow({
       id: 'wh-legacy',
@@ -120,7 +120,7 @@ describe('warehouseExcel', () => {
     });
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([row], { header: [...WAREHOUSE_EXCEL_HEADERS] }), 'Склад');
     const buffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-    const rows = parseWarehouseExcelBuffer(buffer);
+    const rows = await parseWarehouseExcelBuffer(buffer);
     assert.equal(rows.length, 1);
     assert.equal(rows[0].inventoryNumber, 'LEG-1');
   });

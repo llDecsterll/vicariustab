@@ -201,7 +201,6 @@ export default function FirstRunSetup({ workspaceName, siteLogo, onComplete }: F
                   required
                   minLength={3}
                   maxLength={64}
-                  pattern="[a-zA-Z0-9._-]+"
                   value={login}
                   onChange={(e) => setLogin(e.target.value)}
                   placeholder={t('ваш логин')}

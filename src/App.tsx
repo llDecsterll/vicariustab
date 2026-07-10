@@ -7,25 +7,29 @@
  * Все права защищены. Копирование, изменение, распространение и коммерческое использование без письменного согласия правообладателя запрещено.
  * Release
  */
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo, Suspense, lazy } from 'react';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
-import DashboardView from './components/DashboardView';
-import ObjectsView from './components/ObjectsView';
-import NetworkView from './components/NetworkView';
-import ComputersView from './components/ComputersView';
-import EmployeesView from './components/EmployeesView';
-import WarehouseView from './components/WarehouseView';
-import AuditsView from './components/AuditsView';
-import WarrantiesView from './components/WarrantiesView';
-import ReportsView from './components/ReportsView';
-import ActivityLogView from './components/ActivityLogView';
-import SettingsView from './components/SettingsView';
-import SecurityView from './components/SecurityView';
-import DetailModal from './components/DetailModal';
+import { UserPreferencesProvider } from './components/UserPreferencesProvider';
 import LoginScreen from './components/LoginScreen';
 import FirstRunSetup from './components/FirstRunSetup';
-import SoftwareView from './components/SoftwareView';
+import ConfirmDeleteModal from './components/ConfirmDeleteModal';
+import ConfirmReturnModal from './components/ConfirmReturnModal';
+
+const DashboardView = lazy(() => import('./components/DashboardView'));
+const ObjectsView = lazy(() => import('./components/ObjectsView'));
+const NetworkView = lazy(() => import('./components/NetworkView'));
+const ComputersView = lazy(() => import('./components/ComputersView'));
+const EmployeesView = lazy(() => import('./components/EmployeesView'));
+const WarehouseView = lazy(() => import('./components/WarehouseView'));
+const AuditsView = lazy(() => import('./components/AuditsView'));
+const WarrantiesView = lazy(() => import('./components/WarrantiesView'));
+const ReportsView = lazy(() => import('./components/ReportsView'));
+const ActivityLogView = lazy(() => import('./components/ActivityLogView'));
+const SettingsView = lazy(() => import('./components/SettingsView'));
+const SecurityView = lazy(() => import('./components/SecurityView'));
+const SoftwareView = lazy(() => import('./components/SoftwareView'));
+const DetailModal = lazy(() => import('./components/DetailModal'));
 import { useTranslation } from './utils/i18n';
 import { interpolate } from './utils/localeRuntime';
 import { COPYRIGHT_EMAIL, COPYRIGHT_TELEGRAM_URL } from './legal/copyright';
@@ -41,7 +45,7 @@ import {
   initialSoftwareItems
 } from './initialData';
 
-import { ObjectItem, NetworkDevice, ComputerItem, EmployeeItem, EmployeeStatus, WarehouseItem, WarehouseItemType, Activity, InventoryAudit, SystemUser, UserRole, SoftwareItem, ComputerCategory, CustomWarehouse, WarehouseWriteOff } from './types';
+import { ObjectItem, NetworkDevice, ComputerItem, EmployeeItem, EmployeeStatus, WarehouseItem, WarehouseItemType, Activity, InventoryAudit, SystemUser, UserRole, SoftwareItem, ComputerCategory, CustomWarehouse, WarehouseWriteOff, UserPreferences } from './types';
 import { getLicenseStatus, activateSystem, deactivateSystem, getSystemRequestCode, applyLicenseStateFromServer, getLicenseSecuritySnapshot, canUseWarehouseExcel } from './utils/license';
 import { checkForPlatformUpdate, markInstalledCommit, buildUpdateNotificationText, shouldNotifyForUpdate, markUpdateNotified } from './utils/updateCheck';
 import { APP_VERSION } from './config/appConfig';
@@ -90,6 +94,7 @@ import { Copy, Check, Mail } from 'lucide-react';
 import { copyTextToClipboard } from './utils/clipboard';
 import {
   authenticateCredentials,
+  verifyTotpLogin,
   sessionHeartbeat,
   logoutUserSession,
   markSessionNotificationsRead,
@@ -111,8 +116,6 @@ import { clearDocumentHeaderLocalStorage, applyDocumentHeaderFromServer, loadDoc
 import { clearInventoryLocalStorage } from './emptyWorkspace';
 import { fetchSetupStatus } from './utils/setupAuth';
 import { countAuditScopeItems, syncAuditProgressFields, buildAuditChecklist, computeAuditProgressFromRows } from './utils/auditInventory';
-import ConfirmDeleteModal from './components/ConfirmDeleteModal';
-import ConfirmReturnModal from './components/ConfirmReturnModal';
 import {
   buildDeletePreview,
   filterSoftwareForEquipmentView,
@@ -166,7 +169,10 @@ export default function App() {
       const status = getLicenseStatus();
       setLicenseStatus(status);
       const delay =
-        status.lockoutTimeLeft > 0 || (!status.isActivated && !status.isExpired) ? 1000 : 5000;
+        status.lockoutTimeLeft > 0 ||
+        (!status.isActivated && !status.isInstallationLicensed && !status.isExpired)
+          ? 1000
+          : 5000;
       timeoutId = setTimeout(tick, delay);
     };
     tick();
@@ -421,7 +427,14 @@ export default function App() {
     if (typeof data.workspaceName === 'string') setWorkspaceName(data.workspaceName);
     if (typeof data.adminEmail === 'string') setAdminEmail(data.adminEmail);
     if (typeof data.publicUrl === 'string') setPublicUrl(data.publicUrl);
-    if (Array.isArray(data.users)) setUsers(data.users as SystemUser[]);
+    if (Array.isArray(data.users)) {
+      setUsers(
+        (data.users as SystemUser[]).map((u) => {
+          const { password: _password, ...safe } = u as SystemUser & { password?: string };
+          return safe;
+        })
+      );
+    }
     if (data.tabIcons) setTabIcons(data.tabIcons as typeof tabIcons);
     if (typeof data.panelLogo === 'string') setPanelLogo(data.panelLogo);
     if (typeof data.panelColor === 'string') setPanelColor(data.panelColor);
@@ -713,18 +726,28 @@ export default function App() {
         setSaveError('');
         return true;
       }
+      if (result.status === 409) {
+        await loadDataFromServer();
+      }
       const msg =
         result.status === 403
           ? t('Сохранение отклонено: недостаточно прав (только просмотр).')
           : result.status === 402
             ? t('Сохранение отклонено: лицензия истекла или недействительна.')
+            : result.status === 409
+              ? t('Конфликт версий данных: загружены актуальные данные с сервера. Повторите изменение.')
             : `${t('Не удалось сохранить данные на сервере')}: ${result.error}`;
       console.warn('Workspace save failed:', result.status, result.error);
       setSaveError(msg);
       return false;
     },
-    [getWorkspacePayload, isLoadedFromServer, isLoggedIn, computers, t]
+    [getWorkspacePayload, isLoadedFromServer, isLoggedIn, computers, t, loadDataFromServer]
   );
+
+  useEffect(() => {
+    if (!isLoggedIn || !isLoadedFromServer || licenseRevision === 0) return;
+    void pushWorkspaceToServer();
+  }, [licenseRevision, isLoggedIn, isLoadedFromServer, pushWorkspaceToServer]);
 
   const handleDocumentHeaderPersist = useCallback(() => {
     if (!isLoggedIn || currentUser?.role !== 'Admin') return;
@@ -931,16 +954,41 @@ export default function App() {
     setSaveError('');
   }, [users, currentUserId, syncAuthAuditFromServer]);
 
-  const handleSwitchUser = useCallback(async (user: SystemUser, password: string): Promise<boolean> => {
-    const prev = users.find((u) => u.id === currentUserId);
-    if (prev && getStoredSessionToken()) {
-      await logoutUserSession(prev.name);
+  const handlePreferencesSaved = useCallback((prefs: UserPreferences, revision: number) => {
+    setUsers((prev) =>
+      prev.map((u) => (u.id === currentUserId ? { ...u, preferences: prefs } : u))
+    );
+    setDataRevision(revision);
+    dataRevisionRef.current = revision;
+  }, [currentUserId]);
+
+  const handleSwitchUser = useCallback(async (
+    user: SystemUser,
+    password: string,
+    totp?: { challengeId: string; code: string }
+  ): Promise<{ ok: true } | { ok: false; reason: 'credentials' | 'totp_required'; challengeId?: string }> => {
+    if (!totp) {
+      const prev = users.find((u) => u.id === currentUserId);
+      if (prev && getStoredSessionToken()) {
+        await logoutUserSession(prev.name);
+      }
+      clearSessionCredentials();
     }
-    clearSessionCredentials();
+
+    if (totp) {
+      const session = await verifyTotpLogin(totp.challengeId, totp.code);
+      if (!session) return { ok: false, reason: 'credentials' };
+      await completeUserLogin(user.id, true);
+      return { ok: true };
+    }
+
     const auth = await authenticateCredentials(user.login || user.email, password, user);
-    if (!auth) return false;
+    if (!auth) return { ok: false, reason: 'credentials' };
+    if (auth.kind === 'totp_required') {
+      return { ok: false, reason: 'totp_required', challengeId: auth.challengeId };
+    }
     await completeUserLogin(user.id, true);
-    return true;
+    return { ok: true };
   }, [users, currentUserId, completeUserLogin]);
 
   // Session heartbeat + remote security alerts (Admin / Editor)
@@ -4112,6 +4160,10 @@ export default function App() {
             onRefreshLicense={() => setLicenseStatus(getLicenseStatus())}
             onLogActivity={logActivity}
             onDocumentHeaderPersist={handleDocumentHeaderPersist}
+            onDataRevisionSync={(revision) => {
+              setDataRevision(revision);
+              dataRevisionRef.current = revision;
+            }}
           />
         );
       // Fallback categories inside "Оборудование" dropdown
@@ -4260,6 +4312,7 @@ export default function App() {
       case 'warranties': return t('Сроки гарантийного обслуживания');
       case 'reports': return t('Аналитическая отчетность');
       case 'activity_log': return t('Журнал операций (Аудит)');
+      case 'security': return t('Контроль информационной безопасности');
       case 'settings': return t('Конфигурация параметров');
       case 'peripherals': return t('Учет периферии и мониторов');
       case 'orgtech': return t('Учет оргтехники');
@@ -4512,6 +4565,12 @@ export default function App() {
   }
 
   return (
+    <UserPreferencesProvider
+      userId={currentUser.id}
+      preferences={currentUser.preferences}
+      dataRevision={dataRevision}
+      onSaved={handlePreferencesSaved}
+    >
     <div className="flex h-screen bg-[#f4f6f9] overflow-hidden text-slate-800">
       {/* Inject Style Overrides for instant responsive rendering of panelColor */}
       <style>{`
@@ -4591,28 +4650,38 @@ export default function App() {
               </button>
             </div>
           )}
-          {renderActiveView()}
+          <Suspense
+            fallback={
+              <div className="flex items-center justify-center p-12 text-slate-500 text-sm">
+                {t('Загрузка...')}
+              </div>
+            }
+          >
+            {renderActiveView()}
+          </Suspense>
         </main>
       </div>
 
       {/* Global integrated Details overlay modal */}
       {selectedDetail && (
-        <DetailModal
-          isOpen={!!selectedDetail}
-          onClose={() => setSelectedDetail(null)}
-          itemType={selectedDetail.type}
-          itemId={selectedDetail.id}
-          objects={objects}
-          networkDevices={networkDevices}
-          computers={computers}
-          employees={employees}
-          warehouseItems={warehouseItems}
-          onUpdateItem={handleUpdateItem}
-          onNavigateDetail={handleNavigateDetail}
-          currentUser={currentUser}
+        <Suspense fallback={null}>
+          <DetailModal
+            isOpen={!!selectedDetail}
+            onClose={() => setSelectedDetail(null)}
+            itemType={selectedDetail.type}
+            itemId={selectedDetail.id}
+            objects={objects}
+            networkDevices={networkDevices}
+            computers={computers}
+            employees={employees}
+            warehouseItems={warehouseItems}
+            onUpdateItem={handleUpdateItem}
+            onNavigateDetail={handleNavigateDetail}
+            currentUser={currentUser}
           workspaceName={workspaceName}
           users={users}
         />
+        </Suspense>
       )}
 
       <ConfirmDeleteModal
@@ -4627,5 +4696,6 @@ export default function App() {
         onConfirm={executeEquipmentReturn}
       />
     </div>
+    </UserPreferencesProvider>
   );
 }

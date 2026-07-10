@@ -80,6 +80,16 @@ test("isLicenseActivationPayload rejects mismatched MAC", () => {
   assert.equal(isLicenseActivationPayload({ license_key: key, system_mac: "AA:BB:CC:DD:EE:FF" }), false);
 });
 
+test("evaluateLicenseFromState — invalid trial signature is expired", () => {
+  const ev = evaluateLicenseFromState({
+    trial_start: String(Date.now()),
+    trial_sig: "invalid-signature",
+    system_mac: MAC,
+  });
+  assert.equal(ev.isExpired, true);
+  assert.equal(ev.reason, "trial");
+});
+
 test("evaluateLicenseFromState — empty state", () => {
   const ev = evaluateLicenseFromState(null);
   assert.equal(ev.isActivated, false);

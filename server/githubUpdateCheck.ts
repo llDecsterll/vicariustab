@@ -152,6 +152,16 @@ export async function performGithubUpdateCheck(
     remoteVersion = latestTag.replace(/^v/i, "");
   }
 
+  if (remoteVersion) {
+    const tagVersion = latestTag.replace(/^v/i, "");
+    if (!latestTag || compareSemver(remoteVersion, tagVersion) > 0) {
+      latestTag = remoteVersion.startsWith("v") ? remoteVersion : `v${remoteVersion}`;
+      if (updateSource === "tag" || updateSource === "release") {
+        updateSource = "package";
+      }
+    }
+  }
+
   if (!remoteVersion && !latestCommitSha) {
     throw new Error("Unable to reach GitHub API for this repository");
   }

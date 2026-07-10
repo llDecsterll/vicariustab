@@ -15,6 +15,7 @@ import {
   ClipboardList,
   FileBarChart2,
   ShieldCheck,
+  Shield,
   History,
   ChevronLeft,
   ChevronRight,
@@ -46,6 +47,7 @@ interface SidebarProps {
   workspaceName?: string;
   licenseStatus?: {
     isActivated: boolean;
+    isInstallationLicensed?: boolean;
     licenseType: 'trial' | 'annual' | 'perpetual';
     trialDaysLeft: number;
     isExpired: boolean;
@@ -96,6 +98,7 @@ export default function Sidebar({
     { id: 'warranties', label: t('Гарантия и обслуживание'), icon: <ShieldCheck size={17} /> },
     { id: 'reports', label: t('Отчеты'), icon: <FileBarChart2 size={17} /> },
     { id: 'activity_log', label: t('Журнал действий'), icon: <History size={17} /> },
+    { id: 'security', label: t('Кибербезопасность'), icon: <Shield size={17} /> },
   ];
 
   const pickTab = (id: string) => {
@@ -201,7 +204,7 @@ export default function Sidebar({
         </nav>
 
         <div className="p-3 border-t border-slate-100 dark:border-slate-800 space-y-3 shrink-0 safe-area-pb">
-          {!licenseStatus?.isActivated && (
+          {!licenseStatus?.isActivated && !licenseStatus?.isInstallationLicensed && (
             <div className="rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-[#1e2a3f] p-3 space-y-2">
               <div className="flex justify-between text-[10px] font-semibold text-slate-500">
                 <span>{t('Пробный период')}</span>
@@ -213,7 +216,7 @@ export default function Sidebar({
             </div>
           )}
 
-          {licenseStatus?.isActivated && (
+          {(licenseStatus?.isActivated || licenseStatus?.isInstallationLicensed) && (
             <div className="rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900/40 px-3 py-2 text-[10px] font-semibold text-emerald-700 dark:text-emerald-400">
               {licenseStatus.licenseType === 'perpetual'
                 ? t('Вечная лицензия')

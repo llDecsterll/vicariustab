@@ -86,13 +86,14 @@ import {
   DashboardLayoutProvider,
   useDashboardLayout,
 } from './DashboardLayoutContext';
+import { useUserPreferencesOptional } from './UserPreferencesProvider';
 import DashboardGridLayout from './DashboardGridLayout';
 import { useDashboardWidgetMetrics, useDashChartTypography } from './DashboardWidgetScaler';
 import type { AnalyticsWidgetId, DetailCardId, StatCardId, WarehouseStripId } from '../utils/dashboardLayout';
 
 const CARD = 'bg-white rounded-2xl border border-slate-100 shadow-sm';
 const PANEL = `${CARD} dash-widget-panel flex flex-col h-full min-h-0 overflow-hidden`;
-const STAT = `${CARD} dash-widget-stat flex flex-col justify-center text-left h-full min-h-0 w-full`;
+const STAT = `${CARD} dash-widget-stat flex flex-col justify-center text-left h-full min-h-0 w-full overflow-hidden`;
 const TITLE = 'text-sm font-bold text-slate-900 shrink-0';
 const META = 'text-xs text-slate-500';
 const LINK = 'text-xs font-semibold text-blue-600 flex items-center gap-1 hover:text-blue-700 transition-colors';
@@ -133,10 +134,15 @@ function buildSparkline(base: number) {
   return factors.map((f, i) => ({ i, v: Math.max(0, Math.round(base * f)) }));
 }
 
-function DashChartArea({ children }: { children: React.ReactNode }) {
+function DynamicsChartArea({ children }: { children: React.ReactNode }) {
   const { width, height } = useDashboardWidgetMetrics();
+  const chartHeight = Math.round(Math.max(104, Math.min(height - 128, height * 0.52, 210)));
   return (
-    <div className="dash-widget-chart flex-1 min-h-0 w-full" key={`chart-${width}x${height}`}>
+    <div
+      className="dash-dynamics-chart shrink-0 w-full"
+      style={{ height: chartHeight }}
+      key={`dynamics-chart-${width}x${height}`}
+    >
       {children}
     </div>
   );
@@ -159,24 +165,34 @@ function DynamicsChartInner({
   lineDotFill: string;
   t: (key: string) => string;
 }) {
+  const { width } = useDashboardWidgetMetrics();
   const typo = useDashChartTypography();
+  const compact = width < 300;
   return (
-    <ComposedChart data={data} margin={{ top: 4, right: 4, left: -8, bottom: 0 }}>
+    <ComposedChart data={data} margin={{ top: 8, right: compact ? 2 : 8, left: compact ? -14 : -4, bottom: 4 }}>
       <defs>
         <linearGradient id="dashDynamicsFill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.22} />
-          <stop offset="100%" stopColor="#3b82f6" stopOpacity={0} />
+          <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.3} />
+          <stop offset="100%" stopColor="#3b82f6" stopOpacity={0.02} />
         </linearGradient>
       </defs>
       <CartesianGrid strokeDasharray="3 3" stroke={chartGrid} vertical={false} />
-      <XAxis dataKey="month" tick={{ fontSize: typo.tick, fill: chartTick }} axisLine={false} tickLine={false} />
-      <YAxis
+      <XAxis
+        dataKey="month"
         tick={{ fontSize: typo.tick, fill: chartTick }}
         axisLine={false}
         tickLine={false}
-        width={typo.axisWidth}
-        allowDecimals={false}
+        dy={4}
       />
+      {!compact && (
+        <YAxis
+          tick={{ fontSize: typo.tick, fill: chartTick }}
+          axisLine={false}
+          tickLine={false}
+          width={typo.axisWidth}
+          allowDecimals={false}
+        />
+      )}
       <Tooltip
         contentStyle={{ ...chartTooltip, fontSize: typo.tooltipFontSize }}
         labelFormatter={(l) => `${t('Месяц')}: ${l}`}
@@ -186,15 +202,110 @@ function DynamicsChartInner({
       <Line
         type="monotone"
         dataKey="count"
-        stroke="#3b82f6"
+        stroke="#2563eb"
         strokeWidth={typo.strokeWidth}
-        dot={{ r: typo.dotRadius, fill: lineDotFill, stroke: '#3b82f6', strokeWidth: 1.5 }}
-        activeDot={{ r: typo.dotRadius + 1.5, fill: '#3b82f6', stroke: '#fff', strokeWidth: 2 }}
+        dot={{ r: typo.dotRadius, fill: lineDotFill, stroke: '#2563eb', strokeWidth: 1.5 }}
+        activeDot={{ r: typo.dotRadius + 1.5, fill: '#2563eb', stroke: '#fff', strokeWidth: 2 }}
         name={t('Добавлено')}
         {...motion}
         animationBegin={200}
       />
     </ComposedChart>
+  );
+}
+
+function EquipmentDynamicsWidget({
+  dynamicsData,
+  dynamicsPeriod,
+  onPeriodChange,
+  equipmentTotals,
+  periodDelta,
+  chartsReady,
+  motion,
+  chartGrid,
+  chartTick,
+  chartTooltip,
+  lineDotFill,
+  staggerIndex,
+}: {
+  dynamicsData: ReturnType<typeof buildEquipmentDynamicsSeries>;
+  dynamicsPeriod: DynamicsPeriod;
+  onPeriodChange: (period: DynamicsPeriod) => void;
+  equipmentTotals: { total: number; issued: number; warehouse: number; writtenOff: number };
+  periodDelta: number;
+  chartsReady: boolean;
+  motion: ReturnType<typeof chartMotionProps>;
+  chartGrid: string;
+  chartTick: string;
+  chartTooltip: object;
+  lineDotFill: string;
+  staggerIndex: number;
+}) {
+  const { t } = useTranslation();
+  const { width } = useDashboardWidgetMetrics();
+  const compactStats = width < 380;
+  const total = useAnimatedNumber(equipmentTotals.total, 850, 0);
+  const issued = useAnimatedNumber(equipmentTotals.issued, 850, 0);
+  const warehouse = useAnimatedNumber(equipmentTotals.warehouse, 850, 0);
+  const writtenOff = useAnimatedNumber(equipmentTotals.writtenOff, 850, 0);
+
+  const stats = [
+    { label: t('Всего'), value: total, tone: 'text-slate-900' },
+    { label: t('Выдано'), value: issued, tone: 'text-emerald-600' },
+    { label: t('На складе'), value: warehouse, tone: 'text-slate-900' },
+    { label: t('Списано'), value: writtenOff, tone: 'text-slate-500' },
+  ];
+
+  return (
+    <div className={`${PANEL} dash-widget-dynamics ${dashboardStaggerClass(staggerIndex, 1)}`}>
+      <div className="dash-dynamics-header shrink-0 min-w-0">
+        <h2 className={`${TITLE} min-w-0 truncate`}>{t('Динамика оборудования')}</h2>
+        <select
+          value={dynamicsPeriod}
+          onChange={(e) => onPeriodChange(e.target.value as DynamicsPeriod)}
+          className="dash-dynamics-period"
+          aria-label={t('Период')}
+        >
+          <option value="month">{t('Месяц')}</option>
+          <option value="quarter">{t('Квартал')}</option>
+          <option value="year">{t('Год')}</option>
+        </select>
+      </div>
+
+      <DynamicsChartArea>
+        {chartsReady ? (
+          <ResponsiveContainer width="100%" height="100%">
+            <DynamicsChartInner
+              data={dynamicsData}
+              motion={motion}
+              chartGrid={chartGrid}
+              chartTick={chartTick}
+              chartTooltip={chartTooltip}
+              lineDotFill={lineDotFill}
+              t={t}
+            />
+          </ResponsiveContainer>
+        ) : (
+          <div className="dash-dynamics-chart__placeholder" aria-hidden />
+        )}
+      </DynamicsChartArea>
+
+      <div className={`dash-dynamics-stats shrink-0 ${compactStats ? 'dash-dynamics-stats--compact' : ''}`}>
+        {stats.map((stat) => (
+          <div key={stat.label} className="dash-dynamics-stat">
+            <span className={`dash-dynamics-stat__value tabular-nums ${stat.tone}`}>{stat.value}</span>
+            <span className="dash-dynamics-stat__label">{stat.label}</span>
+          </div>
+        ))}
+      </div>
+
+      {periodDelta > 0 ? (
+        <p className="dash-dynamics-delta shrink-0">
+          <span className="dash-dynamics-delta__badge">+{periodDelta}</span>
+          <span>{t('за период')}</span>
+        </p>
+      ) : null}
+    </div>
   );
 }
 
@@ -244,12 +355,12 @@ function AlertsWidgetList({
               <span className="dash-alert__icon">
                 <AlertTriangle size={14} />
               </span>
-              <div className="dash-alert__body min-w-0">
-                <p className="text-sm font-semibold leading-snug text-slate-900">{localized.title}</p>
+              <div className="dash-alert__body min-w-0 flex-1 overflow-hidden">
+                <p className="text-sm font-semibold leading-snug text-slate-900 line-clamp-2">{localized.title}</p>
                 {localized.subtitle ? (
-                  <p className="text-xs text-slate-600 mt-0.5 leading-snug">{localized.subtitle}</p>
+                  <p className="text-xs text-slate-600 mt-0.5 leading-snug line-clamp-2">{localized.subtitle}</p>
                 ) : null}
-                {localized.detail ? <p className={`text-xs ${META} mt-0.5 leading-snug`}>{localized.detail}</p> : null}
+                {localized.detail ? <p className={`text-xs ${META} mt-0.5 leading-snug line-clamp-2`}>{localized.detail}</p> : null}
               </div>
               {localized.badge ? (
                 <span className="dash-alert__badge shrink-0">{localized.badge}</span>
@@ -258,46 +369,6 @@ function AlertsWidgetList({
           );
         })
       )}
-    </div>
-  );
-}
-
-function DynamicsKpiFooter({
-  equipmentTotals,
-  periodDelta,
-}: {
-  equipmentTotals: { total: number; issued: number; warehouse: number; writtenOff: number };
-  periodDelta: number;
-}) {
-  const { t } = useTranslation();
-  const total = useAnimatedNumber(equipmentTotals.total, 850, 0);
-  const issued = useAnimatedNumber(equipmentTotals.issued, 850, 0);
-  const warehouse = useAnimatedNumber(equipmentTotals.warehouse, 850, 0);
-  const writtenOff = useAnimatedNumber(equipmentTotals.writtenOff, 850, 0);
-
-  return (
-    <div className="dash-kpis shrink-0 mt-2 pt-2 border-t border-slate-100">
-      <div className="dash-kpi min-w-0">
-        <span className="dash-kpi__label">{t('Всего единиц')}</span>
-        <span className="dash-kpi__value tabular-nums text-slate-900">{total}</span>
-        {periodDelta > 0 ? (
-          <span className="dash-kpi__hint text-emerald-600">
-            +{periodDelta} {t('за период')}
-          </span>
-        ) : null}
-      </div>
-      <div className="dash-kpi min-w-0">
-        <span className="dash-kpi__label">{t('Выдано')}</span>
-        <span className="dash-kpi__value tabular-nums text-slate-900">{issued}</span>
-      </div>
-      <div className="dash-kpi min-w-0">
-        <span className="dash-kpi__label">{t('На складе')}</span>
-        <span className="dash-kpi__value tabular-nums text-slate-900">{warehouse}</span>
-      </div>
-      <div className="dash-kpi min-w-0">
-        <span className="dash-kpi__label">{t('Списано')}</span>
-        <span className="dash-kpi__value tabular-nums text-slate-900">{writtenOff}</span>
-      </div>
     </div>
   );
 }
@@ -374,8 +445,11 @@ function DashKpiRow({
 }: {
   items: Array<{ label: string; value: number | string; tone?: string }>;
 }) {
+  const { width } = useDashboardWidgetMetrics();
+  const compact = width < 420;
+
   return (
-    <div className="dash-kpis shrink-0">
+    <div className={`dash-kpis shrink-0 ${compact ? 'dash-kpis--compact' : ''}`}>
       {items.map((item) => (
         <div key={item.label} className="dash-kpi min-w-0">
           <span className="dash-kpi__label">{item.label}</span>
@@ -429,38 +503,6 @@ function DashMetricTable({
   );
 }
 
-function DashBarList({
-  rows,
-  maxCount,
-}: {
-  rows: Array<{ id: string; label: string; count: number }>;
-  maxCount: number;
-}) {
-  if (rows.length === 0) {
-    return null;
-  }
-
-  return (
-    <div className="dash-bar-list flex-1 min-h-0 overflow-auto scrollbar-none min-w-0">
-      {rows.map((row, i) => (
-        <div
-          key={row.id}
-          className="dash-bar-list__row dashboard-legend-item"
-          style={{ animationDelay: `${300 + i * 90}ms` }}
-        >
-          <div className="dash-bar-list__meta">
-            <span className="truncate font-medium text-slate-800" title={row.label}>
-              {row.label}
-            </span>
-            <span className="tabular-nums font-semibold text-slate-900 shrink-0">{row.count}</span>
-          </div>
-          <MiniBar percent={Math.round((row.count / maxCount) * 100)} />
-        </div>
-      ))}
-    </div>
-  );
-}
-
 const StatusLegendRow: React.FC<{
   name: string;
   color: string;
@@ -482,12 +524,16 @@ const StatusLegendRow: React.FC<{
   );
 };
 
-function useStatusChartSize(): number {
+function useStatusChartLayout(activeSliceCount: number): { size: number; stackLegend: boolean } {
   const { width, height } = useDashboardWidgetMetrics();
-  const reservedY = 52;
-  const availableH = Math.max(height - reservedY, 80);
-  const halfWidget = width * 0.5;
-  return Math.round(Math.max(110, Math.min(halfWidget - 4, availableH, 200)));
+  const stackLegend = width < 340;
+  const chrome = 92;
+  const legendRows = Math.max(activeSliceCount, 1);
+  const legendBlock = stackLegend ? legendRows * 24 + 10 : 0;
+  const maxByHeight = Math.max(68, height - chrome - legendBlock);
+  const maxByWidth = stackLegend ? width - 36 : Math.max(80, width - 148);
+  const size = Math.round(Math.min(maxByHeight, maxByWidth, stackLegend ? 128 : 132));
+  return { size: Math.max(72, size), stackLegend };
 }
 
 function StatusTotalBadge({ total, size }: { total: number; size: number }) {
@@ -508,26 +554,27 @@ function StatusTotalBadge({ total, size }: { total: number; size: number }) {
 function StatusChartDonut({
   slices,
   total,
+  size,
   motion,
   tooltipStyle,
 }: {
   slices: ReturnType<typeof buildEquipmentStatusSlices>;
   total: number;
+  size: number;
   motion: ReturnType<typeof fastChartMotionProps>;
   tooltipStyle: React.CSSProperties;
 }) {
   const { t } = useTranslation();
   const animatedTotal = useAnimatedNumber(total, 360, 0);
   const activeSlices = slices.filter((s) => s.value > 0);
-  const chartDim = useStatusChartSize();
-  const centerText = chartDim >= 120 ? 'text-lg' : 'text-base';
+  const centerText = size >= 112 ? 'text-lg' : 'text-base';
 
   if (activeSlices.length === 0) {
-    return <StatusTotalBadge total={total} size={chartDim} />;
+    return <StatusTotalBadge total={total} size={size} />;
   }
 
   return (
-    <div className="relative shrink-0" style={{ width: chartDim, height: chartDim }}>
+    <div className="relative shrink-0" style={{ width: size, height: size }}>
       <ResponsiveContainer width="100%" height="100%">
         <PieChart margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
           <Pie
@@ -631,44 +678,95 @@ function SoftwareMonitoringWidget({
 
   return (
     <div className={`${PANEL} dash-widget-software ${dashboardStaggerClass(staggerIndex, 2)}`}>
-      <h2 className={`${TITLE} shrink-0`}>{t('Мониторинг ПО')}</h2>
+      <h2 className={`${TITLE} shrink-0 min-w-0 truncate`}>{t('Мониторинг ПО')}</h2>
 
       <DashKpiRow items={kpis} />
 
-      {summary.rows.length === 0 ? (
-        <p className={`text-sm ${META} flex-1 min-h-0`}>{t('Нет данных')}</p>
-      ) : (
-        <div className="dash-mini-table dash-mini-table--licenses flex-1 min-h-0 overflow-auto scrollbar-none min-w-0">
-          <div className="dash-mini-table__head">
-            <span>{t('Программа')}</span>
-            <span className="text-right" title={t('Всего')}>
-              {t('Всего')}
-            </span>
-            <span className="text-right" title={t('Выдано')}>
-              {t('Выд.')}
-            </span>
-            <span className="text-right" title={t('Свободно')}>
-              {t('Св.')}
-            </span>
-          </div>
-          {summary.rows.map((row, i) => (
-            <div
-              key={row.id}
-              className="dash-mini-table__row dashboard-legend-item min-w-0"
-              style={{ animationDelay: `${280 + i * 70}ms` }}
-            >
-              <span className="truncate text-slate-800 font-medium" title={row.name}>
-                {row.name}
+      <div className="dash-widget-software-body flex-1 min-h-0 flex flex-col min-w-0 overflow-hidden">
+        {summary.rows.length === 0 ? (
+          <p className={`text-sm ${META} flex-1 min-h-0`}>{t('Нет данных')}</p>
+        ) : (
+          <div className="dash-mini-table dash-mini-table--licenses flex-1 min-h-0 overflow-y-auto overflow-x-hidden scrollbar-none min-w-0">
+            <div className="dash-mini-table__head">
+              <span>{t('Программа')}</span>
+              <span className="text-right" title={t('Всего')}>
+                {t('Всего')}
               </span>
-              <span className="text-right tabular-nums font-semibold text-slate-900">{row.totalSeats}</span>
-              <span className="text-right tabular-nums font-semibold text-emerald-600">{row.assignedSeats}</span>
-              <span className="text-right tabular-nums font-semibold text-amber-600">{row.unassignedSeats}</span>
+              <span className="text-right" title={t('Выдано')}>
+                {t('Выд.')}
+              </span>
+              <span className="text-right" title={t('Свободно')}>
+                {t('Св.')}
+              </span>
             </div>
+            {summary.rows.map((row, i) => (
+              <div
+                key={row.id}
+                className="dash-mini-table__row dashboard-legend-item min-w-0"
+                style={{ animationDelay: `${280 + i * 70}ms` }}
+              >
+                <span className="truncate text-slate-800 font-medium" title={row.name}>
+                  {row.name}
+                </span>
+                <span className="text-right tabular-nums font-semibold text-slate-900">{row.totalSeats}</span>
+                <span className="text-right tabular-nums font-semibold text-emerald-600">{row.assignedSeats}</span>
+                <span className="text-right tabular-nums font-semibold text-amber-600">{row.unassignedSeats}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        <FooterLink label={t('Перейти к реестру ПО')} onClick={() => !editMode && onNavigate('software')} />
+      </div>
+    </div>
+  );
+}
+
+function EquipmentStatusWidget({
+  slices,
+  total,
+  lastUpdated,
+  motion,
+  tooltipStyle,
+  staggerIndex,
+}: {
+  slices: ReturnType<typeof buildEquipmentStatusSlices>;
+  total: number;
+  lastUpdated: string;
+  motion: ReturnType<typeof fastChartMotionProps>;
+  tooltipStyle: React.CSSProperties;
+  staggerIndex: number;
+}) {
+  const { t } = useTranslation();
+  const activeCount = slices.filter((s) => s.value > 0).length || slices.length;
+  const { size, stackLegend } = useStatusChartLayout(activeCount);
+
+  return (
+    <div
+      className={`${PANEL} dash-widget-status ${stackLegend ? 'dash-widget-status--stack' : ''} ${dashboardStaggerClass(staggerIndex, 1)}`}
+    >
+      <h2 className={`${TITLE} mb-1 shrink-0 min-w-0 truncate`}>{t('Статусы оборудования')}</h2>
+      <div className="dash-widget-status__body">
+        <div className="dash-widget-status__chart" style={{ width: size, height: size }}>
+          <StatusChartDonut
+            slices={slices}
+            total={total}
+            size={size}
+            motion={motion}
+            tooltipStyle={tooltipStyle}
+          />
+        </div>
+        <div className="dash-status-legend">
+          {slices.map((s, i) => (
+            <StatusLegendRow key={s.name} name={s.name} color={s.color} value={s.value} rowIndex={i} />
           ))}
         </div>
-      )}
-
-      <FooterLink label={t('Перейти к реестру ПО')} onClick={() => !editMode && onNavigate('software')} />
+      </div>
+      <div className={`flex items-center gap-1.5 text-[11px] ${META} mt-auto pt-2 border-t border-slate-100 shrink-0 min-w-0 overflow-hidden`}>
+        <span className="truncate min-w-0">
+          {t('Последнее обновление')}: {t('сегодня')}, {lastUpdated}
+        </span>
+        <RefreshCw size={11} className="text-slate-400 shrink-0" />
+      </div>
     </div>
   );
 }
@@ -736,7 +834,7 @@ function InventoryDetailCard({
   return (
     <div className={`${PANEL} dash-widget-inventory text-left ${dashboardStaggerClass(staggerIndex, 2)}`}>
       <div className="shrink-0 space-y-1.5">
-        <h2 className={TITLE}>{t('Инвентаризация')}</h2>
+        <h2 className={`${TITLE} min-w-0 truncate`}>{t('Инвентаризация')}</h2>
         {audits.length > 0 ? (
           <select
             value={selectedAudit?.id ?? ''}
@@ -793,11 +891,11 @@ function InventoryDetailCard({
           </p>
           {selectedAudit && (
             <div className="pt-1.5 mt-0.5 border-t border-slate-100 space-y-1 text-[11px] leading-snug text-left w-full">
-              <p>
+              <p className="truncate">
                 <span className="text-slate-500 font-semibold">{t('Кто проводит:')}</span>{' '}
                 <span className="text-slate-800">{auditCard.conductorUser || t('Не указан')}</span>
               </p>
-              <p>
+              <p className="truncate">
                 <span className="text-slate-500 font-semibold">{t('Кто принимает:')}</span>{' '}
                 <span className="text-slate-800">{auditCard.controllerUser || t('Не указан')}</span>
               </p>
@@ -848,7 +946,7 @@ const WarehouseCategoryCard: React.FC<{
 
   return (
     <div
-      className={`${CARD} dash-widget-warehouse flex flex-col gap-2 h-full min-h-0 group transition-all duration-300 hover:shadow-md hover:border-blue-200/80 ${
+      className={`${CARD} dash-widget-warehouse flex flex-col gap-2 h-full min-h-0 overflow-hidden group transition-all duration-300 hover:shadow-md hover:border-blue-200/80 ${
         dashboardStaggerClass(staggerIndex, 9)
       }`}
     >
@@ -860,7 +958,9 @@ const WarehouseCategoryCard: React.FC<{
           <Icon size={iconSize} />
         </span>
         <div className="dash-warehouse-row__text min-w-0 flex-1">
-          <p className="text-xs font-semibold text-slate-600 leading-snug">{label}</p>
+          <p className="text-xs font-semibold text-slate-600 leading-snug truncate" title={label}>
+            {label}
+          </p>
           <p className="text-sm font-bold text-slate-900 leading-tight tabular-nums mt-0.5">
             {animatedCount} <span className="text-xs font-semibold text-slate-500">{t('шт.')}</span>
           </p>
@@ -934,6 +1034,7 @@ function DashboardViewInner({
 }: DashboardViewProps) {
   const { t, language } = useTranslation();
   const { editMode, gridItems, updateGridLayout, removeWidget } = useDashboardLayout();
+  const prefsCtx = useUserPreferencesOptional();
   const [chartsReady, setChartsReady] = useState(false);
   const [reduceMotion, setReduceMotion] = useState(false);
   const [dynamicsPeriod, setDynamicsPeriod] = useState<DynamicsPeriod>('quarter');
@@ -1023,13 +1124,22 @@ function DashboardViewInner({
   const periodDelta = useMemo(() => dynamicsPeriodDelta(dynamicsData), [dynamicsData]);
 
   const DASHBOARD_AUDIT_STORAGE_KEY = 'dashboard_selected_audit_id';
+  const serverAuditId = prefsCtx?.preferences?.dashboardSelectedAuditId;
   const [selectedAuditId, setSelectedAuditId] = useState<string>(() => {
+    if (serverAuditId) return serverAuditId;
     try {
       return localStorage.getItem(DASHBOARD_AUDIT_STORAGE_KEY) || '';
     } catch {
       return '';
     }
   });
+  const skipAuditPersistRef = React.useRef(false);
+
+  useEffect(() => {
+    if (!serverAuditId || serverAuditId === selectedAuditId) return;
+    skipAuditPersistRef.current = true;
+    setSelectedAuditId(serverAuditId);
+  }, [serverAuditId, prefsCtx?.userId]);
 
   useEffect(() => {
     if (audits.length === 0) {
@@ -1070,6 +1180,11 @@ function DashboardViewInner({
     } catch {
       /* ignore */
     }
+    if (skipAuditPersistRef.current) {
+      skipAuditPersistRef.current = false;
+      return;
+    }
+    prefsCtx?.persistPreferences({ dashboardSelectedAuditId: auditId });
   };
 
   const auditStatusTone = (status: InventoryAudit['status']) => {
@@ -1339,70 +1454,37 @@ function DashboardViewInner({
     switch (id) {
       case 'dynamics':
         return (
-          <div className={`${PANEL} ${dashboardStaggerClass(staggerIndex, 1)}`}>
-            <div className="flex items-center justify-between mb-2 shrink-0">
-              <h2 className={TITLE}>{t('Динамика оборудования')}</h2>
-              <select
-                value={dynamicsPeriod}
-                onChange={(e) => setDynamicsPeriod(e.target.value as DynamicsPeriod)}
-                className="dash-select"
-                aria-label={t('Период')}
-              >
-                <option value="month">{t('Месяц')}</option>
-                <option value="quarter">{t('Квартал')}</option>
-                <option value="year">{t('Год')}</option>
-              </select>
-            </div>
-            <DashChartArea>
-              {chartsReady && (
-                <ResponsiveContainer width="100%" height="100%">
-                  <DynamicsChartInner
-                    data={dynamicsData}
-                    motion={motion}
-                    chartGrid={chartGrid}
-                    chartTick={chartTick}
-                    chartTooltip={chartTooltip}
-                    lineDotFill={lineDotFill}
-                    t={t}
-                  />
-                </ResponsiveContainer>
-              )}
-            </DashChartArea>
-            <DynamicsKpiFooter equipmentTotals={equipmentTotals} periodDelta={periodDelta} />
-          </div>
+          <EquipmentDynamicsWidget
+            dynamicsData={dynamicsData}
+            dynamicsPeriod={dynamicsPeriod}
+            onPeriodChange={setDynamicsPeriod}
+            equipmentTotals={equipmentTotals}
+            periodDelta={periodDelta}
+            chartsReady={chartsReady}
+            motion={motion}
+            chartGrid={chartGrid}
+            chartTick={chartTick}
+            chartTooltip={chartTooltip}
+            lineDotFill={lineDotFill}
+            staggerIndex={staggerIndex}
+          />
         );
       case 'status_chart':
         return (
-          <div className={`${PANEL} dash-widget-status ${dashboardStaggerClass(staggerIndex, 1)}`}>
-            <h2 className={`${TITLE} mb-1 shrink-0`}>{t('Статусы оборудования')}</h2>
-            <div className="dash-widget-status__body">
-              <div className="dash-widget-status__chart">
-                <StatusChartDonut
-                  slices={statusSlices}
-                  total={statusTotal}
-                  motion={statusMotion}
-                  tooltipStyle={chartTooltip}
-                />
-              </div>
-              <div className="dash-status-legend">
-                {statusSlices.map((s, i) => (
-                  <StatusLegendRow key={s.name} name={s.name} color={s.color} value={s.value} rowIndex={i} />
-                ))}
-              </div>
-            </div>
-            <div className={`flex items-center gap-1.5 text-[11px] ${META} mt-auto pt-2 border-t border-slate-100 shrink-0`}>
-              <span>
-                {t('Последнее обновление')}: {t('сегодня')}, {lastUpdated}
-              </span>
-              <RefreshCw size={11} className="text-slate-400 shrink-0" />
-            </div>
-          </div>
+          <EquipmentStatusWidget
+            slices={statusSlices}
+            total={statusTotal}
+            lastUpdated={lastUpdated}
+            motion={statusMotion}
+            tooltipStyle={chartTooltip}
+            staggerIndex={staggerIndex}
+          />
         );
       case 'alerts':
         return (
           <div className={`${PANEL} ${dashboardStaggerClass(staggerIndex, 1)}`}>
-            <div className="flex items-center justify-between mb-2 shrink-0">
-              <h2 className={TITLE}>{t('Требуют внимания')}</h2>
+            <div className="flex items-center justify-between gap-2 mb-2 shrink-0 min-w-0">
+              <h2 className={`${TITLE} min-w-0 truncate`}>{t('Требуют внимания')}</h2>
               {alerts.length > 0 && (
                 <span className="dash-badge-count">{alerts.length}</span>
               )}
@@ -1421,7 +1503,7 @@ function DashboardViewInner({
       case 'network_summary':
         return (
           <div className={`${PANEL} dash-widget-network ${dashboardStaggerClass(staggerIndex, 2)}`}>
-            <h2 className={`${TITLE} mb-2 shrink-0`}>{t('Сетевое оборудование')}</h2>
+            <h2 className={`${TITLE} mb-2 shrink-0 min-w-0 truncate`}>{t('Сетевое оборудование')}</h2>
             {networkSummary.length === 0 ? (
               <div className="flex-1 min-h-0 flex items-start">
                 <p className={`text-sm ${META}`}>{t('Нет данных')}</p>
@@ -1444,7 +1526,7 @@ function DashboardViewInner({
       case 'activities':
         return (
           <div className={`${PANEL} ${dashboardStaggerClass(staggerIndex, 2)}`}>
-            <h2 className={`${TITLE} mb-2`}>{t('Последние действия')}</h2>
+            <h2 className={`${TITLE} mb-2 shrink-0 min-w-0 truncate`}>{t('Последние действия')}</h2>
             <div className="space-y-0 flex-1 min-h-0 overflow-auto scrollbar-none">
               {recentActivities.length === 0 ? (
                 <p className={`text-xs ${META}`}>{t('Журнал пуст')}</p>
@@ -1456,19 +1538,19 @@ function DashboardViewInner({
                   return (
                     <div
                       key={act.id}
-                      className="dashboard-legend-item flex gap-2.5 py-2 border-b border-slate-50 last:border-0"
+                      className="dash-activity-row dashboard-legend-item flex gap-2.5 py-2 border-b border-slate-50 last:border-0 min-w-0"
                       style={{ animationDelay: `${250 + i * 70}ms` }}
                     >
                       <span className={`p-1.5 rounded-lg h-fit shrink-0 ${box}`}>
                         <Icon size={14} />
                       </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-xs font-semibold leading-snug text-slate-900">{actionLabel}</p>
+                      <div className="min-w-0 flex-1 overflow-hidden">
+                        <p className="text-xs font-semibold leading-snug text-slate-900 line-clamp-2">{actionLabel}</p>
                         {detailLabel ? (
-                          <p className={`text-xs text-slate-600 mt-0.5 leading-snug`}>{detailLabel}</p>
+                          <p className="text-xs text-slate-600 mt-0.5 leading-snug line-clamp-2">{detailLabel}</p>
                         ) : null}
                       </div>
-                      <span className={`text-xs ${META} shrink-0 tabular-nums self-start pt-0.5`}>
+                      <span className={`dash-activity-row__time text-xs ${META} shrink-0 tabular-nums self-start pt-0.5`}>
                         {formatDashboardActivityTime(act.timestamp, language, t)}
                       </span>
                     </div>
@@ -1482,17 +1564,19 @@ function DashboardViewInner({
       case 'by_object':
         return (
           <div className={`${PANEL} dash-widget-by-object ${dashboardStaggerClass(staggerIndex, 2)}`}>
-            <h2 className={`${TITLE} mb-2 shrink-0`}>{t('Оборудование по объектам')}</h2>
+            <h2 className={`${TITLE} mb-2 shrink-0 min-w-0 truncate`}>{t('Оборудование по объектам')}</h2>
             {byObject.length === 0 ? (
               <p className={`text-sm ${META} flex-1 min-h-0`}>{t('Нет данных')}</p>
             ) : (
-              <DashBarList
+              <DashMetricTable
                 rows={byObject.map((obj) => ({
                   id: obj.name,
                   label: obj.name,
                   count: obj.count,
                 }))}
                 maxCount={maxObjectCount}
+                nameHeader={t('Объект')}
+                countHeader={t('Кол-во')}
               />
             )}
             <FooterLink label={t('Смотреть все объекты')} onClick={() => !editMode && onNavigate('objects')} />
@@ -1529,8 +1613,8 @@ function DashboardViewInner({
   const renderWidget = (widgetId: string): React.ReactNode => {
     if (widgetId === 'warehouse:title') {
       return (
-        <div className={`${CARD} dash-widget-strip-title px-4 py-2.5 flex flex-row items-center justify-between gap-3 h-full min-h-0`}>
-          <h2 className={`${TITLE} leading-tight`}>{t('Оборудование на складе')}</h2>
+        <div className={`${CARD} dash-widget-strip-title px-4 py-2.5 flex flex-row items-center justify-between gap-3 h-full min-h-0 overflow-hidden`}>
+          <h2 className={`${TITLE} leading-tight min-w-0 truncate`}>{t('Оборудование на складе')}</h2>
           <button
             type="button"
             onClick={() => !editMode && onNavigate('warehouse')}

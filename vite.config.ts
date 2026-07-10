@@ -16,7 +16,7 @@ function loadObfuscatorPlugins(isProduction: boolean, skipObfuscation: boolean):
       obfuscator({
         global: false,
         include: ['src/**/*.ts', 'src/**/*.tsx'],
-        exclude: [/node_modules/, /[\\/]i18n\.tsx$/],
+        exclude: [/node_modules/, /[\\/]i18n\.tsx$/, /View\.tsx$/, /App\.tsx$/, /DetailModal\.tsx$/],
         options: {
           compact: true,
           controlFlowFlattening: true,
@@ -61,6 +61,7 @@ export default defineConfig(({ mode }) => {
         output: {
           manualChunks(id) {
             if (id.includes('node_modules')) {
+              if (id.includes('xlsx')) return 'vendor-xlsx';
               if (id.includes('recharts')) return 'vendor-charts';
               if (id.includes('motion')) return 'vendor-motion';
               if (id.includes('lucide-react')) return 'vendor-icons';
@@ -68,6 +69,21 @@ export default defineConfig(({ mode }) => {
               return undefined;
             }
             if (id.includes('i18n.tsx')) return 'i18n';
+            if (id.includes('warehouseExcel.ts')) return 'util-warehouse-excel';
+            if (id.includes('SettingsView.tsx')) return 'view-settings';
+            if (id.includes('DashboardView.tsx')) return 'view-dashboard';
+            if (id.includes('WarehouseView.tsx')) return 'view-warehouse';
+            if (id.includes('SecurityView.tsx')) return 'view-security';
+            if (id.includes('ReportsView.tsx')) return 'view-reports';
+            if (id.includes('ComputersView.tsx')) return 'view-computers';
+            if (id.includes('SoftwareView.tsx')) return 'view-software';
+            if (id.includes('EmployeesView.tsx')) return 'view-employees';
+            if (id.includes('NetworkView.tsx')) return 'view-network';
+            if (id.includes('ObjectsView.tsx')) return 'view-objects';
+            if (id.includes('AuditsView.tsx')) return 'view-audits';
+            if (id.includes('WarrantiesView.tsx')) return 'view-warranties';
+            if (id.includes('ActivityLogView.tsx')) return 'view-activity-log';
+            if (id.includes('DetailModal.tsx')) return 'view-detail-modal';
           },
         },
       },

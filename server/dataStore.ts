@@ -143,6 +143,12 @@ export interface StoredUser {
   emailNotificationsEnabled?: boolean;
   telegramChatId?: string;
   telegramNotificationsEnabled?: boolean;
+  preferences?: import("../src/types.ts").UserPreferences;
+  /** TOTP 2FA — server-only fields */
+  twoFactorEnabled?: boolean;
+  totpSecretEnc?: string;
+  totpPendingSecretEnc?: string;
+  totpEnabledAt?: string;
 }
 
 function matchesLogin(user: StoredUser, normalized: string): boolean {

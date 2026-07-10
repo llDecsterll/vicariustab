@@ -6,7 +6,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import { User, Lock, Eye, EyeOff, ShieldCheck, CheckCircle2, AlertCircle, Globe, ChevronDown } from 'lucide-react';
 import { useTranslation, type Language } from '../utils/i18n';
-import { authenticateCredentials } from '../utils/sessionAuth';
+import { authenticateCredentials, verifyTotpLogin } from '../utils/sessionAuth';
 import BrandLogo from './BrandLogo';
 import CountryFlag, { languageToFlagCode } from './CountryFlag';
 import { APP_NAME } from '../config/appConfig';
@@ -47,6 +47,9 @@ export default function LoginScreen({ onLogin, workspaceName, siteLogo, setupCom
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+  const [totpStep, setTotpStep] = useState(false);
+  const [totpChallengeId, setTotpChallengeId] = useState('');
+  const [totpCode, setTotpCode] = useState('');
   const [langOpen, setLangOpen] = useState(false);
   const langRef = useRef<HTMLDivElement>(null);
 
@@ -75,6 +78,19 @@ export default function LoginScreen({ onLogin, workspaceName, siteLogo, setupCom
     return () => document.removeEventListener('mousedown', onOutside);
   }, []);
 
+  const finishLogin = (userId: string) => {
+    try {
+      if (rememberMe) localStorage.setItem('it_login_remember', loginInput.trim());
+      else localStorage.removeItem('it_login_remember');
+    } catch {
+      /* ignore */
+    }
+    setSuccess(true);
+    setTimeout(() => {
+      void onLogin(userId);
+    }, 750);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -90,17 +106,29 @@ export default function LoginScreen({ onLogin, workspaceName, siteLogo, setupCom
       return;
     }
 
-    try {
-      if (rememberMe) localStorage.setItem('it_login_remember', loginInput.trim());
-      else localStorage.removeItem('it_login_remember');
-    } catch {
-      /* ignore */
+    if (auth.kind === 'totp_required') {
+      setTotpChallengeId(auth.challengeId);
+      setTotpStep(true);
+      setTotpCode('');
+      return;
     }
 
-    setSuccess(true);
-    setTimeout(() => {
-      void onLogin(auth.userId);
-    }, 750);
+    finishLogin(auth.userId);
+  };
+
+  const handleTotpSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    if (!totpCode.trim() || totpCode.trim().length !== 6) {
+      setError(t('Введите 6-значный код из приложения аутентификатора.'));
+      return;
+    }
+    const session = await verifyTotpLogin(totpChallengeId, totpCode.trim());
+    if (!session) {
+      setError(t('Неверный код двухэтапной аутентификации. Попробуйте снова.'));
+      return;
+    }
+    finishLogin(session.userId);
   };
 
   return (
@@ -188,7 +216,9 @@ export default function LoginScreen({ onLogin, workspaceName, siteLogo, setupCom
             </div>
           )}
 
-          <form className="space-y-4" onSubmit={(e) => void handleSubmit(e)}>
+          <form className="space-y-4" onSubmit={(e) => void (totpStep ? handleTotpSubmit(e) : handleSubmit(e))}>
+            {!totpStep ? (
+              <>
             <div>
               <label htmlFor="loginEmail" className="block text-sm font-medium text-slate-700 mb-1.5">
                 {t('Логин или email')}
@@ -249,6 +279,46 @@ export default function LoginScreen({ onLogin, workspaceName, siteLogo, setupCom
                 {t('Забыли пароль?')}
               </button>
             </div>
+              </>
+            ) : (
+              <div className="space-y-3">
+                <div className="p-3 bg-blue-50 border border-blue-100 rounded-xl text-blue-800 text-xs leading-snug">
+                  {t('Введите 6-значный код из приложения Google Authenticator или аналога.')}
+                </div>
+                <div>
+                  <label htmlFor="totpCode" className="block text-sm font-medium text-slate-700 mb-1.5">
+                    {t('Код двухэтапной аутентификации')}
+                  </label>
+                  <input
+                    id="totpCode"
+                    name="totpCode"
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    pattern="[0-9]{6}"
+                    maxLength={6}
+                    required
+                    autoFocus
+                    value={totpCode}
+                    onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    placeholder="000000"
+                    className="block w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-center font-mono tracking-[0.3em] text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTotpStep(false);
+                    setTotpChallengeId('');
+                    setTotpCode('');
+                    setError('');
+                  }}
+                  className="text-xs text-slate-500 hover:text-slate-700"
+                >
+                  {t('Вернуться к вводу пароля')}
+                </button>
+              </div>
+            )}
 
             {error && (
               <motion.div
@@ -274,7 +344,7 @@ export default function LoginScreen({ onLogin, workspaceName, siteLogo, setupCom
               className="w-full mt-1 flex justify-center items-center gap-2 py-3 px-4 rounded-xl text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 active:scale-[0.99] transition-all cursor-pointer shadow-sm disabled:opacity-50"
             >
               <ShieldCheck size={18} />
-              <span>{t('Войти в систему')}</span>
+              <span>{totpStep ? t('Подтвердить код') : t('Войти в систему')}</span>
             </button>
           </form>
         </motion.div>

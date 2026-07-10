@@ -9,7 +9,7 @@
  */
 import React, { useState, useRef, useEffect } from 'react';
 import { useTranslation, type Language } from '../utils/i18n';
-import { translateNotificationText, translateSecurityText } from '../utils/localeRuntime';
+import { interpolate, translateNotificationText, translateSecurityText } from '../utils/localeRuntime';
 import { Search, Bell, Laptop, Network, Users, Building2, X, PanelLeftOpen, Settings, Globe, ChevronDown, ChevronRight, LogOut, Package } from 'lucide-react';
 import { ComputerItem, NetworkDevice, EmployeeItem, ObjectItem, SystemUser, SoftwareItem, InventoryAudit, WarehouseItem } from '../types';
 import BrandLogo from './BrandLogo';
@@ -36,7 +36,11 @@ interface HeaderProps {
   title?: string;
   users: SystemUser[];
   currentUser: SystemUser;
-  onSwitchUser: (user: SystemUser, password: string) => Promise<boolean>;
+  onSwitchUser: (
+    user: SystemUser,
+    password: string,
+    totp?: { challengeId: string; code: string }
+  ) => Promise<{ ok: true } | { ok: false; reason: 'credentials' | 'totp_required'; challengeId?: string }>;
   onLogout: () => void;
   siteLogo?: string;
   softwareItems?: SoftwareItem[];
@@ -364,6 +368,9 @@ export default function Header({
   const [pendingUser, setPendingUser] = useState<SystemUser | null>(null);
   const [passwordInput, setPasswordInput] = useState('');
   const [passwordError, setPasswordError] = useState('');
+  const [switchTotpStep, setSwitchTotpStep] = useState(false);
+  const [switchTotpChallengeId, setSwitchTotpChallengeId] = useState('');
+  const [switchTotpCode, setSwitchTotpCode] = useState('');
 
   const searchRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
@@ -573,12 +580,12 @@ export default function Header({
         {showResults && searchQuery.trim() && (
           <div className="absolute top-12 left-0 w-full bg-white rounded-xl shadow-xl border border-slate-100 max-h-96 overflow-y-auto z-50 p-2">
             <h3 className="text-[10px] uppercase font-bold text-slate-400 px-3 py-1 bg-slate-50 rounded mb-2">
-              Результаты поиска ({totalResults})
+              {interpolate(t('Результаты поиска ({count})'), { count: totalResults })}
             </h3>
             
             {totalResults === 0 ? (
               <div className="text-center py-6 text-slate-400 text-sm">
-                Ничего не найдено по запросу "{searchQuery}"
+                {interpolate(t('Ничего не найдено по запросу "{query}"'), { query: searchQuery })}
               </div>
             ) : (
               <div className="space-y-1 text-sm">
@@ -953,6 +960,9 @@ export default function Header({
                   setPendingUser(null);
                   setPasswordInput('');
                   setPasswordError('');
+                  setSwitchTotpStep(false);
+                  setSwitchTotpChallengeId('');
+                  setSwitchTotpCode('');
                 }}
               />
             </div>
@@ -964,24 +974,55 @@ export default function Header({
                   {pendingUser.name[0].toUpperCase()}
                 </div>
               )}
-              <h3 className="font-bold text-slate-850 text-sm">{t("Вход в учетную запись")}</h3>
-              <p className="text-slate-500 text-xs text-center">{t("Введите пароль для")}<strong className="text-slate-700">{pendingUser.name}</strong>
+              <h3 className="font-bold text-slate-850 text-sm">
+                {switchTotpStep ? t('Код двухэтапной аутентификации') : t('Вход в учетную запись')}
+              </h3>
+              <p className="text-slate-500 text-xs text-center">
+                {switchTotpStep
+                  ? t('Введите 6-значный код из приложения аутентификатора.')
+                  : <>{t('Введите пароль для')}<strong className="text-slate-700">{pendingUser.name}</strong></>}
               </p>
             </div>
 
             <form onSubmit={(e) => {
               e.preventDefault();
               void (async () => {
-                const ok = await onSwitchUser(pendingUser, passwordInput);
-                if (ok) {
+                if (switchTotpStep && pendingUser) {
+                  const result = await onSwitchUser(pendingUser, passwordInput, {
+                    challengeId: switchTotpChallengeId,
+                    code: switchTotpCode,
+                  });
+                  if (result.ok) {
+                    setPendingUser(null);
+                    setPasswordInput('');
+                    setPasswordError('');
+                    setSwitchTotpStep(false);
+                    setSwitchTotpChallengeId('');
+                    setSwitchTotpCode('');
+                  } else {
+                    setPasswordError(t('Неверный код двухэтапной аутентификации.'));
+                  }
+                  return;
+                }
+                const result = await onSwitchUser(pendingUser!, passwordInput);
+                if (result.ok) {
                   setPendingUser(null);
                   setPasswordInput('');
                   setPasswordError('');
+                  setSwitchTotpStep(false);
+                  setSwitchTotpChallengeId('');
+                  setSwitchTotpCode('');
+                } else if (result.ok === false && result.reason === 'totp_required' && result.challengeId) {
+                  setSwitchTotpChallengeId(result.challengeId);
+                  setSwitchTotpStep(true);
+                  setSwitchTotpCode('');
+                  setPasswordError('');
                 } else {
-                  setPasswordError('Неверный пароль.');
+                  setPasswordError(t('Неверный пароль.'));
                 }
               })();
             }} className="space-y-3">
+              {!switchTotpStep ? (
               <div>
                 <input
                   type="password"
@@ -999,6 +1040,28 @@ export default function Header({
                   <p className="text-red-500 text-[10px] mt-1 text-center font-bold">{passwordError}</p>
                 )}
               </div>
+              ) : (
+              <div>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={6}
+                  autoFocus
+                  required
+                  placeholder="000000"
+                  value={switchTotpCode}
+                  onChange={(e) => {
+                    setSwitchTotpCode(e.target.value.replace(/\D/g, '').slice(0, 6));
+                    setPasswordError('');
+                  }}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm text-center font-mono tracking-widest focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-800"
+                />
+                {passwordError && (
+                  <p className="text-red-500 text-[10px] mt-1 text-center font-bold">{passwordError}</p>
+                )}
+              </div>
+              )}
 
               <div className="flex gap-2 text-xs font-bold">
                 <button

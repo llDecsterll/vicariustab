@@ -24,6 +24,7 @@ const tests = [
   'unit-license-server.mjs',
   'unit-license-install.mjs',
   'integration-api.mjs',
+  'integration-db-settings.mjs',
   'load-concurrent.mjs',
   'security.mjs',
 ];

@@ -5,8 +5,10 @@ import {
   authHeaders,
   clearSessionCredentials,
   collectDeviceClientInfo,
+  getStoredSessionToken,
   storeSessionCredentials,
 } from './deviceFingerprint';
+import { apiFetch } from './apiClient';
 import type { SystemUser, UserSession } from '../types';
 
 export interface SessionLoginResult {
@@ -29,30 +31,92 @@ export interface SessionLoginResult {
   };
 }
 
+export interface TotpRequiredResult {
+  kind: 'totp_required';
+  challengeId: string;
+  expiresIn: number;
+}
+
+export type AuthenticateResult =
+  | ({ kind: 'session' } & SessionLoginResult)
+  | TotpRequiredResult;
+
+export interface TotpSetupBeginResult {
+  secret: string;
+  otpauthUrl: string;
+  qrDataUrl?: string;
+  revision?: number;
+}
+
+export type TotpSetupBeginResponse =
+  | { ok: true; data: TotpSetupBeginResult }
+  | { ok: false; error?: string; status: number };
+
+export interface TotpStatusResult {
+  enabled: boolean;
+  pendingSetup: boolean;
+  enabledAt: string | null;
+}
+
+function buildAuthBody(
+  login: string,
+  password: string,
+  user?: SystemUser
+): Record<string, unknown> {
+  const device = collectDeviceClientInfo();
+  return {
+    login,
+    password,
+    deviceFingerprint: device.fingerprint,
+    browser: device.browser,
+    os: device.os,
+    device: device.device,
+    userAgent: device.userAgent,
+    email: user?.email,
+    emailVerified: user?.emailVerified ?? Boolean(user?.email?.includes('@')),
+    emailNotificationsEnabled: user?.emailNotificationsEnabled ?? true,
+    telegramChatId: user?.telegramChatId,
+    telegramNotificationsEnabled: user?.telegramNotificationsEnabled,
+  };
+}
+
 export async function authenticateCredentials(
   login: string,
   password: string,
   user?: SystemUser
-): Promise<SessionLoginResult | null> {
-  const device = collectDeviceClientInfo();
+): Promise<AuthenticateResult | null> {
   try {
     const res = await fetch('/api/auth/authenticate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        login,
-        password,
-        deviceFingerprint: device.fingerprint,
-        browser: device.browser,
-        os: device.os,
-        device: device.device,
-        userAgent: device.userAgent,
-        email: user?.email,
-        emailVerified: user?.emailVerified ?? Boolean(user?.email?.includes('@')),
-        emailNotificationsEnabled: user?.emailNotificationsEnabled ?? true,
-        telegramChatId: user?.telegramChatId,
-        telegramNotificationsEnabled: user?.telegramNotificationsEnabled,
-      }),
+      body: JSON.stringify(buildAuthBody(login, password, user)),
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as Record<string, unknown>;
+    if (data.requiresTwoFactor) {
+      return {
+        kind: 'totp_required',
+        challengeId: String(data.challengeId || ''),
+        expiresIn: Number(data.expiresIn) || 300000,
+      };
+    }
+    const session = data as unknown as SessionLoginResult;
+    storeSessionCredentials(session.sessionToken, session.sessionId);
+    return { kind: 'session', ...session };
+  } catch {
+    return null;
+  }
+}
+
+export async function verifyTotpLogin(
+  challengeId: string,
+  code: string
+): Promise<SessionLoginResult | null> {
+  try {
+    const res = await fetch('/api/auth/authenticate/totp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ challengeId, code }),
     });
     if (!res.ok) return null;
     const data = (await res.json()) as SessionLoginResult;
@@ -63,27 +127,51 @@ export async function authenticateCredentials(
   }
 }
 
-/** @deprecated Use authenticateCredentials — kept for session refresh after reload */
-export async function registerUserSession(
-  user: SystemUser,
-  prefs?: {
-    emailVerified?: boolean;
-    emailNotificationsEnabled?: boolean;
-    telegramChatId?: string;
-    telegramNotificationsEnabled?: boolean;
+export type TotpStatusResponse =
+  | { ok: true; data: TotpStatusResult }
+  | { ok: false; error: string; status: number };
+
+export async function fetchTotpStatus(): Promise<TotpStatusResponse> {
+  const result = await apiFetch<TotpStatusResult>('/api/auth/totp/status');
+  if (result.ok === false) {
+    return { ok: false, error: result.error, status: result.status };
   }
-): Promise<SessionLoginResult | null> {
-  const login = user.login || user.email;
-  const password = user.password;
-  if (!login || !password) return null;
-  return authenticateCredentials(login, password, {
-    ...user,
-    emailVerified: prefs?.emailVerified ?? user.emailVerified,
-    emailNotificationsEnabled: prefs?.emailNotificationsEnabled ?? user.emailNotificationsEnabled,
-    telegramChatId: prefs?.telegramChatId ?? user.telegramChatId,
-    telegramNotificationsEnabled:
-      prefs?.telegramNotificationsEnabled ?? user.telegramNotificationsEnabled,
+  return { ok: true, data: result.data };
+}
+
+export async function beginTotpSetup(): Promise<TotpSetupBeginResponse> {
+  if (!getStoredSessionToken()) {
+    return {
+      ok: false,
+      status: 401,
+      error: 'Сессия не найдена. Выйдите и войдите снова.',
+    };
+  }
+  const result = await apiFetch<TotpSetupBeginResult>('/api/auth/totp/setup-begin', {
+    method: 'POST',
   });
+  if (result.ok === false) {
+    return { ok: false, error: result.error, status: result.status };
+  }
+  return { ok: true, data: result.data };
+}
+
+export async function confirmTotpSetup(code: string): Promise<{ ok: boolean; error?: string; revision?: number }> {
+  const result = await apiFetch<{ revision?: number }>('/api/auth/totp/setup-confirm', {
+    method: 'POST',
+    body: JSON.stringify({ code }),
+  });
+  if (result.ok === false) return { ok: false, error: result.error };
+  return { ok: true, revision: result.data.revision };
+}
+
+export async function disableTotp(code: string): Promise<{ ok: boolean; error?: string; revision?: number }> {
+  const result = await apiFetch<{ revision?: number }>('/api/auth/totp/disable', {
+    method: 'POST',
+    body: JSON.stringify({ code }),
+  });
+  if (result.ok === false) return { ok: false, error: result.error };
+  return { ok: true, revision: result.data.revision };
 }
 
 export async function sessionHeartbeat(): Promise<{

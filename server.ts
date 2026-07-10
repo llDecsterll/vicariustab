@@ -40,6 +40,8 @@ import {
   initDataStore,
   loadApplicationData,
   saveApplicationData,
+  getDataRevision,
+  type StoredUser,
 } from "./server/dataStore.ts";
 import {
   requireApiAuth,
@@ -50,14 +52,20 @@ import {
   parseExpectedRevision,
   verifyCredentials,
   readSessionToken,
+  resolveAuthedSession,
   type AuthedRequest,
 } from "./server/apiAuth.ts";
 import {
   isSetupRequired,
   createInitialAdmin,
   sanitizePayloadForClient,
+  sanitizePayloadForClientWithRole,
   preparePayloadForSave,
 } from "./server/userCredentials.ts";
+import {
+  mergeUserPreferences,
+  sanitizeUserPreferencesPatch,
+} from "./server/userPreferences.ts";
 import { buildPurgedWorkspacePayload } from "./server/purgeWorkspace.ts";
 import {
   ensureWorkspaceWarehouses,
@@ -75,6 +83,18 @@ import {
 } from "./server/loginRateLimit.ts";
 import { performGithubUpdateCheck } from "./server/githubUpdateCheck.ts";
 import { preserveServerInstallLicenseFields } from "./server/licenseInstallFields.ts";
+import {
+  initTotpUserOps,
+  isTwoFactorEnabled,
+  beginTotpSetup,
+  confirmTotpSetup,
+  disableTotp,
+  verifyUserTotpCode,
+  getUserById,
+  resolveUserForSession,
+  hasTotpPendingSetup,
+} from "./server/totpUserOps.ts";
+import { createTotpLoginChallenge, consumeTotpLoginChallenge } from "./server/totpPendingLogin.ts";
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
@@ -130,6 +150,7 @@ const CONFIG_PATH = path.join(DATA_DIR, "db_config.json");
 const META_PATH = path.join(DATA_DIR, "store_meta.json");
 
 initSessionEngine(DATA_DIR, encrypt, decrypt);
+initTotpUserOps(encrypt, decrypt);
 
 function isRunningInDocker(): boolean {
   return Boolean(process.env.STACK_DATA_DIR) || fs.existsSync("/.dockerenv");
@@ -640,6 +661,26 @@ async function startServer() {
         return res.status(403).json({ error: "Complete initial setup first", code: "SETUP_REQUIRED" });
       }
 
+      if (isTwoFactorEnabled(user)) {
+        const challenge = createTotpLoginChallenge(user, {
+          deviceFingerprint: String(body.deviceFingerprint || "unknown"),
+          browser: String(body.browser || "Unknown"),
+          os: String(body.os || "Unknown"),
+          device: String(body.device || "Desktop"),
+          userAgent: String(body.userAgent || ""),
+          email: user.email,
+          emailVerified: Boolean(body.emailVerified ?? user.email?.includes("@")),
+          emailNotificationsEnabled: body.emailNotificationsEnabled !== false,
+          telegramChatId: body.telegramChatId,
+          telegramNotificationsEnabled: Boolean(body.telegramChatId && body.telegramNotificationsEnabled),
+        });
+        return res.json({
+          requiresTwoFactor: true,
+          challengeId: challenge.challengeId,
+          expiresIn: challenge.expiresIn,
+        });
+      }
+
       const ip = getClientIp(req);
       const geo = await lookupGeo(ip);
       const result = registerLogin({
@@ -687,11 +728,184 @@ async function startServer() {
     }
   });
 
+  app.post("/api/auth/authenticate/totp", async (req, res) => {
+    try {
+      const body = req.body || {};
+      const challengeId = String(body.challengeId || "").trim();
+      const code = String(body.code || "").trim();
+      if (!challengeId || !code) {
+        return res.status(400).json({ error: "Challenge ID and TOTP code required" });
+      }
+
+      const pending = consumeTotpLoginChallenge(challengeId);
+      if (!pending) {
+        return res.status(401).json({ error: "Invalid or expired challenge", code: "TOTP_CHALLENGE_EXPIRED" });
+      }
+
+      if (isLoginRateLimited(req, `totp:${pending.login}`)) {
+        return res.status(429).json({ error: loginRateLimitMessage(), code: "RATE_LIMITED" });
+      }
+
+      const user = await resolveUserForSession({
+        userId: pending.userId,
+        userName: pending.login,
+      });
+      if (!user || !isTwoFactorEnabled(user)) {
+        return res.status(401).json({ error: "Invalid credentials", code: "AUTH_FAILED" });
+      }
+
+      if (!(await verifyUserTotpCode(user, code))) {
+        recordLoginFailure(req, `totp:${pending.login}`);
+        return res.status(401).json({ error: "Invalid TOTP code", code: "TOTP_INVALID" });
+      }
+
+      clearLoginFailures(req, `totp:${pending.login}`);
+      clearLoginFailures(req, pending.login);
+
+      const ip = getClientIp(req);
+      const geo = await lookupGeo(ip);
+      const result = registerLogin({
+        userId: user.id,
+        userName: user.name,
+        userRole: user.role,
+        deviceFingerprint: pending.deviceFingerprint,
+        ipAddress: ip,
+        country: geo.country,
+        city: geo.city,
+        browser: pending.browser,
+        os: pending.os,
+        device: pending.device,
+        userAgent: pending.userAgent,
+      });
+
+      let dispatch;
+      if (result.isNewDevice && result.notification) {
+        const proto = String(req.headers["x-forwarded-proto"] || "http").split(",")[0].trim();
+        const host = String(req.headers["x-forwarded-host"] || req.headers.host || "localhost");
+        const sessionsUrl = `${proto}://${host}/?tab=settings&section=sessions`;
+        dispatch = await dispatchNewLoginAlert(result.notification, {
+          email: user.email,
+          emailVerified: Boolean(pending.emailVerified ?? user.email?.includes("@")),
+          emailNotificationsEnabled: pending.emailNotificationsEnabled !== false,
+          telegramChatId: pending.telegramChatId,
+          telegramNotificationsEnabled: Boolean(pending.telegramChatId && pending.telegramNotificationsEnabled),
+        }, sessionsUrl);
+      }
+
+      return res.json({
+        sessionToken: result.sessionToken,
+        sessionId: result.sessionId,
+        userId: user.id,
+        userName: user.name,
+        userRole: user.role,
+        isNewDevice: result.isNewDevice,
+        session: result.session,
+        notification: result.isNewDevice ? result.notification : undefined,
+        dispatch,
+      });
+    } catch (err: any) {
+      console.error("Auth TOTP error:", err);
+      return res.status(500).json({ error: "Authentication failed" });
+    }
+  });
+
+  app.get("/api/auth/totp/status", async (req, res) => {
+    const session = resolveAuthedSession(req, res);
+    if (!session) return;
+    try {
+      const user = await resolveUserForSession({
+        userId: session.userId,
+        userName: session.userName,
+      });
+      if (!user) {
+        return res.status(404).json({
+          error: "Учётная запись не найдена. Выйдите из системы и войдите снова.",
+        });
+      }
+      return res.json({
+        enabled: isTwoFactorEnabled(user),
+        pendingSetup: hasTotpPendingSetup(user),
+        enabledAt: user.totpEnabledAt || null,
+      });
+    } catch (err) {
+      console.error("TOTP status error:", err);
+      return res.status(500).json({ error: "Failed to read TOTP status" });
+    }
+  });
+
+  app.post("/api/auth/totp/setup-begin", async (req, res) => {
+    const session = resolveAuthedSession(req, res);
+    if (!session) return;
+    try {
+      const result = await beginTotpSetup({
+        userId: session.userId,
+        userName: session.userName,
+      });
+      if (!result) {
+        return res.status(404).json({
+          error: "Учётная запись не найдена. Выйдите из системы и войдите снова.",
+        });
+      }
+      let qrDataUrl: string | undefined;
+      try {
+        const QRCode = await import("qrcode");
+        qrDataUrl = await QRCode.toDataURL(result.otpauthUrl, { margin: 1, width: 220 });
+      } catch {
+        /* QR is optional */
+      }
+      return res.json({ ...result, qrDataUrl, revision: getDataRevision() });
+    } catch (err: any) {
+      return res.status(400).json({ error: err?.message || "Setup failed" });
+    }
+  });
+
+  app.post("/api/auth/totp/setup-confirm", async (req, res) => {
+    const session = resolveAuthedSession(req, res);
+    if (!session) return;
+    const code = String(req.body?.code || "").trim();
+    if (!code) return res.status(400).json({ error: "TOTP code required" });
+    try {
+      const ok = await confirmTotpSetup(
+        { userId: session.userId, userName: session.userName },
+        code
+      );
+      if (!ok) return res.status(401).json({ error: "Invalid TOTP code", code: "TOTP_INVALID" });
+      return res.json({ success: true, revision: getDataRevision() });
+    } catch (err: any) {
+      return res.status(400).json({ error: err?.message || "Setup failed" });
+    }
+  });
+
+  app.post("/api/auth/totp/disable", async (req, res) => {
+    const session = resolveAuthedSession(req, res);
+    if (!session) return;
+    const code = String(req.body?.code || "").trim();
+    if (!code) return res.status(400).json({ error: "TOTP code required" });
+    try {
+      const ok = await disableTotp(
+        { userId: session.userId, userName: session.userName },
+        code
+      );
+      if (!ok) return res.status(401).json({ error: "Invalid TOTP code", code: "TOTP_INVALID" });
+      return res.json({ success: true, revision: getDataRevision() });
+    } catch (err: any) {
+      return res.status(400).json({ error: err?.message || "Disable failed" });
+    }
+  });
+
+  app.post("/api/auth/logout", (req, res) => {
+    const token = readSessionToken(req);
+    const session = resolveSessionFromToken(token);
+    if (!session) return res.json({ success: true });
+    logoutSession(session.id, String(req.body?.userName || session.userName), getClientIp(req));
+    return res.json({ success: true });
+  });
+
   // All other /api routes require a valid session token
   app.use("/api", requireApiAuth);
 
   // Main data API with optimistic locking
-  app.get("/api/data", async (_req, res) => {
+  app.get("/api/data", async (req: AuthedRequest, res) => {
     try {
       const { data, revision } = await loadApplicationData();
       if (!data) return res.json({ _revision: revision });
@@ -706,7 +920,11 @@ async function startServer() {
           revisionOut = healed.revision;
         }
       }
-      const safe = sanitizePayloadForClient(normalized);
+      const safe = sanitizePayloadForClientWithRole(
+        normalized,
+        req.authSession?.userRole,
+        normalized
+      );
       return res.json({ ...(safe || normalized), _revision: revisionOut });
     } catch (error) {
       console.error("Error reading database:", error);
@@ -740,11 +958,16 @@ async function startServer() {
         const expectedRevision = parseExpectedRevision(req);
         const result = await saveApplicationData(prepared, expectedRevision);
         if ("conflict" in result && result.conflict) {
+          const conflictData = sanitizePayloadForClientWithRole(
+            result.data,
+            req.authSession?.userRole,
+            result.data
+          );
           return res.status(409).json({
             error: "Data conflict — another session saved changes first",
             code: "REVISION_CONFLICT",
             revision: result.revision,
-            data: result.data,
+            data: conflictData,
           });
         }
         return res.json({ success: true, revision: result.revision });
@@ -766,6 +989,56 @@ async function startServer() {
       }
     }
   );
+
+  app.patch("/api/user/preferences", async (req: AuthedRequest, res) => {
+    try {
+      const userId = req.authSession?.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const patch = sanitizeUserPreferencesPatch(req.body);
+      if (Object.keys(patch).length === 0) {
+        return res.status(400).json({ error: "No valid preferences in request" });
+      }
+
+      const { data, revision } = await loadApplicationData();
+      if (!data || !Array.isArray(data.users)) {
+        return res.status(500).json({ error: "User database unavailable" });
+      }
+
+      const users = data.users as StoredUser[];
+      const idx = users.findIndex((u) => u.id === userId);
+      if (idx < 0) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const current = users[idx];
+      const mergedPrefs = mergeUserPreferences(current.preferences, patch);
+      const nextUsers = users.map((u, i) =>
+        i === idx ? { ...u, preferences: mergedPrefs } : u
+      );
+
+      const expectedRevision = parseExpectedRevision(req);
+      const result = await saveApplicationData({ ...data, users: nextUsers }, expectedRevision);
+      if ("conflict" in result && result.conflict) {
+        return res.status(409).json({
+          error: "Data conflict — another session saved changes first",
+          code: "REVISION_CONFLICT",
+          revision: result.revision,
+        });
+      }
+
+      return res.json({
+        success: true,
+        revision: result.revision,
+        preferences: mergedPrefs,
+      });
+    } catch (error) {
+      console.error("Error saving user preferences:", error);
+      return res.status(500).json({ error: "Failed to save user preferences" });
+    }
+  });
 
   app.post(
     "/api/data/purge-workspace",
@@ -790,7 +1063,11 @@ async function startServer() {
             data: result.data,
           });
         }
-        const safe = sanitizePayloadForClient(purged);
+        const safe = sanitizePayloadForClientWithRole(
+          purged,
+          req.authSession?.userRole,
+          purged
+        );
         return res.json({
           success: true,
           revision: result.revision,
@@ -1033,14 +1310,6 @@ async function startServer() {
     }).catch((err) => console.error("[Update] apply failed:", err));
 
     return res.json({ started: true, message: "Platform update started" });
-  });
-
-  app.post("/api/auth/logout", (req, res) => {
-    const token = readSessionToken(req);
-    const session = resolveSessionFromToken(token);
-    if (!session) return res.json({ success: true });
-    logoutSession(session.id, String(req.body?.userName || session.userName), getClientIp(req));
-    return res.json({ success: true });
   });
 
   app.post("/api/auth/heartbeat", (req, res) => {

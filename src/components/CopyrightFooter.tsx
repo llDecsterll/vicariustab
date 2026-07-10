@@ -38,7 +38,7 @@ export default function CopyrightFooter({ variant = 'dark', className = '' }: Co
               : 'text-xs font-bold text-slate-200'
         }
       >
-        {t('© 2026 Utkin Vladislav Vyacheslavovich. All rights reserved.')}
+        {t('© 2026 Уткин Владислав Вячеславович. Все права защищены.')}
       </p>
       <p
         className={`leading-relaxed ${

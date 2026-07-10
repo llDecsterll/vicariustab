@@ -8,6 +8,9 @@
  * Release
  */
 import { hashLicenseString } from '../../server/licenseKeyFormat.ts';
+import {
+  computeServerInstallStatusSig,
+} from '../../server/licenseInstallFields.ts';
 import { verifySignedLicenseKeyClient } from './licenseCryptoClient.ts';
 
 export { hashLicenseString };
@@ -178,7 +181,10 @@ export function validateKey(key: string): DecodedKeyDetails | null {
 }
 
 export interface LicenseStatus {
+  /** Local client activation — valid license key in this browser (GitHub build stays false without key). */
   isActivated: boolean;
+  /** Server installation is licensed (signed summary from /api/data); does not activate the client. */
+  isInstallationLicensed: boolean;
   licenseType: 'trial' | 'annual' | 'perpetual';
   licenseKey: string | null;
   expiresYear: number | null;
@@ -345,6 +351,96 @@ function syncSignedTrialField(
   }
 }
 
+function clearServerLicenseSummary(): void {
+  localStorage.removeItem('it_license_server_activated');
+  localStorage.removeItem('it_license_server_expired');
+  localStorage.removeItem('it_license_server_type');
+  localStorage.removeItem('it_license_server_expires_year');
+  localStorage.removeItem('it_license_server_status_sig');
+  localStorage.removeItem('it_license_client_name');
+  localStorage.removeItem('it_license_client_email');
+  localStorage.removeItem('it_license_client_phone');
+}
+
+function readVerifiedServerInstallation(macAddress: string): {
+  licenseType: 'annual' | 'perpetual';
+  expiresYear: number | null;
+  clientName: string;
+  clientEmail: string;
+  clientPhone: string;
+} | null {
+  const activated = localStorage.getItem('it_license_server_activated');
+  const expired = localStorage.getItem('it_license_server_expired');
+  const sig = localStorage.getItem('it_license_server_status_sig');
+  if (!sig || activated !== 'true' || expired === 'true') return null;
+
+  const typeRaw = localStorage.getItem('it_license_server_type');
+  const licenseType: 'annual' | 'perpetual' =
+    typeRaw === 'perpetual' ? 'perpetual' : 'annual';
+  const expiresYear = parseInt(localStorage.getItem('it_license_server_expires_year') || '', 10);
+  const expiresYearOrNull = Number.isNaN(expiresYear) ? null : expiresYear;
+
+  const expectedSig = computeServerInstallStatusSig(
+    macAddress,
+    true,
+    false,
+    licenseType,
+    expiresYearOrNull
+  );
+  if (sig !== expectedSig) return null;
+
+  return {
+    licenseType,
+    expiresYear: expiresYearOrNull,
+    clientName: localStorage.getItem('it_license_client_name') || '',
+    clientEmail: localStorage.getItem('it_license_client_email') || '',
+    clientPhone: localStorage.getItem('it_license_client_phone') || '',
+  };
+}
+
+function syncServerLicenseSummary(data: Record<string, unknown>): void {
+  if (typeof data.license_is_activated !== 'boolean') return;
+
+  if (data.license_is_activated) {
+    localStorage.setItem('it_license_server_activated', 'true');
+    if (typeof data.license_type === 'string') {
+      localStorage.setItem('it_license_server_type', data.license_type);
+    }
+    if (typeof data.license_expires_year === 'number') {
+      localStorage.setItem('it_license_server_expires_year', String(data.license_expires_year));
+    } else {
+      localStorage.removeItem('it_license_server_expires_year');
+    }
+    if (typeof data.license_client_name === 'string') {
+      localStorage.setItem('it_license_client_name', data.license_client_name);
+    } else {
+      localStorage.removeItem('it_license_client_name');
+    }
+    if (typeof data.license_client_email === 'string') {
+      localStorage.setItem('it_license_client_email', data.license_client_email);
+    } else {
+      localStorage.removeItem('it_license_client_email');
+    }
+    if (typeof data.license_client_phone === 'string') {
+      localStorage.setItem('it_license_client_phone', data.license_client_phone);
+    } else {
+      localStorage.removeItem('it_license_client_phone');
+    }
+  } else {
+    clearServerLicenseSummary();
+  }
+
+  if (typeof data.license_is_expired === 'boolean') {
+    localStorage.setItem('it_license_server_expired', data.license_is_expired ? 'true' : 'false');
+  }
+
+  if (typeof data.license_status_sig === 'string' && data.license_status_sig) {
+    localStorage.setItem('it_license_server_status_sig', data.license_status_sig);
+  } else {
+    localStorage.removeItem('it_license_server_status_sig');
+  }
+}
+
 /**
  * Safely restore license/trial state from server DB for the same physical installation.
  * Blocks cross-install license cloning when DB is copied to another machine.
@@ -394,6 +490,8 @@ export function applyLicenseStateFromServer(data: Record<string, unknown>): void
     localStorage.setItem('it_tamper_flag', data.tamper_flag);
   }
 
+  syncServerLicenseSummary(data);
+
   const serverKey = typeof data.license_key === 'string' ? data.license_key.trim() : '';
   if (serverKey) {
     const validation = validateKey(serverKey);
@@ -403,6 +501,7 @@ export function applyLicenseStateFromServer(data: Record<string, unknown>): void
       if (typeof data.license_key_sig === 'string' && data.license_key_sig) {
         localStorage.setItem('it_license_key_sig', data.license_key_sig);
       }
+      clearServerLicenseSummary();
     } else {
       localStorage.removeItem('it_license_key');
       localStorage.removeItem('it_license_key_sig');
@@ -628,6 +727,7 @@ export function getLicenseStatus(): LicenseStatus {
 
       return {
         isActivated: !isKeyExpired,
+        isInstallationLicensed: false,
         licenseType: validation.type,
         licenseKey: storedKey,
         expiresYear: validation.expiresYear,
@@ -650,9 +750,38 @@ export function getLicenseStatus(): LicenseStatus {
     isTampered = true;
   }
 
+  const serverInstall = readVerifiedServerInstallation(macAddress);
+  if (!storedKey && serverInstall) {
+    const currentYear = new Date().getFullYear();
+    const licenseExpiredByYear =
+      serverInstall.licenseType !== 'perpetual' &&
+      serverInstall.expiresYear != null &&
+      currentYear > serverInstall.expiresYear;
+
+    return {
+      isActivated: false,
+      isInstallationLicensed: true,
+      licenseType: serverInstall.licenseType,
+      licenseKey: null,
+      expiresYear: serverInstall.expiresYear,
+      trialStartTimestamp,
+      trialDaysLeft,
+      trialTimeLeftFormatted,
+      isExpired: licenseExpiredByYear,
+      macAddress,
+      clientName: serverInstall.clientName,
+      clientEmail: serverInstall.clientEmail,
+      clientPhone: serverInstall.clientPhone,
+      isTampered,
+      failedAttempts,
+      lockoutTimeLeft,
+    };
+  }
+
   // Fallback to active 30-day trial status
   return {
     isActivated: false,
+    isInstallationLicensed: false,
     licenseType: 'trial',
     licenseKey: null,
     expiresYear: null,
@@ -713,4 +842,5 @@ export function activateSystem(key: string): boolean {
 export function deactivateSystem(): void {
   localStorage.removeItem('it_license_key');
   localStorage.removeItem('it_license_key_sig');
+  clearServerLicenseSummary();
 }

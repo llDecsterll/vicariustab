@@ -20,6 +20,19 @@ export function readSessionToken(req: Request): string {
   return "";
 }
 
+/** Resolve session for auth routes registered before global API middleware. */
+export function resolveAuthedSession(
+  req: Request,
+  res: Response
+): UserSessionRecord | null {
+  const session = resolveSessionFromToken(readSessionToken(req));
+  if (!session) {
+    res.status(401).json({ error: "Unauthorized", code: "AUTH_REQUIRED" });
+    return null;
+  }
+  return session;
+}
+
 export function secureCompare(a: string, b: string): boolean {
   const ba = Buffer.from(a);
   const bb = Buffer.from(b);
@@ -56,6 +69,7 @@ export async function verifyCredentials(
 
 const PUBLIC_API = new Set<string>([
   "POST:/api/auth/authenticate",
+  "POST:/api/auth/authenticate/totp",
   "GET:/api/auth/setup-status",
   "POST:/api/auth/setup",
 ]);

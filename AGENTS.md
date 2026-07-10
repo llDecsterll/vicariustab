@@ -21,7 +21,7 @@ PORT=8080 npm start
 ```bash
 npm run lint && npm run check:i18n
 npm run test:unit      # 144 unit tests
-npm run test:audit     # ~168 (npm start на :8098)
+npm run test:audit     # ~164 (npm start на :8098)
 npm run verify http://127.0.0.1:8080
 ```
 
@@ -44,7 +44,7 @@ npm run verify http://127.0.0.1:8080
 | Data | `server/dataStore.ts` (JSON + MySQL/PostgreSQL) |
 | Update | `updateEngine.ts`, `githubUpdateCheck.ts`, `updateCheck.ts` |
 | Print | `printDocument.ts`, `ActPrintContent.tsx`, `DocumentPrintShell.tsx` |
-| Dashboard | `DashboardView.tsx`, `dashboardAnalytics.ts`, `dashboardLayout.ts` |
+| Dashboard | `DashboardView.tsx`, `DashboardGridLayout.tsx`, `dashboardAnalytics.ts`, `dashboardLayout.ts`, `dashboardGridMetrics.ts` |
 | Software | `SoftwareView.tsx`, `softwareLicenseUtils.ts` |
 | Express | `server.ts` |
 
@@ -60,8 +60,8 @@ npm run verify http://127.0.0.1:8080
 | unit-lifecycle.mjs | 11 |
 | unit-validation.mjs | 6 |
 | unit-warehouse-excel.mjs | 5 |
-| unit-writeoff.mjs | 18 |
-| unit-restore-writeoff.mjs | 14 |
+| unit-writeoff.mjs | 17 |
+| unit-restore-writeoff.mjs | 13 |
 | unit-warehouse-full-lifecycle.mjs | 63 |
 | unit-routing.mjs | 4 |
 | unit-backup-license.mjs | 4 |
@@ -72,7 +72,7 @@ npm run verify http://127.0.0.1:8080
 | security.mjs | 3 |
 | load-concurrent.mjs | 1 |
 
-**Итого:** ~168 автотестов (`npm run test:audit`). `test:unit` — 144 без сервера. Integration/load требуют сервер на `:8098`.
+**Итого:** ~164 автотестов (`npm run test:audit`). `test:unit` — 144 без сервера. Integration/load требуют сервер на `:8098`.
 
 ## Cursor rules
 

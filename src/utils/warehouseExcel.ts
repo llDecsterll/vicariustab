@@ -1,7 +1,17 @@
-import * as XLSX from 'xlsx';
+import type { WorkBook, WorkSheet } from 'xlsx';
 import type { WarehouseItem, WarehouseItemStatus, WarehouseItemType } from '../types';
 import { inventoryNumbersMatch, normalizeInventoryNumber } from './equipmentFields';
 import { repairWarehousePendingDuplicates } from './warehousePendingMerge';
+
+type XlsxModule = typeof import('xlsx');
+let xlsxModulePromise: Promise<XlsxModule> | null = null;
+
+async function loadXlsx(): Promise<XlsxModule> {
+  if (!xlsxModulePromise) {
+    xlsxModulePromise = import('xlsx');
+  }
+  return xlsxModulePromise;
+}
 
 export const WAREHOUSE_EXCEL_SHEET = 'Warehouse';
 export const WAREHOUSE_EXCEL_SHEET_LEGACY = 'Склад';
@@ -156,7 +166,7 @@ function isMetaSheetName(name: string): boolean {
   );
 }
 
-function sheetHasWarehouseHeaders(sheet: XLSX.WorkSheet): boolean {
+function sheetHasWarehouseHeaders(sheet: WorkSheet, XLSX: XlsxModule): boolean {
   const matrix = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
     header: 1,
     defval: '',
@@ -171,7 +181,7 @@ function sheetHasWarehouseHeaders(sheet: XLSX.WorkSheet): boolean {
   );
 }
 
-function findWarehouseDataSheet(wb: XLSX.WorkBook): XLSX.WorkSheet | null {
+function findWarehouseDataSheet(wb: WorkBook, XLSX: XlsxModule): WorkSheet | null {
   const preferredNames = [
     WAREHOUSE_EXCEL_SHEET,
     WAREHOUSE_EXCEL_SHEET_LEGACY,
@@ -180,12 +190,12 @@ function findWarehouseDataSheet(wb: XLSX.WorkBook): XLSX.WorkSheet | null {
   ];
   for (const name of preferredNames) {
     const sheet = wb.Sheets[name];
-    if (sheet && sheetHasWarehouseHeaders(sheet)) return sheet;
+    if (sheet && sheetHasWarehouseHeaders(sheet, XLSX)) return sheet;
   }
   for (const name of wb.SheetNames) {
     if (isMetaSheetName(name)) continue;
     const sheet = wb.Sheets[name];
-    if (sheet && sheetHasWarehouseHeaders(sheet)) return sheet;
+    if (sheet && sheetHasWarehouseHeaders(sheet, XLSX)) return sheet;
   }
   for (const name of wb.SheetNames) {
     if (!isMetaSheetName(name) && wb.Sheets[name]) return wb.Sheets[name];
@@ -532,10 +542,11 @@ export function applyWarehouseExcelImport(
   };
 }
 
-export function exportWarehouseItemsToExcelFile(
+export async function exportWarehouseItemsToExcelFile(
   items: WarehouseItem[],
   filename?: string
-): void {
+): Promise<void> {
+  const XLSX = await loadXlsx();
   const rows = items.map(warehouseItemToExcelRow);
   const meta = [{ Параметр: 'Формат', Значение: WAREHOUSE_EXCEL_VERSION }];
   const wsData = XLSX.utils.json_to_sheet(rows, { header: [...WAREHOUSE_EXCEL_HEADERS] });
@@ -565,9 +576,10 @@ function triggerBlobDownload(blob: Blob, filename: string): void {
   window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
 }
 
-export function parseWarehouseExcelBuffer(buffer: ArrayBuffer): WarehouseExcelRow[] {
+export async function parseWarehouseExcelBuffer(buffer: ArrayBuffer): Promise<WarehouseExcelRow[]> {
+  const XLSX = await loadXlsx();
   const wb = XLSX.read(buffer, { type: 'array', cellDates: true, codepage: 65001 });
-  const sheet = findWarehouseDataSheet(wb);
+  const sheet = findWarehouseDataSheet(wb, XLSX);
   if (!sheet) return [];
 
   const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {

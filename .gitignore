@@ -4,6 +4,10 @@ build/
 dist/
 coverage/
 .cursor/
+.cursore/
+.cursorrules
+keyserver/
+../keyserver/
 .DS_Store
 Thumbs.db
 desktop.ini

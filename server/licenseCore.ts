@@ -62,10 +62,23 @@ export function evaluateLicenseFromState(data: Record<string, unknown> | null): 
   const trialStart = typeof trialStartRaw === "string" ? trialStartRaw : "";
   const trialSig = typeof trialSigRaw === "string" ? trialSigRaw : "";
 
-  let trialStartTs = Date.now();
+  let trialStartTs: number | null = null;
   if (trialStart && trialSig && trialSignatureValid(trialStart, trialSig)) {
     const parsed = parseInt(trialStart, 10);
     if (!isNaN(parsed)) trialStartTs = parsed;
+  }
+
+  if (trialStartTs === null) {
+    const hasInstallMarker =
+      Boolean(licenseKey) ||
+      Boolean(mac) ||
+      Boolean(trialStartRaw) ||
+      Boolean(trialSigRaw) ||
+      typeof data._ao_telemetry_pt === "string";
+    if (!hasInstallMarker) {
+      return { isExpired: false, isActivated: false };
+    }
+    return { isExpired: true, isActivated: false, reason: tamperFlag ? "tamper" : "trial" };
   }
 
   const maxTimeRaw = data.max_time ?? data._ao_telemetry_mt;

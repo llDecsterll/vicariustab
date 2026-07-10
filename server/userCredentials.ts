@@ -6,6 +6,8 @@ import { hashPassword, validateEmailField, validateLoginField, validatePasswordF
 import { buildDefaultWorkspacePayload } from "./defaultWorkspaceSeed.ts";
 import { validateWorkspacePayload } from "./workspaceValidation.ts";
 import { ensureWorkspaceWarehouses } from "./workspaceWarehouses.ts";
+import { preserveTotpFields } from "./totpUserOps.ts";
+import { redactLicenseSecretsForNonAdmin, buildLicenseStatusForClient } from "./licenseInstallFields.ts";
 
 export type { StoredUser };
 
@@ -21,20 +23,41 @@ export async function isSetupRequired(): Promise<boolean> {
 }
 
 export function sanitizeUserForClient(user: StoredUser): Record<string, unknown> {
-  const { password: _p, passwordHash: _h, ...rest } = user;
+  const {
+    password: _p,
+    passwordHash: _h,
+    totpSecretEnc: _ts,
+    totpPendingSecretEnc: _tp,
+    ...rest
+  } = user;
   return {
     ...rest,
     passwordSet: Boolean(user.passwordHash || user.password),
+    twoFactorEnabled: Boolean(user.twoFactorEnabled && user.totpSecretEnc),
   };
 }
 
 export function sanitizePayloadForClient(data: Record<string, unknown> | null): Record<string, unknown> | null {
   if (!data || typeof data !== "object") return data;
-  if (!Array.isArray(data.users)) return data;
+  if (!Array.isArray(data.users)) return { ...data };
   return {
     ...data,
     users: (data.users as StoredUser[]).map((u) => sanitizeUserForClient(u)),
   };
+}
+
+export function sanitizePayloadForClientWithRole(
+  data: Record<string, unknown> | null,
+  role: string | undefined,
+  source?: Record<string, unknown> | null
+): Record<string, unknown> | null {
+  const safe = sanitizePayloadForClient(data);
+  if (!safe || typeof safe !== "object") return safe;
+  const raw = source && typeof source === "object" ? source : safe;
+  if (role === "Admin") {
+    return { ...safe, ...buildLicenseStatusForClient(raw) };
+  }
+  return redactLicenseSecretsForNonAdmin(safe, raw);
 }
 
 export function processUsersForStorage(
@@ -65,6 +88,10 @@ export function processUsersForStorage(
     }
 
     delete row.password;
+    preserveTotpFields(row, prev);
+    if (!row.preferences && prev?.preferences) {
+      row.preferences = prev.preferences;
+    }
     return row;
   });
 }

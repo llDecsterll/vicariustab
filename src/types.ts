@@ -201,6 +201,29 @@ export interface InventoryAudit {
 
 export type UserRole = 'Viewer' | 'Editor' | 'Admin';
 
+export type UiLanguage = 'ru' | 'en' | 'zh';
+
+export interface UserDashboardLayoutPreference {
+  version: 11;
+  items: Array<{
+    i: string;
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+    minW?: number;
+    minH?: number;
+    maxW?: number;
+    maxH?: number;
+  }>;
+}
+
+export interface UserPreferences {
+  language?: UiLanguage;
+  dashboardLayout?: UserDashboardLayoutPreference;
+  dashboardSelectedAuditId?: string;
+}
+
 export interface UserSession {
   id: string;
   userId: string;
@@ -235,6 +258,9 @@ export interface SystemUser {
   emailNotificationsEnabled?: boolean;
   telegramChatId?: string;
   telegramNotificationsEnabled?: boolean;
+  preferences?: UserPreferences;
+  twoFactorEnabled?: boolean;
+  totpEnabledAt?: string;
 }
 
 export type SoftwareCategory = 'Системное ПО' | 'Операционные системы (ОС)' | 'Утилиты и антивирусы' | 'Офисные приложения' | 'Графические редакторы' | 'Корпоративные системы' | 'Иное ПО';
