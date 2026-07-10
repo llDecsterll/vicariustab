@@ -26,4 +26,3 @@ desktop.ini
 .DS_Store
 src/**/*.cjs
 src/**/*.mjs
-scripts/apply-copyright-header.cjs

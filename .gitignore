@@ -35,6 +35,11 @@ terms.txt
 new_terms.json
 super_safe_terms.json
 metadata.json
+# Local dev artifacts (not shipped with product)
+dashboard-check.png
+db_config.json.before-fresh-*.bak
+AGENTS.md
+docs/RELEASE_AUDIT_*.md
 # Ed25519 license private key — never commit (lives on keyserver only)
 **/license_ed25519.pem
 **/license_private*.pem
