@@ -1,3 +1,5 @@
+import { memStorage } from './memoryStorage';
+
 export interface GridLayoutItem {
   i: string;
   x: number;
@@ -451,7 +453,7 @@ function isWideDashboardWidget(item: GridLayoutItem): boolean {
   return item.w >= 6 || item.h >= 5;
 }
 
-/** View-only reflow for narrow viewports; saved layout in localStorage is unchanged. */
+/** View-only reflow for narrow viewports; saved layout in memStorage is unchanged. */
 export function buildResponsiveLayout(items: GridLayout, containerWidth: number): GridLayout {
   if (!items.length || containerWidth >= DASHBOARD_LAYOUT_FULL_WIDTH_PX) {
     return items;
@@ -611,7 +613,7 @@ function finalizeLoadedLayout(items: GridLayout): GridLayout {
 
 export function loadDashboardLayout(): DashboardLayoutState {
   try {
-    const rawV11 = localStorage.getItem(STORAGE_KEY);
+    const rawV11 = memStorage.getItem(STORAGE_KEY);
     if (rawV11) {
       const parsed = JSON.parse(rawV11) as DashboardLayoutState;
       if (parsed.version === 11 && Array.isArray(parsed.items)) {
@@ -619,7 +621,7 @@ export function loadDashboardLayout(): DashboardLayoutState {
       }
     }
 
-    const rawV10 = localStorage.getItem(STORAGE_KEY_V10);
+    const rawV10 = memStorage.getItem(STORAGE_KEY_V10);
     if (rawV10) {
       const parsed = JSON.parse(rawV10) as StoredDashboardLayout;
       if (parsed.version === 10 && Array.isArray(parsed.items)) {
@@ -627,7 +629,7 @@ export function loadDashboardLayout(): DashboardLayoutState {
       }
     }
 
-    const rawV9 = localStorage.getItem(STORAGE_KEY_V9);
+    const rawV9 = memStorage.getItem(STORAGE_KEY_V9);
     if (rawV9) {
       const parsed = JSON.parse(rawV9) as StoredDashboardLayout;
       if (parsed.version === 9 && Array.isArray(parsed.items)) {
@@ -635,7 +637,7 @@ export function loadDashboardLayout(): DashboardLayoutState {
       }
     }
 
-    const rawV8 = localStorage.getItem(STORAGE_KEY_V8);
+    const rawV8 = memStorage.getItem(STORAGE_KEY_V8);
     if (rawV8) {
       const parsed = JSON.parse(rawV8) as StoredDashboardLayout;
       if (parsed.version === 8 && Array.isArray(parsed.items)) {
@@ -643,7 +645,7 @@ export function loadDashboardLayout(): DashboardLayoutState {
       }
     }
 
-    const rawV7 = localStorage.getItem(STORAGE_KEY_V7);
+    const rawV7 = memStorage.getItem(STORAGE_KEY_V7);
     if (rawV7) {
       const parsed = JSON.parse(rawV7) as StoredDashboardLayout;
       if (parsed.version === 7 && Array.isArray(parsed.items)) {
@@ -651,7 +653,7 @@ export function loadDashboardLayout(): DashboardLayoutState {
       }
     }
 
-    const rawV6 = localStorage.getItem(STORAGE_KEY_V6);
+    const rawV6 = memStorage.getItem(STORAGE_KEY_V6);
     if (rawV6) {
       const parsed = JSON.parse(rawV6) as StoredDashboardLayout;
       if (parsed.version === 6 && Array.isArray(parsed.items)) {
@@ -659,12 +661,12 @@ export function loadDashboardLayout(): DashboardLayoutState {
       }
     }
 
-    const rawV5 = localStorage.getItem(STORAGE_KEY_V5);
+    const rawV5 = memStorage.getItem(STORAGE_KEY_V5);
     if (rawV5) {
       return { version: 11, items: buildDefaultGridLayout() };
     }
 
-    const rawV4 = localStorage.getItem(STORAGE_KEY_V4);
+    const rawV4 = memStorage.getItem(STORAGE_KEY_V4);
     if (rawV4) {
       const parsed = JSON.parse(rawV4) as StoredDashboardLayout;
       if (parsed.version === 4 && Array.isArray(parsed.items)) {
@@ -672,7 +674,7 @@ export function loadDashboardLayout(): DashboardLayoutState {
       }
     }
 
-    const rawV3 = localStorage.getItem(STORAGE_KEY_V3);
+    const rawV3 = memStorage.getItem(STORAGE_KEY_V3);
     if (rawV3) {
       const parsed = JSON.parse(rawV3) as { version: number; items: GridLayout };
       if (parsed.version === 3 && Array.isArray(parsed.items)) {
@@ -680,7 +682,7 @@ export function loadDashboardLayout(): DashboardLayoutState {
       }
     }
 
-    const rawV2 = localStorage.getItem(STORAGE_KEY_V2);
+    const rawV2 = memStorage.getItem(STORAGE_KEY_V2);
     if (rawV2) {
       const parsed = JSON.parse(rawV2) as { version: number; items: GridLayout };
       if (parsed.version === 2 && Array.isArray(parsed.items)) {
@@ -688,7 +690,7 @@ export function loadDashboardLayout(): DashboardLayoutState {
       }
     }
 
-    const rawV1 = localStorage.getItem(STORAGE_KEY_V1);
+    const rawV1 = memStorage.getItem(STORAGE_KEY_V1);
     if (rawV1) {
       const parsed = JSON.parse(rawV1) as DashboardLayoutStateV1;
       return { version: 11, items: buildDefaultGridLayout() };
@@ -702,7 +704,7 @@ export function loadDashboardLayout(): DashboardLayoutState {
 export function saveDashboardLayout(layout: DashboardLayoutState, userId?: string | null): void {
   try {
     const key = userId ? `${STORAGE_KEY}:${userId}` : STORAGE_KEY;
-    localStorage.setItem(key, JSON.stringify({ version: 11, items: layout.items }));
+    memStorage.setItem(key, JSON.stringify({ version: 11, items: layout.items }));
   } catch {
     /* ignore */
   }
@@ -710,8 +712,8 @@ export function saveDashboardLayout(layout: DashboardLayoutState, userId?: strin
 
 export function loadDashboardLayoutFromCache(userId?: string | null): DashboardLayoutState | null {
   try {
-    const keyed = userId ? localStorage.getItem(`${STORAGE_KEY}:${userId}`) : null;
-    const raw = keyed || localStorage.getItem(STORAGE_KEY);
+    const keyed = userId ? memStorage.getItem(`${STORAGE_KEY}:${userId}`) : null;
+    const raw = keyed || memStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as DashboardLayoutState;
     if (parsed.version === 11 && Array.isArray(parsed.items)) {

@@ -1,9 +1,10 @@
 /**
- * Integration: TOTP 2FA setup + login flow
+ * Integration: TOTP 2FA setup + login flow (isolated user — does not mutate audit_admin).
  */
 import { describe, it, before } from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
+import { isAuditServerUp, resolveAuditSession, auditLogin, extractSessionTokenFromResponse } from "./auditAuth.mjs";
 
 const BASE = process.env.AUDIT_BASE_URL || "http://127.0.0.1:8098";
 
@@ -42,64 +43,54 @@ function totpCode(secretBase32) {
 }
 
 let serverUp = false;
+let adminToken = "";
 let token = "";
-const login = `totp_test_${Date.now()}`;
-const password = "totp_pass_8xx";
-let sessionLogin = login;
-let sessionPassword = password;
+const totpLogin = `totp_audit_${Date.now()}`;
+const totpPassword = "totp_audit_pass8";
+
+async function seedTotpUser() {
+  const dataRes = await fetch(`${BASE}/api/data`, {
+    headers: { "X-Session-Token": adminToken },
+  });
+  assert.ok(dataRes.ok, `GET /api/data failed: ${dataRes.status}`);
+  const data = await dataRes.json();
+  const users = Array.isArray(data.users) ? [...data.users] : [];
+  const idx = users.findIndex((u) => u.login === totpLogin);
+  const row = {
+    id: idx >= 0 ? users[idx].id : `totp-audit-${Date.now()}`,
+    name: "TOTP Audit User",
+    email: `${totpLogin}@audit.local`,
+    role: "Editor",
+    login: totpLogin,
+    password: totpPassword,
+    passwordSet: true,
+    isCustom: true,
+  };
+  if (idx >= 0) users[idx] = { ...users[idx], ...row };
+  else users.push(row);
+  const payload = { ...data, users };
+  delete payload._revision;
+  const saveRes = await fetch(`${BASE}/api/data`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Session-Token": adminToken,
+      "X-Data-Revision": String(data._revision),
+    },
+    body: JSON.stringify(payload),
+  });
+  assert.ok(saveRes.ok, `seed totp user failed: ${saveRes.status}`);
+}
 
 before(async () => {
-  try {
-    const health = await fetch(`${BASE}/api/health`);
-    serverUp = health.ok;
-  } catch {
-    serverUp = false;
-  }
+  serverUp = await isAuditServerUp();
   if (!serverUp) return;
 
-  const setup = await (await fetch(`${BASE}/api/auth/setup-status`)).json();
-  if (setup.setupRequired) {
-    await fetch(`${BASE}/api/auth/setup`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ login, password, email: `${login}@test.local` }),
-    });
-    sessionLogin = login;
-    sessionPassword = password;
-  } else {
-    // create user via data API if admin exists
-    for (const [l, p] of [
-      [process.env.AUDIT_LOGIN, process.env.AUDIT_PASSWORD],
-      ["audit_admin", "audit_pass_8"],
-      ["verify_admin", "verify_pass_8"],
-    ]) {
-      if (!l || !p) continue;
-      const auth = await fetch(`${BASE}/api/auth/authenticate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ login: l, password: p, deviceFingerprint: "totp-test" }),
-      });
-      if (auth.ok) {
-        token = (await auth.json()).sessionToken;
-        sessionLogin = l;
-        sessionPassword = p;
-        break;
-      }
-    }
-  }
+  adminToken = await resolveAuditSession();
+  if (!adminToken) return;
 
-  if (!token) {
-    const auth = await fetch(`${BASE}/api/auth/authenticate`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ login, password, deviceFingerprint: "totp-test" }),
-    });
-    if (auth.ok) {
-      token = (await auth.json()).sessionToken;
-      sessionLogin = login;
-      sessionPassword = password;
-    }
-  }
+  await seedTotpUser();
+  token = await auditLogin(totpLogin, totpPassword, "totp-test");
 });
 
 describe("integration TOTP", () => {
@@ -150,20 +141,12 @@ describe("integration TOTP", () => {
     const statusBody = await status.json();
     assert.equal(statusBody.enabled, true, `status not enabled: ${JSON.stringify(statusBody)}`);
 
-    // get login from session user
-    const me = await fetch(`${BASE}/api/data`, { headers: { "X-Session-Token": token } });
-    const data = await me.json();
-    const users = data.users || [];
-    const sessionUser = users.find((u) => u.twoFactorEnabled);
-    assert.ok(sessionUser, "no user with twoFactorEnabled in client data");
-
-    const userLogin = sessionUser.login || sessionUser.email;
     const auth1 = await fetch(`${BASE}/api/auth/authenticate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        login: userLogin,
-        password: sessionPassword,
+        login: totpLogin,
+        password: totpPassword,
         deviceFingerprint: "totp-test-2",
       }),
     });
@@ -180,13 +163,17 @@ describe("integration TOTP", () => {
     });
     const auth2Body = await auth2.json().catch(() => ({}));
     assert.equal(auth2.status, 200, `auth totp step failed: ${auth2.status} ${JSON.stringify(auth2Body)}`);
-    assert.ok(auth2Body.sessionToken, "missing session after totp");
+    assert.ok(
+      extractSessionTokenFromResponse(auth2, auth2Body) || auth2Body.sessionId,
+      "missing session after totp"
+    );
 
-    // cleanup: disable 2FA
-    await fetch(`${BASE}/api/auth/totp/disable`, {
+    const disable = await fetch(`${BASE}/api/auth/totp/disable`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-Session-Token": token },
-      body: JSON.stringify({ code: code2 }),
+      body: JSON.stringify({ code: totpCode(secret) }),
     });
+    const disableBody = await disable.json().catch(() => ({}));
+    assert.equal(disable.status, 200, `disable failed: ${disable.status} ${JSON.stringify(disableBody)}`);
   });
 });

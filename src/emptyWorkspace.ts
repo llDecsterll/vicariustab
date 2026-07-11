@@ -1,6 +1,7 @@
 /*
  * Empty inventory workspace — no demo seed after purge
  */
+import { memStorage } from './utils/memoryStorage';
 import type {
   Activity,
   ComputerItem,
@@ -61,7 +62,7 @@ export function createPurgeActivityLog(actorName?: string): Activity {
   };
 }
 
-/** Remove inventory tables from browser cache (users/license/UI settings stay). */
+/** Remove inventory tables from in-memory cache (users/license/UI settings stay on server). */
 export function clearInventoryLocalStorage(): void {
   const keys = [
     'it_objects',
@@ -80,6 +81,6 @@ export function clearInventoryLocalStorage(): void {
     'it_deleted_warranties',
   ];
   for (const key of keys) {
-    localStorage.removeItem(key);
+    memStorage.removeItem(key);
   }
 }

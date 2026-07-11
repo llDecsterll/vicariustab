@@ -1,16 +1,32 @@
 /*
  * Authenticated API client
  */
-import { authHeaders, clearSessionCredentials } from './deviceFingerprint';
+import { authHeaders, clearSessionCredentials, sessionFetchInit } from './deviceFingerprint';
 
 export type ApiFetchResult<T> =
   | { ok: true; data: T; status: number }
   | { ok: false; status: number; error: string; code?: string; conflict?: boolean; payload?: unknown };
 
+export function newIdempotencyKey(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `idem-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
+}
+
+export function idempotencyHeaders(key?: string): Record<string, string> {
+  if (!key) return {};
+  return { 'Idempotency-Key': key };
+}
+
+const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+
 export async function apiFetch<T = unknown>(
   url: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  idempotencyKey?: string
 ): Promise<ApiFetchResult<T>> {
+  const method = (options.method || 'GET').toUpperCase();
   const headers: Record<string, string> = {
     ...(options.headers as Record<string, string> | undefined),
     ...authHeaders(),
@@ -18,9 +34,13 @@ export async function apiFetch<T = unknown>(
   if (options.body && !headers['Content-Type']) {
     headers['Content-Type'] = 'application/json';
   }
+  if (MUTATING_METHODS.has(method)) {
+    const key = idempotencyKey || headers['Idempotency-Key'] || newIdempotencyKey();
+    headers['Idempotency-Key'] = key;
+  }
 
   try {
-    const res = await fetch(url, { ...options, headers });
+    const res = await fetch(url, { ...sessionFetchInit, ...options, headers });
     const text = await res.text();
     let parsed: unknown = null;
     if (text) {

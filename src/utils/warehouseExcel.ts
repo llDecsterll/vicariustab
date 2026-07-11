@@ -19,6 +19,9 @@ export const WAREHOUSE_EXCEL_META_SHEET = 'Info';
 export const WAREHOUSE_EXCEL_META_SHEET_LEGACY = 'Инфо';
 export const WAREHOUSE_EXCEL_VERSION = 'vicariustab-warehouse-v1';
 
+/** Max upload size for warehouse Excel import (mitigates DoS via huge workbooks). */
+export const WAREHOUSE_EXCEL_MAX_BYTES = 25 * 1024 * 1024;
+
 /** Заголовки столбцов (рус.) — совпадают с экспортом и ожидаются при импорте */
 export const WAREHOUSE_EXCEL_HEADERS = [
   'ID',
@@ -578,7 +581,13 @@ function triggerBlobDownload(blob: Blob, filename: string): void {
 
 export async function parseWarehouseExcelBuffer(buffer: ArrayBuffer): Promise<WarehouseExcelRow[]> {
   const XLSX = await loadXlsx();
-  const wb = XLSX.read(buffer, { type: 'array', cellDates: true, codepage: 65001 });
+  const wb = XLSX.read(buffer, {
+    type: 'array',
+    cellDates: true,
+    codepage: 65001,
+    cellFormula: false,
+    sheetRows: 50_000,
+  });
   const sheet = findWarehouseDataSheet(wb, XLSX);
   if (!sheet) return [];
 
@@ -593,6 +602,9 @@ export async function parseWarehouseExcelBuffer(buffer: ArrayBuffer): Promise<Wa
 }
 
 export async function parseWarehouseExcelFile(file: File): Promise<WarehouseExcelRow[]> {
+  if (file.size > WAREHOUSE_EXCEL_MAX_BYTES) {
+    throw new Error('file too large');
+  }
   const buffer = await readFileAsArrayBuffer(file);
   if (!buffer.byteLength) {
     throw new Error('empty file');

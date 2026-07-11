@@ -57,15 +57,7 @@ export default function LoginScreen({ onLogin, workspaceName, siteLogo, setupCom
   const displayWorkspace = workspaceName ? t(workspaceName) : t('Инвентаризация оборудования');
 
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem('it_login_remember');
-      if (saved) {
-        setLoginInput(saved);
-        setRememberMe(true);
-      }
-    } catch {
-      /* ignore */
-    }
+    /* login is not remembered in browser — session cookie only */
   }, []);
 
   useEffect(() => {
@@ -79,12 +71,6 @@ export default function LoginScreen({ onLogin, workspaceName, siteLogo, setupCom
   }, []);
 
   const finishLogin = (userId: string) => {
-    try {
-      if (rememberMe) localStorage.setItem('it_login_remember', loginInput.trim());
-      else localStorage.removeItem('it_login_remember');
-    } catch {
-      /* ignore */
-    }
     setSuccess(true);
     setTimeout(() => {
       void onLogin(userId);

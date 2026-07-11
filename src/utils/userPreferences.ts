@@ -1,4 +1,5 @@
 import type { UserDashboardLayoutPreference, UserPreferences } from '../types';
+import { memStorage } from './memoryStorage';
 import { apiFetch, setDataRevisionHeader } from './apiClient';
 
 export type PatchUserPreferencesResult =
@@ -58,7 +59,7 @@ export function collectLocalPreferencesMigration(userId: string): Partial<UserPr
   const out: Partial<UserPreferences> = {};
 
   try {
-    const lang = localStorage.getItem('orbit_lang');
+    const lang = memStorage.getItem('orbit_lang');
     if (lang === 'ru' || lang === 'en' || lang === 'zh') {
       out.language = lang;
     }
@@ -67,8 +68,8 @@ export function collectLocalPreferencesMigration(userId: string): Partial<UserPr
   }
 
   try {
-    const keyed = localStorage.getItem(`vicariustab_dashboard_layout_v11:${userId}`);
-    const legacy = localStorage.getItem('vicariustab_dashboard_layout_v11');
+    const keyed = memStorage.getItem(`vicariustab_dashboard_layout_v11:${userId}`);
+    const legacy = memStorage.getItem('vicariustab_dashboard_layout_v11');
     const raw = keyed || legacy;
     if (raw) {
       const parsed = JSON.parse(raw) as { version?: number; items?: unknown[] };
@@ -81,7 +82,7 @@ export function collectLocalPreferencesMigration(userId: string): Partial<UserPr
   }
 
   try {
-    const auditId = localStorage.getItem('dashboard_selected_audit_id');
+    const auditId = memStorage.getItem('dashboard_selected_audit_id');
     if (auditId && auditId.length <= 128) {
       out.dashboardSelectedAuditId = auditId;
     }

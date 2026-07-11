@@ -10,6 +10,7 @@ import type {
   SoftwareItem,
   WarehouseItem,
 } from '../types';
+import { parseMemJson, WORKSPACE_MEM_KEYS } from './memoryStorage';
 import {
   buildAuditChecklist,
   computeAuditProgressFromRows,
@@ -613,7 +614,7 @@ export function buildDashboardAlerts(params: {
   const alerts: DashboardAlert[] = [];
 
   try {
-    const warranties = JSON.parse(localStorage.getItem('it_custom_warranties') || '{}');
+    const warranties = parseMemJson(WORKSPACE_MEM_KEYS.customWarranties, {});
     const today = new Date();
     for (const c of params.computers) {
       const purchase = warranties[c.inventoryNumber]?.purchaseDate;

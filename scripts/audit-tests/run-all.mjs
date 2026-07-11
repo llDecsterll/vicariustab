@@ -9,7 +9,12 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const BASE = process.env.AUDIT_BASE_URL || 'http://127.0.0.1:8098';
-const testEnv = { ...process.env, AUDIT_BASE_URL: BASE };
+const testEnv = {
+  ...process.env,
+  AUDIT_BASE_URL: BASE,
+  API_RATE_LIMIT_READ_MAX: process.env.API_RATE_LIMIT_READ_MAX || '5000',
+  API_RATE_LIMIT_WRITE_MAX: process.env.API_RATE_LIMIT_WRITE_MAX || '1000',
+};
 const tests = [
   'unit-equipment.mjs',
   'unit-lifecycle.mjs',
@@ -23,10 +28,13 @@ const tests = [
   'unit-backup-license.mjs',
   'unit-license-server.mjs',
   'unit-license-install.mjs',
+  'unit-totp.mjs',
+  'unit-api-protection.mjs',
   'integration-api.mjs',
+  'security.mjs',
   'integration-db-settings.mjs',
   'load-concurrent.mjs',
-  'security.mjs',
+  'integration-totp.mjs',
 ];
 
 let failed = 0;
@@ -44,7 +52,9 @@ for (const file of tests) {
       file === 'unit-warehouse-full-lifecycle.mjs' ||
       file === 'unit-routing.mjs' ||
       file === 'unit-license-server.mjs' ||
-      file === 'unit-license-install.mjs'
+      file === 'unit-license-install.mjs' ||
+      file === 'unit-totp.mjs' ||
+      file === 'unit-api-protection.mjs'
         ? ['--import', 'tsx/esm', '--test', filePath]
         : ['--test', filePath];
     const child = spawn(process.execPath, nodeArgs, {

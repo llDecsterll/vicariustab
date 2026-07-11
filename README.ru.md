@@ -1,4 +1,4 @@
-﻿<p align="center">
+<p align="center">
   <strong>Языки документации / Documentation languages / 文档语言</strong><br>
   <a href="README.md">English</a> ·
   <a href="README.ru.md"><b>Русский</b></a> ·
@@ -8,7 +8,7 @@
 # 🚀 Vicariustab
 
 <p align="center">
-  <img src="https://img.shields.io/badge/версия-2.0.15-blue?style=for-the-badge" alt="Version">
+  <img src="https://img.shields.io/badge/версия-2.0.21-blue?style=for-the-badge" alt="Version">
   <img src="https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&style=for-the-badge" alt="Docker Ready">
   <img src="https://img.shields.io/badge/Node.js-20+-339933?logo=node.js&style=for-the-badge" alt="Node.js 20">
   <img src="https://img.shields.io/badge/PM2-Supported-blue?style=for-the-badge" alt="PM2">
@@ -78,6 +78,7 @@
 - [Структура проекта](#-структура-проекта)
 - [Переменные окружения](#-переменные-окружения)
 - [Обновление системы](#-обновление-системы)
+- [План полной проверки](#-план-полной-проверки)
 - [Устранение неполадок](#-устранение-неполадок)
 - [Авторское право](#-авторское-право)
 - [Контакты](#-контакты)
@@ -161,10 +162,13 @@
 - AES-256-CBC шифрование данных
 - **Хеширование паролей scrypt** (пароли не хранятся в открытом виде)
 - **Серверная аутентификация** — вход без учётной записи невозможен
+- **HttpOnly cookie-сессия** (`vt_session`) — токен не сохраняется в браузере
 - **Обязательная первоначальная настройка** — нет демо-доступа и предустановленных пользователей
+- **Централизованное хранение данных** — workspace, лицензия и настройки только в БД сервера (`db.json` / MySQL / PostgreSQL); браузер не запоминает данные между сессиями
+- **API rate limit по IP** и **Idempotency-Key** для mutating-запросов
 - Защищённое хранение параметров подключения к СУБД
 - Автоматическое переподключение и мониторинг состояния БД
-- Резервное копирование с исключением лицензионных полей
+- Резервное копирование с исключением лицензионных полей (JSON v3.0 с сервера + `.enc`)
 - Ролевой доступ (Admin / Editor / Viewer)
 - Работа в распределённой инфраструктуре (Docker, PM2, MySQL, PostgreSQL)
 
@@ -179,16 +183,20 @@
 - 30 дней бесплатного использования
 - Отсчёт начинается после первого запуска
 
+### Активация на сервере (для всех пользователей)
+
+Лицензионный ключ вводит **администратор** в **Настройки → Лицензия**. Ключ сохраняется в **базе данных сервера** (`db.json` или SQL) и действует для **всей установки** — все пользователи получают один статус после синхронизации (poll ~30 с или перезагрузка страницы).
+
 ### Перенос базы на другой компьютер
 
 Ключ активации **привязан к MAC-адресу** конкретной установки (Ed25519, формат `UTKIN-...`).
 
-> **Важно:** после восстановления резервной копии базы на **новом компьютере** продукт нужно **активировать повторно** — ключом, выданным на MAC этого сервера. Официальные резервные копии **не содержат** ключ активации (JSON-экспорт и зашифрованный `.enc`).
+> **Важно:** после восстановления резервной копии на **новом компьютере** продукт нужно **активировать повторно** — ключом, выданным на MAC этого сервера. Официальные резервные копии **не содержат** ключ активации.
 
 | Способ переноса | Ключ активации |
 |-----------------|----------------|
-| **JSON-экспорт** (Настройки → резервная копия платформы) | **Исключается** — не копируется в файл |
-| **Скачать копию / Восстановить** (.enc, AES-256-CBC) | **Удаляется** при экспорте и импорте |
+| **JSON v3.0** (Настройки → «Создать резервную копию» — экспорт с сервера) | **Исключается** |
+| **Скачать копию / Восстановить** (`.enc`, AES-256-CBC, `/api/backup`) | **Исключается** при экспорте и импорте |
 | Ручное копирование `db.json` | **Не рекомендуется** — может содержать старый MAC и ключ |
 
 На **новом компьютере** после официального восстановления:
@@ -533,15 +541,16 @@ npm run dev
 
 > `npm run dev` запускает TypeScript-сервер через **tsx** (уже в `devDependencies`, отдельно ставить не нужно).
 
-Откройте `http://localhost:3000` (или порт из `.env`). Для проверки «чистой» установки удалите файлы данных и перезапустите сервер:
+Откройте `http://localhost:3000` (или порт из `.env`). Для проверки «чистой» установки удалите файлы данных в каталоге сервера и перезапустите:
 
 ```bash
+# из корня product или из STACK_DATA_DIR
 rm -f db.json store_meta.json sessions_store.enc db_config.json
 ```
 
 Если меняли `DB_ENCRYPTION_KEY`, обязательно удалите `sessions_store.enc` — иначе в логах будет предупреждение о расшифровке сессий (сервер продолжит работу).
 
-Если браузер показывает старый экран входа — очистите данные сайта для `localhost` (или откройте в режиме инкognito).
+> Данные workspace **не хранятся в браузере** — очистка localStorage не требуется. Достаточно сброса файлов на сервере.
 
 ### Проверка установки (smoke-тесты)
 
@@ -568,7 +577,9 @@ npm run test:unit
 npm run test:audit
 ```
 
-Ожидается: `ALL TESTS PASSED`, `INSTALL CHECKS PASSED` и отсутствие ошибок i18n.
+Ожидается: `ALL AUDIT TESTS PASSED`, `INSTALL CHECKS PASSED` и отсутствие ошибок i18n.
+
+Полный чеклист регрессии: [`docs/VERIFICATION_PLAN.ru.md`](./docs/VERIFICATION_PLAN.ru.md)
 
 ---
 
@@ -723,6 +734,9 @@ vicariustab/
 │   └── config/                   # Версия, репозиторий обновлений
 ├── server/                       # API, хеширование паролей, seed-данные
 │   ├── apiAuth.ts                # Middleware auth + license gate
+│   ├── apiRateLimit.ts           # IP throttling API
+│   ├── idempotency.ts            # Idempotency-Key для POST/PUT/PATCH/DELETE
+│   ├── sessionCookie.ts          # HttpOnly cookie vt_session
 │   ├── dataStore.ts              # JSON/SQL persistence
 │   ├── sessionEngine.ts          # Сессии и уведомления
 │   ├── updateEngine.ts           # GitHub auto-update
@@ -746,10 +760,13 @@ vicariustab/
 │   ├── verify-install.mjs        # npm run verify:install — health/setup
 │   ├── setup-domain.mjs          # npm run setup:domain — домен + HTTPS
 │   └── capture-screenshots.mjs   # npm run screenshots — скриншоты README
-├── docs/screenshots/
-│   ├── ru/                       # Скриншоты (README.ru.md)
-│   ├── en/                       # Screenshots (README.md)
-│   └── zh/                       # 截图 (README.zh-CN.md)
+├── docs/
+│   ├── VERIFICATION_PLAN.ru.md   # План полной проверки функционала
+│   ├── FILES_INDEX.md            # Каталог файлов product
+│   └── screenshots/
+│       ├── ru/                   # Скриншоты (README.ru.md)
+│       ├── en/                   # Screenshots (README.md)
+│       └── zh/                   # 截图 (README.zh-CN.md)
 ├── package.json
 ├── .env.example
 ├── README.md                     # English
@@ -790,6 +807,11 @@ vicariustab/
 | `STACK_TLS_EMAIL` | Email для Let's Encrypt |
 | `TRUST_PROXY` | `true` за Nginx/Caddy |
 | `STACK_FORCE_HTTPS` | Редирект HTTP → HTTPS при `true` |
+| `API_RATE_LIMIT_READ_MAX` | Лимит read-запросов API с IP в минуту (по умолчанию 240) |
+| `API_RATE_LIMIT_WRITE_MAX` | Лимит write-запросов API с IP в минуту (по умолчанию 48) |
+| `API_RATE_LIMIT_WINDOW_MS` | Окно rate limit в мс (по умолчанию 60000) |
+| `IDEMPOTENCY_TTL_MS` | TTL кэша Idempotency-Key (по умолчанию 24 ч) |
+| `IDEMPOTENCY_MAX_ENTRIES` | Макс. записей idempotency (по умолчанию 10000) |
 
 Пример `.env`:
 
@@ -847,7 +869,15 @@ pm2 restart deploy/ecosystem.config.cjs --env production
 
 ### Через интерфейс
 
-**Настройки** → **Центр управления обновлениями Vicariustab** — проверка релизов на GitHub.
+**Настройки** → **Центр управления обновлениями Vicariustab** — проверка релизов на GitHub и установка по кнопке «Установить обновление» (только Admin после активации лицензии). Перед обновлением создаётся резервная копия данных на сервере.
+
+---
+
+# 📋 План полной проверки
+
+Пошаговый регрессионный план (установка, CRUD, настройки, СУБД, обновления, безопасность):
+
+[`docs/VERIFICATION_PLAN.ru.md`](./docs/VERIFICATION_PLAN.ru.md)
 
 ---
 
@@ -855,7 +885,9 @@ pm2 restart deploy/ecosystem.config.cjs --env production
 
 | Проблема | Решение |
 |----------|---------|
-| **Не появляется мастер настройки** | Удалите `db.json`, `store_meta.json`, `sessions_store.enc` в `STACK_DATA_DIR`; очистите данные сайта в браузере |
+| **Не появляется мастер настройки** | Удалите `db.json`, `store_meta.json`, `sessions_store.enc` в `STACK_DATA_DIR`; перезапустите сервер |
+| **Долгая загрузка после входа** | Экран «Загрузка данных с сервера…» — норма; проверьте `GET /api/data` и сессию |
+| **Старые данные в UI** | Данные только на сервере — проверьте `STACK_DATA_DIR`, не localStorage |
 | **Ошибка Sessions / bad decrypt** | Сменили `DB_ENCRYPTION_KEY` — удалите `sessions_store.enc` и перезапустите сервер |
 | **«Неверный логин или пароль»** | Используйте данные из первоначальной настройки; учётных записей `admin`/`admin` нет |
 | **Connection refused к СУБД из Docker** | Хост `172.17.0.1`; MySQL: `bind-address=0.0.0.0`; или `docker-compose.host.yml` |

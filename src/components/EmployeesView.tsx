@@ -8,6 +8,7 @@
  * Release
  */
 import React, { useState } from 'react';
+import { memStorage } from '../utils/memoryStorage';
 import { useTranslation } from '../utils/i18n';
 import { interpolate } from '../utils/localeRuntime';
 import { Users, Plus, Search, Trash2, Edit2, ShieldAlert, Laptop, Briefcase, Mail, Phone, ArrowLeftRight, Check, X, MapPin, Building2 } from 'lucide-react';
@@ -49,11 +50,11 @@ export default function EmployeesView({
   const [selectedObjectFilter, setSelectedObjectFilter] = useState<string>('Все объекты');
 
   const [customDepts, setCustomDepts] = useState<string[]>(() => {
-    const saved = localStorage.getItem('it_custom_departments');
+    const saved = memStorage.getItem('it_custom_departments');
     return saved ? JSON.parse(saved) : [];
   });
   const [removedDepts, setRemovedDepts] = useState<string[]>(() => {
-    const saved = localStorage.getItem('it_removed_departments');
+    const saved = memStorage.getItem('it_removed_departments');
     return saved ? JSON.parse(saved) : [];
   });
   const [showDeptModal, setShowDeptModal] = useState(false);
@@ -164,8 +165,8 @@ export default function EmployeesView({
   const departmentsList = ['Все отделы', ...allDepartments];
 
   const persistDepartments = (custom: string[], removed: string[]) => {
-    localStorage.setItem('it_custom_departments', JSON.stringify(custom));
-    localStorage.setItem('it_removed_departments', JSON.stringify(removed));
+    memStorage.setItem('it_custom_departments', JSON.stringify(custom));
+    memStorage.setItem('it_removed_departments', JSON.stringify(removed));
   };
 
   const handleAddDepartment = (deptName: string) => {

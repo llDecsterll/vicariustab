@@ -1,4 +1,5 @@
 import type { ComputerItem, EmployeeItem, NetworkDevice, WarehouseItem, WarehouseWriteOff } from '../types';
+import { parseMemJson, WORKSPACE_MEM_KEYS } from './memoryStorage';
 
 export type ReportLifecycleStatus =
   | 'На складе'
@@ -352,7 +353,8 @@ export function buildRepairHistory(
 
 export function loadWarrantyPurchaseDates(): Record<string, WarrantyLookup> {
   try {
-    const saved = localStorage.getItem('it_custom_warranties');
+    const custom = parseMemJson(WORKSPACE_MEM_KEYS.customWarranties, {});
+    const saved = Object.keys(custom).length > 0 ? JSON.stringify(custom) : null;
     if (!saved) return {};
     const parsed = JSON.parse(saved) as Record<string, WarrantyLookup>;
     return parsed && typeof parsed === 'object' ? parsed : {};

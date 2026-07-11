@@ -1,7 +1,7 @@
 /*
  * Server workspace persistence with revision conflict retry
  */
-import { apiFetch, setDataRevisionHeader } from './apiClient';
+import { apiFetch, setDataRevisionHeader, newIdempotencyKey } from './apiClient';
 
 export type PersistResult =
   | { ok: true; revision: number }
@@ -13,13 +13,18 @@ export async function persistWorkspaceState(
   maxRetries = 0
 ): Promise<PersistResult> {
   let attemptRevision = revision;
+  const idempotencyKey = newIdempotencyKey();
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    const result = await apiFetch<{ success?: boolean; revision?: number }>('/api/data', {
-      method: 'POST',
-      headers: setDataRevisionHeader(attemptRevision),
-      body: JSON.stringify(payload),
-    });
+    const result = await apiFetch<{ success?: boolean; revision?: number }>(
+      '/api/data',
+      {
+        method: 'POST',
+        headers: setDataRevisionHeader(attemptRevision),
+        body: JSON.stringify(payload),
+      },
+      idempotencyKey
+    );
 
     if (result.ok) {
       const rev = result.data?.revision;
@@ -63,12 +68,14 @@ export async function purgeWorkspaceOnServer(
   | { ok: true; data: Record<string, unknown>; revision: number }
   | { ok: false; error: string; status: number }
 > {
+  const idempotencyKey = newIdempotencyKey();
   const result = await apiFetch<{ success?: boolean; revision?: number; data?: Record<string, unknown> }>(
     '/api/data/purge-workspace',
     {
       method: 'POST',
       headers: setDataRevisionHeader(revision),
-    }
+    },
+    idempotencyKey
   );
 
   if (result.ok === false) {

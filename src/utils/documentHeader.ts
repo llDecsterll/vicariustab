@@ -1,6 +1,7 @@
 /*
- * Custom document letterhead — cached in localStorage, synced via workspace payload.
+ * Custom document letterhead — in-memory cache, synced via workspace payload on server.
  */
+import { memStorage } from './memoryStorage';
 
 export type DocumentHeaderLineSize = 'sm' | 'md' | 'lg';
 
@@ -115,7 +116,7 @@ export function normalizeDocumentHeaderConfig(raw: Partial<DocumentHeaderConfig>
 
 export function loadDocumentHeader(): DocumentHeaderConfig {
   try {
-    const saved = localStorage.getItem(DOCUMENT_HEADER_STORAGE_KEY);
+    const saved = memStorage.getItem(DOCUMENT_HEADER_STORAGE_KEY);
     if (!saved) return { ...DEFAULT_DOCUMENT_HEADER };
     return normalizeDocumentHeaderConfig(JSON.parse(saved) as Partial<DocumentHeaderConfig>);
   } catch {
@@ -124,14 +125,14 @@ export function loadDocumentHeader(): DocumentHeaderConfig {
 }
 
 export function saveDocumentHeader(config: DocumentHeaderConfig): void {
-  localStorage.setItem(DOCUMENT_HEADER_STORAGE_KEY, JSON.stringify(normalizeDocumentHeaderConfig(config)));
+  memStorage.setItem(DOCUMENT_HEADER_STORAGE_KEY, JSON.stringify(normalizeDocumentHeaderConfig(config)));
   window.dispatchEvent(new CustomEvent(DOCUMENT_HEADER_CHANGED));
 }
 
 /** Reset letterhead to empty defaults (first install / workspace reset). */
 export function clearDocumentHeaderLocalStorage(): void {
-  localStorage.removeItem(DOCUMENT_HEADER_STORAGE_KEY);
-  localStorage.removeItem(DOCUMENT_HEADER_PRESETS_KEY);
+  memStorage.removeItem(DOCUMENT_HEADER_STORAGE_KEY);
+  memStorage.removeItem(DOCUMENT_HEADER_PRESETS_KEY);
   window.dispatchEvent(new CustomEvent(DOCUMENT_HEADER_CHANGED));
 }
 
@@ -155,7 +156,7 @@ export function applyDocumentHeaderFromServer(config: unknown, presets?: unknown
 
 export function loadDocumentHeaderPresets(): DocumentHeaderPreset[] {
   try {
-    const saved = localStorage.getItem(DOCUMENT_HEADER_PRESETS_KEY);
+    const saved = memStorage.getItem(DOCUMENT_HEADER_PRESETS_KEY);
     if (!saved) return [];
     const parsed = JSON.parse(saved);
     if (!Array.isArray(parsed)) return [];
@@ -173,7 +174,7 @@ export function loadDocumentHeaderPresets(): DocumentHeaderPreset[] {
 }
 
 export function saveDocumentHeaderPresets(presets: DocumentHeaderPreset[]): void {
-  localStorage.setItem(DOCUMENT_HEADER_PRESETS_KEY, JSON.stringify(presets));
+  memStorage.setItem(DOCUMENT_HEADER_PRESETS_KEY, JSON.stringify(presets));
   window.dispatchEvent(new CustomEvent(DOCUMENT_HEADER_CHANGED));
 }
 
@@ -289,7 +290,7 @@ function escapeHtml(text: string): string {
     .replace(/"/g, '&quot;');
 }
 
-/** Static HTML for isolated print — always from localStorage config. */
+/** Static HTML for isolated print — always from memStorage config. */
 export function buildDocumentHeaderHtml(config = loadDocumentHeader()): string {
   if (!hasActiveDocumentHeader(config)) return '';
 

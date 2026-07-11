@@ -1,6 +1,7 @@
 /*
- * Local draft storage for interactive act editor (localStorage only).
+ * Session draft storage for interactive act editor (in-memory; synced via server on save).
  */
+import { memStorage } from './memoryStorage';
 import type { SystemUser } from '../types';
 import { formatPersonShortName } from './personName';
 
@@ -35,7 +36,7 @@ export function actDraftKey(itemType: string, itemId: string): string {
 
 export function loadActDraft(key: string): ActDraftRecord | null {
   try {
-    const raw = localStorage.getItem(key);
+    const raw = memStorage.getItem(key);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as ActDraftRecord;
     if (!parsed || typeof parsed.actNumber !== 'string' || !Array.isArray(parsed.clauses)) return null;
@@ -47,12 +48,12 @@ export function loadActDraft(key: string): ActDraftRecord | null {
 
 export function saveActDraft(key: string, state: ActFormState): ActDraftRecord {
   const record: ActDraftRecord = { ...state, savedAt: new Date().toISOString() };
-  localStorage.setItem(key, JSON.stringify(record));
+  memStorage.setItem(key, JSON.stringify(record));
   return record;
 }
 
 export function clearActDraft(key: string): void {
-  localStorage.removeItem(key);
+  memStorage.removeItem(key);
 }
 
 /** Strip leading "N. " and prefix with new index for display. */
@@ -63,12 +64,12 @@ export function formatClauseNumber(text: string, index: number): string {
 
 export function clearActDraftLocalStorage(): void {
   const keysToRemove: string[] = [];
-  for (let i = 0; i < localStorage.length; i++) {
-    const key = localStorage.key(i);
+  for (let i = 0; i < memStorage.length; i++) {
+    const key = memStorage.key(i);
     if (key?.startsWith(ACT_DRAFT_STORAGE_PREFIX)) keysToRemove.push(key);
   }
   for (const key of keysToRemove) {
-    localStorage.removeItem(key);
+    memStorage.removeItem(key);
   }
 }
 

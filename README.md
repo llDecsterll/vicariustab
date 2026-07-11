@@ -1,4 +1,4 @@
-﻿<p align="center">
+<p align="center">
   <strong>Documentation languages / Языки документации / 文档语言</strong><br>
   <a href="README.md"><b>English</b></a> ·
   <a href="README.ru.md">Русский</a> ·
@@ -8,7 +8,7 @@
 # 🚀 Vicariustab
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.0.15-blue?style=for-the-badge" alt="Version">
+  <img src="https://img.shields.io/badge/version-2.0.21-blue?style=for-the-badge" alt="Version">
   <img src="https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&style=for-the-badge" alt="Docker Ready">
   <img src="https://img.shields.io/badge/Node.js-20+-339933?logo=node.js&style=for-the-badge" alt="Node.js 20">
   <img src="https://img.shields.io/badge/PM2-Supported-blue?style=for-the-badge" alt="PM2">
@@ -161,10 +161,13 @@ Repository: [github.com/llDecsterll/vicariustab](https://github.com/llDecsterll/
 - AES-256-CBC data encryption
 - **Scrypt password hashing** (passwords are never stored in plain text)
 - **Server-side authentication** — login without a valid account is impossible
+- **HttpOnly session cookie** (`vt_session`) — token is not stored in the browser
 - **Mandatory first-run setup** — no demo access or preset user accounts
+- **Centralized server storage** — workspace, license, and settings live in the server DB only; the browser does not persist user data between sessions
+- **API IP rate limiting** and **Idempotency-Key** support for mutating requests
 - Encrypted DB connection credentials
 - Automatic DB reconnect and health monitoring
-- Backup with license fields excluded
+- Backup with license fields excluded (JSON v3.0 from server + `.enc`)
 - Role-based access (Admin / Editor / Viewer)
 - Distributed deployment (Docker, PM2, MySQL, PostgreSQL)
 
@@ -179,16 +182,20 @@ Hardware-bound activation.
 - 30 days free use
 - Countdown starts on first launch
 
+### Server activation (all users)
+
+An **Admin** enters the license key under **Settings → License**. The key is stored in the **server database** and applies to the **whole installation** — all users see the same status after sync (~30 s poll or page reload).
+
 ### Moving the database to another computer
 
 Activation keys are **bound to the MAC address** of each installation (Ed25519, `UTKIN-...` format).
 
-> **Important:** when you restore a database backup on a **new computer**, Vicariustab must be **activated again** with a license key issued for that machine's MAC. Official backups **never contain** the activation key — this is enforced for JSON export and encrypted `.enc` backup.
+> **Important:** when you restore a database backup on a **new computer**, Vicariustab must be **activated again** with a license key issued for that machine's MAC. Official backups **never contain** the activation key.
 
 | Transfer method | License key |
 |-----------------|-------------|
-| **JSON export** (Settings → platform backup) | **Excluded** — not copied into the file |
-| **Download / Restore** (.enc, AES-256-CBC) | **Stripped** on export and import |
+| **JSON v3.0** (Settings → create platform backup — export from server) | **Excluded** |
+| **Download / Restore** (.enc, AES-256-CBC, `/api/backup`) | **Excluded** on export and import |
 | Manual copy of `db.json` | **Not recommended** — may retain old MAC and key |
 
 On a **new computer** after an official restore:
@@ -531,7 +538,7 @@ npm run dev
 
 > `npm run dev` runs the TypeScript server via **tsx** (included in `devDependencies`).
 
-Open `http://localhost:3000` (or the port from your `.env`). For a clean first-run test, delete data files and restart:
+Open `http://localhost:3000` (or the port from your `.env`). For a clean first-run test, delete data files in the server data directory and restart:
 
 ```bash
 rm -f db.json store_meta.json sessions_store.enc db_config.json
@@ -539,7 +546,7 @@ rm -f db.json store_meta.json sessions_store.enc db_config.json
 
 If you changed `DB_ENCRYPTION_KEY`, delete `sessions_store.enc` as well — otherwise you may see a session decrypt warning in logs (the server still runs).
 
-If the browser still shows an old login screen, clear site data for `localhost` (or use a private/incognito window).
+> Workspace data is **not stored in the browser** — clearing localStorage is not required. Reset server data files only.
 
 ### Verify installation (smoke tests)
 
@@ -566,7 +573,9 @@ For the full audit test suite (server must be running):
 npm run test:audit
 ```
 
-Expected: `ALL TESTS PASSED`, `INSTALL CHECKS PASSED`, and no i18n key errors.
+Expected: `ALL AUDIT TESTS PASSED`, `INSTALL CHECKS PASSED`, and no i18n key errors.
+
+Full regression checklist: [`docs/VERIFICATION_PLAN.ru.md`](./docs/VERIFICATION_PLAN.ru.md) (Russian).
 
 ---
 
@@ -744,10 +753,13 @@ vicariustab/
 │   ├── verify-install.mjs        # npm run verify:install — health/setup
 │   ├── setup-domain.mjs          # npm run setup:domain — domain + HTTPS
 │   └── capture-screenshots.mjs   # npm run screenshots — README images
-├── docs/screenshots/
-│   ├── ru/                       # README.ru.md
-│   ├── en/                       # README.md
-│   └── zh/                       # README.zh-CN.md
+├── docs/
+│   ├── VERIFICATION_PLAN.ru.md   # Full regression checklist (RU)
+│   ├── FILES_INDEX.md            # File catalog
+│   └── screenshots/
+│       ├── ru/
+│       ├── en/
+│       └── zh/
 ├── package.json
 ├── .env.example
 ├── README.md                     # English

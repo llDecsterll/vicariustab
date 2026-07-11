@@ -3,6 +3,7 @@
  */
 import crypto from "crypto";
 import type { Request, Response, NextFunction } from "express";
+import { readSessionCookie } from "./sessionCookie.ts";
 import { resolveSessionFromToken, type UserSessionRecord } from "./sessionEngine.ts";
 import { evaluateLicenseFromState, isLicenseActivationPayload } from "./licenseCore.ts";
 import { findUserByLogin, loadApplicationData, type StoredUser } from "./dataStore.ts";
@@ -13,6 +14,8 @@ export interface AuthedRequest extends Request {
 }
 
 export function readSessionToken(req: Request): string {
+  const cookieToken = readSessionCookie(req);
+  if (cookieToken) return cookieToken;
   const header = String(req.headers["x-session-token"] || "").trim();
   if (header) return header;
   const auth = String(req.headers.authorization || "");

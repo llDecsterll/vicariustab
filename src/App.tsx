@@ -27,7 +27,6 @@ const WarrantiesView = lazy(() => import('./components/WarrantiesView'));
 const ReportsView = lazy(() => import('./components/ReportsView'));
 const ActivityLogView = lazy(() => import('./components/ActivityLogView'));
 const SettingsView = lazy(() => import('./components/SettingsView'));
-const SecurityView = lazy(() => import('./components/SecurityView'));
 const SoftwareView = lazy(() => import('./components/SoftwareView'));
 const DetailModal = lazy(() => import('./components/DetailModal'));
 import { useTranslation } from './utils/i18n';
@@ -46,7 +45,8 @@ import {
 } from './initialData';
 
 import { ObjectItem, NetworkDevice, ComputerItem, EmployeeItem, EmployeeStatus, WarehouseItem, WarehouseItemType, Activity, InventoryAudit, SystemUser, UserRole, SoftwareItem, ComputerCategory, CustomWarehouse, WarehouseWriteOff, UserPreferences } from './types';
-import { getLicenseStatus, activateSystem, deactivateSystem, getSystemRequestCode, applyLicenseStateFromServer, getLicenseSecuritySnapshot, canUseWarehouseExcel } from './utils/license';
+import { getLicenseStatus, activateSystem, deactivateSystem, getSystemRequestCode, applyLicenseStateFromServer, getLicenseWorkspaceFields, canUseWarehouseExcel } from './utils/license';
+import { purgeLegacyBrowserStorage, applyWorkspaceMemFieldsFromServer, getWorkspaceMemFieldsForPayload } from './utils/memoryStorage';
 import { checkForPlatformUpdate, markInstalledCommit, buildUpdateNotificationText, shouldNotifyForUpdate, markUpdateNotified } from './utils/updateCheck';
 import { APP_VERSION } from './config/appConfig';
 import {
@@ -98,8 +98,9 @@ import {
   sessionHeartbeat,
   logoutUserSession,
   markSessionNotificationsRead,
+  fetchCurrentSession,
 } from './utils/sessionAuth';
-import { getStoredSessionToken, clearSessionCredentials, authHeaders } from './utils/deviceFingerprint';
+import { hasStoredSession, clearSessionCredentials, authHeaders, sessionFetch } from './utils/deviceFingerprint';
 import { apiFetch } from './utils/apiClient';
 import { persistWorkspaceState, purgeWorkspaceOnServer } from './utils/workspaceSync';
 import { applyWriteOffRestore } from './utils/restoreWriteOff';
@@ -180,6 +181,8 @@ export default function App() {
   }, []);
 
   const [isLoadedFromServer, setIsLoadedFromServer] = useState<boolean>(false);
+  const [serverLoadError, setServerLoadError] = useState('');
+  const [serverLoadAttempt, setServerLoadAttempt] = useState(0);
   const [dataRevision, setDataRevision] = useState<number | null>(null);
   const dataRevisionRef = useRef<number | null>(null);
   const [saveError, setSaveError] = useState('');
@@ -197,9 +200,7 @@ export default function App() {
 
   // Navigation & UI Layout states
   const [activeTab, setActiveTab] = useState<string>('dashboard');
-  const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
-    return localStorage.getItem('it_sidebar_hidden') === '1';
-  });
+  const [isCollapsed, setIsCollapsed] = useState<boolean>(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [equipmentOpen, setEquipmentOpen] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -231,151 +232,72 @@ export default function App() {
     return () => mq.removeEventListener('change', closeOnDesktop);
   }, []);
 
-  // 1. Data States with LocalStorage Persistence
-  const [objects, setObjects] = useState<ObjectItem[]>(() => {
-    const saved = localStorage.getItem('it_objects');
-    return saved ? JSON.parse(saved) : initialObjects;
-  });
+  const [objects, setObjects] = useState<ObjectItem[]>(() => initialObjects);
 
-  const [networkDevices, setNetworkDevices] = useState<NetworkDevice[]>(() => {
-    const saved = localStorage.getItem('it_network');
-    return saved ? JSON.parse(saved) : initialNetworkDevices;
-  });
+  const [networkDevices, setNetworkDevices] = useState<NetworkDevice[]>(() => initialNetworkDevices);
 
-  const [computers, setComputers] = useState<ComputerItem[]>(() => {
-    const saved = localStorage.getItem('it_computers');
-    return saved ? JSON.parse(saved) : initialComputers;
-  });
+  const [computers, setComputers] = useState<ComputerItem[]>(() => initialComputers);
 
-  const [employees, setEmployees] = useState<EmployeeItem[]>(() => {
-    const saved = localStorage.getItem('it_employees');
-    return saved ? JSON.parse(saved) : initialEmployees;
-  });
+  const [employees, setEmployees] = useState<EmployeeItem[]>(() => initialEmployees);
 
-  const [warehouseItems, setWarehouseItems] = useState<WarehouseItem[]>(() => {
-    const saved = localStorage.getItem('it_warehouse');
-    const loaded: WarehouseItem[] = saved ? JSON.parse(saved) : initialWarehouseItems;
-    return repairWarehousePendingDuplicates(loaded);
-  });
+  const [warehouseItems, setWarehouseItems] = useState<WarehouseItem[]>(() =>
+    repairWarehousePendingDuplicates(initialWarehouseItems)
+  );
 
-  const [activities, setActivities] = useState<Activity[]>(() => {
-    const saved = localStorage.getItem('it_activities');
-    let loaded: Activity[] = saved ? JSON.parse(saved) : initialActivities;
-    const seenIds = new Set<string>();
-    loaded = loaded.map((act, index) => {
-      if (!act.id || seenIds.has(act.id)) {
-        const uniqueId = `act-${Date.now()}-${index}-${Math.floor(Math.random() * 1000000)}`;
-        seenIds.add(uniqueId);
-        return { ...act, id: uniqueId };
-      }
-      seenIds.add(act.id);
-      return act;
-    });
-    return loaded;
-  });
+  const [activities, setActivities] = useState<Activity[]>(() => initialActivities);
 
-  const [audits, setAudits] = useState<InventoryAudit[]>(() => {
-    const saved = localStorage.getItem('it_audits');
-    return saved ? JSON.parse(saved) : initialAudits;
-  });
+  const [audits, setAudits] = useState<InventoryAudit[]>(() => initialAudits);
 
-  const [softwareItems, setSoftwareItems] = useState<SoftwareItem[]>(() => {
-    const saved = localStorage.getItem('it_software');
-    return saved ? JSON.parse(saved) : initialSoftwareItems;
-  });
+  const [softwareItems, setSoftwareItems] = useState<SoftwareItem[]>(() => initialSoftwareItems);
 
-  const [warehouses, setWarehouses] = useState<CustomWarehouse[]>(() => {
-    const saved = localStorage.getItem('it_custom_warehouses');
-    const parsedWh: CustomWarehouse[] = saved
-      ? JSON.parse(saved)
-      : [createDefaultWarehouse(initialObjects)];
-    const parsedItems: WarehouseItem[] = JSON.parse(localStorage.getItem('it_warehouse') || '[]');
-    const parsedObjects: ObjectItem[] = JSON.parse(
-      localStorage.getItem('it_objects') || JSON.stringify(initialObjects)
-    );
-    const parsedWriteOffs: WarehouseWriteOff[] = JSON.parse(
-      localStorage.getItem('it_warehouse_writeoffs') || '[]'
-    );
-    return reconcileWarehouses(parsedWh, parsedItems, parsedObjects, parsedWriteOffs);
-  });
+  const [warehouses, setWarehouses] = useState<CustomWarehouse[]>(() =>
+    reconcileWarehouses(
+      [createDefaultWarehouse(initialObjects)],
+      initialWarehouseItems,
+      initialObjects,
+      []
+    )
+  );
 
-  const [warehouseWriteOffs, setWarehouseWriteOffs] = useState<WarehouseWriteOff[]>(() => {
-    const saved = localStorage.getItem('it_warehouse_writeoffs');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [warehouseWriteOffs, setWarehouseWriteOffs] = useState<WarehouseWriteOff[]>(() => []);
 
-  const [workspaceName, setWorkspaceName] = useState<string>(() => {
-    return localStorage.getItem('it_workspace_name') || 'Инвентаризация оборудования';
-  });
+  const [workspaceName, setWorkspaceName] = useState<string>(() => 'Инвентаризация оборудования');
 
-  const [adminEmail, setAdminEmail] = useState<string>(() => {
-    return localStorage.getItem('it_admin_email') || 'vicariustab@icloud.com';
-  });
+  const [adminEmail, setAdminEmail] = useState<string>(() => 'vicariustab@icloud.com');
 
-  const [publicUrl, setPublicUrl] = useState<string>(() => {
-    return localStorage.getItem('it_public_url') || '';
-  });
+  const [publicUrl, setPublicUrl] = useState<string>(() => '');
 
-  // --- USER ROLE MANAGEMENT STATES ---
-  const [users, setUsers] = useState<SystemUser[]>(() => {
-    const saved = localStorage.getItem('it_users');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed as SystemUser[];
-      } catch (e) {
-        console.error('Failed to parse saved users', e);
-      }
-    }
-    return [];
-  });
+  const [users, setUsers] = useState<SystemUser[]>(() => []);
 
-  const [currentUserId, setCurrentUserId] = useState<string>(() => {
-    return localStorage.getItem('it_current_user_id') || '';
-  });
+  const [currentUserId, setCurrentUserId] = useState<string>(() => '');
 
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
-    return localStorage.getItem('it_is_logged_in') === 'true';
-  });
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => false);
 
-  // Customization States (Icons, Logo, Color palette)
-  const [tabIcons, setTabIcons] = useState(() => {
-    const saved = localStorage.getItem('it_tab_icons');
-    return saved ? JSON.parse(saved) : {
-      computers: 'Laptop',
-      network: 'Network',
-      peripherals: 'Monitor',
-      other_equip: 'Server',
-    };
-  });
+  const [tabIcons, setTabIcons] = useState(() => ({
+    computers: 'Laptop',
+    network: 'Network',
+    peripherals: 'Monitor',
+    other_equip: 'Server',
+  }));
 
-  const [panelLogo, setPanelLogo] = useState<string>(() => {
-    return localStorage.getItem('it_panel_logo') || '';
-  });
+  const [panelLogo, setPanelLogo] = useState<string>(() => '');
 
-  const [panelColor, setPanelColor] = useState<string>(() => {
-    return localStorage.getItem('it_panel_color') || 'blue';
-  });
+  const [panelColor, setPanelColor] = useState<string>(() => 'blue');
 
-  const [siteFavicon, setSiteFavicon] = useState<string>(() => {
-    return localStorage.getItem('it_site_favicon') || '';
-  });
+  const [siteFavicon, setSiteFavicon] = useState<string>(() => '');
 
-  const [siteLogo, setSiteLogo] = useState<string>(() => {
-    return localStorage.getItem('it_site_logo') || '';
-  });
+  const [siteLogo, setSiteLogo] = useState<string>(() => '');
 
-  const [sidebarBgColor, setSidebarBgColor] = useState<string>(() => {
-    return localStorage.getItem('it_sidebar_bg_color') || '#0f172a';
-  });
+  const [sidebarBgColor, setSidebarBgColor] = useState<string>(() => '#0f172a');
 
-  const [sidebarOpacity, setSidebarOpacity] = useState<number>(() => {
-    const val = localStorage.getItem('it_sidebar_opacity');
-    return val ? parseFloat(val) : 1.0;
-  });
+  const [sidebarOpacity, setSidebarOpacity] = useState<number>(() => 1.0);
 
   // Derived current user metadata
   const currentUser = users.find(u => u.id === currentUserId);
+
+  useEffect(() => {
+    purgeLegacyBrowserStorage();
+  }, []);
 
   useEffect(() => {
     void (async () => {
@@ -385,10 +307,20 @@ export default function App() {
         clearDocumentHeaderLocalStorage();
         clearActDraftLocalStorage();
         setIsLoggedIn(false);
-        localStorage.setItem('it_is_logged_in', 'false');
       }
       setSetupRequired(status.setupRequired);
       setSetupChecking(false);
+
+      if (!status.setupRequired) {
+        const session = await fetchCurrentSession();
+        if (session) {
+          if (session.userId) setCurrentUserId(session.userId);
+          setIsLoggedIn(true);
+        } else {
+          clearSessionCredentials();
+          setIsLoggedIn(false);
+        }
+      }
     })();
   }, []);
 
@@ -445,6 +377,7 @@ export default function App() {
     if (data.documentHeader !== undefined || data.documentHeaderPresets !== undefined) {
       applyDocumentHeaderFromServer(data.documentHeader, data.documentHeaderPresets);
     }
+    applyWorkspaceMemFieldsFromServer(data);
   }, []);
 
   // Restore warehouse catalog from stock lines (legacy server payloads without `warehouses`)
@@ -479,32 +412,39 @@ export default function App() {
   }, [computers, warehouseItems, networkDevices, softwareItems]);
 
   const loadDataFromServer = useCallback(async (): Promise<boolean> => {
-    if (!getStoredSessionToken()) return false;
+    setServerLoadError('');
     const result = await apiFetch<Record<string, unknown>>('/api/data');
     if (!result.ok) {
       if (result.status === 401) {
         clearSessionCredentials();
         setIsLoggedIn(false);
+        return false;
       }
+      setServerLoadError(
+        result.status === 0
+          ? t('Ошибка сети. Проверьте подключение к серверу.')
+          : `${t('Не удалось загрузить данные с сервера')}: ${(result as Extract<typeof result, { ok: false }>).error}`
+      );
       return false;
     }
     if (result.data && typeof result.data === 'object') {
       applyServerPayload(result.data);
     }
     setIsLoadedFromServer(true);
+    setServerLoadError('');
     return true;
-  }, [applyServerPayload]);
+  }, [applyServerPayload, t]);
 
   useEffect(() => {
-    if (isLoggedIn && !getStoredSessionToken()) {
+    if (setupChecking) return;
+    if (isLoggedIn && !hasStoredSession()) {
       setIsLoggedIn(false);
-      localStorage.setItem('it_is_logged_in', 'false');
       return;
     }
-    if (isLoggedIn && getStoredSessionToken() && !isLoadedFromServer) {
+    if (isLoggedIn && hasStoredSession() && !isLoadedFromServer) {
       void loadDataFromServer();
     }
-  }, [isLoggedIn, isLoadedFromServer, loadDataFromServer]);
+  }, [isLoggedIn, isLoadedFromServer, loadDataFromServer, setupChecking, serverLoadAttempt]);
 
   useEffect(() => {
     dataRevisionRef.current = dataRevision;
@@ -521,18 +461,26 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('it_users', JSON.stringify(users));
-  }, [users]);
+    if (!isLoggedIn || !isLoadedFromServer) return;
+    const interval = setInterval(() => {
+      void (async () => {
+        const result = await apiFetch<Record<string, unknown>>('/api/data');
+        if (!result.ok || !result.data || typeof result.data !== 'object') return;
+        const serverRev =
+          typeof result.data._revision === 'number' ? result.data._revision : null;
+        if (
+          serverRev !== null &&
+          dataRevisionRef.current !== null &&
+          serverRev <= dataRevisionRef.current
+        ) {
+          return;
+        }
+        applyServerPayload(result.data);
+      })();
+    }, 30_000);
+    return () => clearInterval(interval);
+  }, [isLoggedIn, isLoadedFromServer, applyServerPayload]);
 
-  useEffect(() => {
-    localStorage.setItem('it_current_user_id', currentUserId);
-  }, [currentUserId]);
-
-  useEffect(() => {
-    localStorage.setItem('it_is_logged_in', isLoggedIn ? 'true' : 'false');
-  }, [isLoggedIn]);
-
-  // Log out if currently logged in user is blocked
   useEffect(() => {
     if (isLoggedIn && currentUser && currentUser.isBlocked) {
       setIsLoggedIn(false);
@@ -566,7 +514,6 @@ export default function App() {
         } else if (result.latestCommitSha) {
           markInstalledCommit(result.latestCommitSha);
         }
-        localStorage.setItem('it_system_version', `v${APP_VERSION}`);
       });
     };
 
@@ -579,18 +526,6 @@ export default function App() {
   }, [isLoggedIn]);
 
   useEffect(() => {
-  }, [tabIcons]);
-
-  useEffect(() => {
-    localStorage.setItem('it_panel_logo', panelLogo);
-  }, [panelLogo]);
-
-  useEffect(() => {
-    localStorage.setItem('it_panel_color', panelColor);
-  }, [panelColor]);
-
-  useEffect(() => {
-    localStorage.setItem('it_site_favicon', siteFavicon);
     if (siteFavicon) {
       let link: HTMLLinkElement | null = document.querySelector("link[rel~='icon']");
       if (!link) {
@@ -601,22 +536,6 @@ export default function App() {
       link.href = siteFavicon;
     }
   }, [siteFavicon]);
-
-  useEffect(() => {
-    localStorage.setItem('it_site_logo', siteLogo);
-  }, [siteLogo]);
-
-  useEffect(() => {
-    localStorage.setItem('it_sidebar_bg_color', sidebarBgColor);
-  }, [sidebarBgColor]);
-
-  useEffect(() => {
-    localStorage.setItem('it_sidebar_hidden', isCollapsed ? '1' : '0');
-  }, [isCollapsed]);
-
-  useEffect(() => {
-    localStorage.setItem('it_sidebar_opacity', sidebarOpacity.toString());
-  }, [sidebarOpacity]);
 
   const handleActivateLicense = (key: string): boolean => {
     const success = activateSystem(key);
@@ -672,17 +591,8 @@ export default function App() {
       sidebarOpacity,
       documentHeader: loadDocumentHeader(),
       documentHeaderPresets: loadDocumentHeaderPresets(),
-      license_key: localStorage.getItem('it_license_key') || '',
-      system_mac: localStorage.getItem('it_system_mac') || '',
-      system_fingerprint: localStorage.getItem('it_system_fingerprint') || '',
-      trial_start: localStorage.getItem('it_trial_start') || '',
-      trial_sig: localStorage.getItem('it_trial_sig') || '',
-      _ao_telemetry_pt: localStorage.getItem('_ao_telemetry_pt') || '',
-      _ao_telemetry_sig: localStorage.getItem('_ao_telemetry_sig') || '',
-      _ao_telemetry_mt: localStorage.getItem('_ao_telemetry_mt') || '',
-      max_time: localStorage.getItem('it_max_time') || '',
-      tamper_flag: localStorage.getItem('it_tamper_flag') || '',
-      ...getLicenseSecuritySnapshot(),
+      ...getLicenseWorkspaceFields(),
+      ...getWorkspaceMemFieldsForPayload(),
     };
     },
     [
@@ -713,7 +623,7 @@ export default function App() {
 
   const pushWorkspaceToServer = useCallback(
     async (usersOverride?: SystemUser[]): Promise<boolean> => {
-      if (!isLoadedFromServer || !isLoggedIn || !getStoredSessionToken()) return false;
+      if (!isLoadedFromServer || !isLoggedIn) return false;
       const payload = getWorkspacePayload(usersOverride);
       const repairedComputers = payload.computers;
       if (repairedComputers !== computers) {
@@ -808,33 +718,9 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (!isLoadedFromServer || !isLoggedIn || !getStoredSessionToken()) return;
+    if (!isLoadedFromServer || !isLoggedIn) return;
 
     const timeoutId = setTimeout(() => {
-      // 1. Update local storage backups
-      localStorage.setItem('it_objects', JSON.stringify(objects));
-      localStorage.setItem('it_network', JSON.stringify(networkDevices));
-      localStorage.setItem('it_computers', JSON.stringify(computers));
-      localStorage.setItem('it_employees', JSON.stringify(employees));
-      localStorage.setItem('it_warehouse', JSON.stringify(warehouseItems));
-      localStorage.setItem('it_activities', JSON.stringify(activities));
-      localStorage.setItem('it_audits', JSON.stringify(audits));
-      localStorage.setItem('it_software', JSON.stringify(softwareItems));
-      localStorage.setItem('it_custom_warehouses', JSON.stringify(warehouses));
-      localStorage.setItem('it_warehouse_writeoffs', JSON.stringify(warehouseWriteOffs));
-      localStorage.setItem('it_workspace_name', workspaceName);
-      localStorage.setItem('it_admin_email', adminEmail);
-      localStorage.setItem('it_public_url', publicUrl);
-      localStorage.setItem('it_users', JSON.stringify(users));
-      localStorage.setItem('it_tab_icons', JSON.stringify(tabIcons));
-      localStorage.setItem('it_panel_logo', panelLogo);
-      localStorage.setItem('it_panel_color', panelColor);
-      localStorage.setItem('it_site_favicon', siteFavicon);
-      localStorage.setItem('it_site_logo', siteLogo);
-      localStorage.setItem('it_sidebar_bg_color', sidebarBgColor);
-      localStorage.setItem('it_sidebar_opacity', sidebarOpacity.toString());
-
-      // 2. Transmit state to the backend (authenticated + revision check)
       void pushWorkspaceToServer();
     }, 1000);
 
@@ -891,9 +777,9 @@ export default function App() {
   }, []);
 
   const syncAuthAuditFromServer = useCallback(async () => {
-    if (!getStoredSessionToken()) return;
+    if (!isLoggedIn) return;
     try {
-      const res = await fetch('/api/auth/audit', { headers: authHeaders() });
+      const res = await sessionFetch('/api/auth/audit', { headers: authHeaders() });
       if (!res.ok) return;
       const data = (await res.json()) as {
         events: Array<{ id: string; timestamp: string; userName: string; action: string; detail: string }>;
@@ -939,7 +825,7 @@ export default function App() {
 
   const handleLogout = useCallback(async () => {
     const user = users.find((u) => u.id === currentUserId);
-    if (getStoredSessionToken()) {
+    if (isLoggedIn) {
       await logoutUserSession(user?.name || 'user');
       if (user) {
         logActivity('Выход из системы', `Завершена сессия пользователя "${user.name}"`, 'auth');
@@ -969,7 +855,7 @@ export default function App() {
   ): Promise<{ ok: true } | { ok: false; reason: 'credentials' | 'totp_required'; challengeId?: string }> => {
     if (!totp) {
       const prev = users.find((u) => u.id === currentUserId);
-      if (prev && getStoredSessionToken()) {
+      if (prev && isLoggedIn) {
         await logoutUserSession(prev.name);
       }
       clearSessionCredentials();
@@ -993,7 +879,7 @@ export default function App() {
 
   // Session heartbeat + remote security alerts (Admin / Editor)
   useEffect(() => {
-    if (!isLoggedIn || !getStoredSessionToken()) return;
+    if (!isLoggedIn) return;
     const user = users.find((u) => u.id === currentUserId);
     if (!user || (user.role !== 'Admin' && user.role !== 'Editor')) return;
     let cancelled = false;
@@ -3920,7 +3806,6 @@ export default function App() {
   // Log Clearer
   const handleClearActivities = () => {
     setActivities([]);
-    localStorage.removeItem('it_activities');
   };
 
   // Full inventory purge (keeps users, license, UI settings)
@@ -4108,22 +3993,6 @@ export default function App() {
             currentUser={currentUser}
           />
         );
-      case 'security':
-        return (
-          <SecurityView
-            objects={objects}
-            networkDevices={networkDevices}
-            computers={computers}
-            employees={employees}
-            warehouseItems={warehouseItems}
-            activities={activities}
-            users={users}
-            currentUser={currentUser}
-            onUpdateUser={handleUpdateUser}
-            onLogActivity={logActivity}
-            onUpdateComputer={(id, fields) => setComputers(prev => prev.map(c => c.id === id ? { ...c, ...fields } : c))}
-          />
-        );
       case 'settings':
         return (
           <SettingsView
@@ -4164,6 +4033,7 @@ export default function App() {
               setDataRevision(revision);
               dataRevisionRef.current = revision;
             }}
+            dataRevision={dataRevision}
           />
         );
       // Fallback categories inside "Оборудование" dropdown
@@ -4312,7 +4182,6 @@ export default function App() {
       case 'warranties': return t('Сроки гарантийного обслуживания');
       case 'reports': return t('Аналитическая отчетность');
       case 'activity_log': return t('Журнал операций (Аудит)');
-      case 'security': return t('Контроль информационной безопасности');
       case 'settings': return t('Конфигурация параметров');
       case 'peripherals': return t('Учет периферии и мониторов');
       case 'orgtech': return t('Учет оргтехники');
@@ -4558,8 +4427,55 @@ export default function App() {
 
   if (!isLoadedFromServer || !currentUser) {
     return (
-      <div className="min-h-screen bg-slate-100 flex items-center justify-center text-slate-500 text-sm font-sans">
-        {t('Загрузка данных...')}
+      <div className="min-h-screen bg-[#f4f7fb] flex flex-col items-center justify-center px-4 font-sans">
+        <div className="w-full max-w-sm text-center space-y-5">
+          <div className="mx-auto w-14 h-14 rounded-2xl bg-white border border-slate-200 shadow-sm flex items-center justify-center">
+            <svg
+              className={`w-7 h-7 text-blue-600 ${serverLoadError ? '' : 'animate-spin'}`}
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              aria-hidden
+            >
+              {serverLoadError ? (
+                <path
+                  stroke="currentColor"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.75}
+                  d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"
+                />
+              ) : (
+                <path
+                  stroke="currentColor"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.75}
+                  d="M4 12a8 8 0 0 1 8-8v2.5M20 12a8 8 0 0 1-8 8V17.5"
+                />
+              )}
+            </svg>
+          </div>
+          <div>
+            <p className="text-base font-semibold text-slate-800">
+              {serverLoadError ? t('Не удалось загрузить данные') : t('Загрузка данных с сервера…')}
+            </p>
+            <p className="mt-2 text-sm text-slate-500 leading-relaxed">
+              {serverLoadError
+                ? serverLoadError
+                : t('Синхронизация workspace из базы данных сервера. Данные не хранятся в браузере.')}
+            </p>
+          </div>
+          {serverLoadError && (
+            <button
+              type="button"
+              onClick={() => setServerLoadAttempt((n) => n + 1)}
+              className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 transition-colors"
+            >
+              {t('Повторить загрузку')}
+            </button>
+          )}
+        </div>
       </div>
     );
   }

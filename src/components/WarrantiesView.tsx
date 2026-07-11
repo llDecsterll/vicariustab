@@ -32,6 +32,7 @@ import {
   Monitor
 } from 'lucide-react';
 import { ComputerItem, NetworkDevice } from '../types';
+import { memStorage } from '../utils/memoryStorage';
 import { useTranslation } from '../utils/i18n';
 
 interface WarrantiesViewProps {
@@ -78,7 +79,7 @@ export default function WarrantiesView({
 
   // State to hold persistent custom overrides (now with optional pdfFile property)
   const [customWarranties, setCustomWarranties] = useState<Record<string, { purchaseDate: string; warrantyPeriodMonths: number; provider: string; pdfFile?: WarrantyPdf }>>(() => {
-    const saved = localStorage.getItem('it_custom_warranties');
+    const saved = memStorage.getItem('it_custom_warranties');
     if (saved) {
       try {
         return JSON.parse(saved);
@@ -91,7 +92,7 @@ export default function WarrantiesView({
 
   // State to hold manually deleted warranty item identifiers
   const [deletedWarranties, setDeletedWarranties] = useState<string[]>(() => {
-    const saved = localStorage.getItem('it_deleted_warranties');
+    const saved = memStorage.getItem('it_deleted_warranties');
     if (saved) {
       try {
         return JSON.parse(saved);
@@ -103,7 +104,7 @@ export default function WarrantiesView({
   });
 
   const [manualWarranties, setManualWarranties] = useState<WarrantyItem[]>(() => {
-    const saved = localStorage.getItem('it_manual_warranties');
+    const saved = memStorage.getItem('it_manual_warranties');
     if (saved) {
       try {
         return JSON.parse(saved);
@@ -173,7 +174,7 @@ export default function WarrantiesView({
 
     const updated = [...manualWarranties, newItem];
     setManualWarranties(updated);
-    localStorage.setItem('it_manual_warranties', JSON.stringify(updated));
+    memStorage.setItem('it_manual_warranties', JSON.stringify(updated));
     setIsAdding(false);
   };
 
@@ -189,7 +190,7 @@ export default function WarrantiesView({
     }
     const updated = [...deletedWarranties, inventoryNumber];
     setDeletedWarranties(updated);
-    localStorage.setItem('it_deleted_warranties', JSON.stringify(updated));
+    memStorage.setItem('it_deleted_warranties', JSON.stringify(updated));
     setConfirmDeleteInv(null);
   };
 
@@ -249,7 +250,7 @@ export default function WarrantiesView({
       },
     };
     setCustomWarranties(updated);
-    localStorage.setItem('it_custom_warranties', JSON.stringify(updated));
+    memStorage.setItem('it_custom_warranties', JSON.stringify(updated));
     setEditingItem(null);
   };
 
@@ -404,7 +405,7 @@ export default function WarrantiesView({
         }
       };
       setCustomWarranties(updated);
-      localStorage.setItem('it_custom_warranties', JSON.stringify(updated));
+      memStorage.setItem('it_custom_warranties', JSON.stringify(updated));
     };
     reader.readAsDataURL(file);
   };
@@ -430,7 +431,7 @@ export default function WarrantiesView({
       }
     };
     setCustomWarranties(updated);
-    localStorage.setItem('it_custom_warranties', JSON.stringify(updated));
+    memStorage.setItem('it_custom_warranties', JSON.stringify(updated));
   };
 
   // Action: Trigger a direct download of a Base64 PDF file

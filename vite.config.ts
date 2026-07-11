@@ -73,7 +73,6 @@ export default defineConfig(({ mode }) => {
             if (id.includes('SettingsView.tsx')) return 'view-settings';
             if (id.includes('DashboardView.tsx')) return 'view-dashboard';
             if (id.includes('WarehouseView.tsx')) return 'view-warehouse';
-            if (id.includes('SecurityView.tsx')) return 'view-security';
             if (id.includes('ReportsView.tsx')) return 'view-reports';
             if (id.includes('ComputersView.tsx')) return 'view-computers';
             if (id.includes('SoftwareView.tsx')) return 'view-software';

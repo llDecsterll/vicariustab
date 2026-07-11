@@ -95,6 +95,9 @@ import {
   hasTotpPendingSetup,
 } from "./server/totpUserOps.ts";
 import { createTotpLoginChallenge, consumeTotpLoginChallenge } from "./server/totpPendingLogin.ts";
+import { setSessionCookie, clearSessionCookie } from "./server/sessionCookie.ts";
+import { apiIpRateLimit } from "./server/apiRateLimit.ts";
+import { apiIdempotencyMiddleware } from "./server/idempotency.ts";
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
@@ -583,6 +586,10 @@ async function startServer() {
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
+  // API protection: IP throttling + optional Idempotency-Key on mutating requests
+  app.use("/api", apiIpRateLimit);
+  app.use("/api", apiIdempotencyMiddleware);
+
   // Public routes (no session token)
   app.get("/api/health", (_req, res) => {
     return res.json({ ok: true, version: APP_VERSION });
@@ -711,8 +718,9 @@ async function startServer() {
         }, sessionsUrl);
       }
 
+      setSessionCookie(res, req, result.sessionToken);
+
       return res.json({
-        sessionToken: result.sessionToken,
         sessionId: result.sessionId,
         userId: user.id,
         userName: user.name,
@@ -792,8 +800,9 @@ async function startServer() {
         }, sessionsUrl);
       }
 
+      setSessionCookie(res, req, result.sessionToken);
+
       return res.json({
-        sessionToken: result.sessionToken,
         sessionId: result.sessionId,
         userId: user.id,
         userName: user.name,
@@ -896,9 +905,24 @@ async function startServer() {
   app.post("/api/auth/logout", (req, res) => {
     const token = readSessionToken(req);
     const session = resolveSessionFromToken(token);
-    if (!session) return res.json({ success: true });
+    if (!session) {
+      clearSessionCookie(res, req);
+      return res.json({ success: true });
+    }
     logoutSession(session.id, String(req.body?.userName || session.userName), getClientIp(req));
+    clearSessionCookie(res, req);
     return res.json({ success: true });
+  });
+
+  app.get("/api/auth/session", (req, res) => {
+    const session = resolveAuthedSession(req, res);
+    if (!session) return;
+    return res.json({
+      sessionId: session.id,
+      userId: session.userId,
+      userName: session.userName,
+      userRole: session.userRole,
+    });
   });
 
   // All other /api routes require a valid session token

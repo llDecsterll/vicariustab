@@ -3,50 +3,16 @@
  */
 import { describe, it, before } from 'node:test';
 import assert from 'node:assert/strict';
+import { isAuditServerUp, resolveAuditSession } from './auditAuth.mjs';
 
 const BASE = process.env.AUDIT_BASE_URL || 'http://127.0.0.1:8098';
 let token = '';
 let serverUp = false;
 
 before(async () => {
-  try {
-    const health = await fetch(`${BASE}/api/health`);
-    serverUp = health.ok;
-  } catch {
-    serverUp = false;
-  }
+  serverUp = await isAuditServerUp();
   if (!serverUp) return;
-
-  const setup = await (await fetch(`${BASE}/api/auth/setup-status`))?.json();
-  if (setup?.setupRequired) {
-    await fetch(`${BASE}/api/auth/setup`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        login: 'audit_admin',
-        password: 'audit_pass_8',
-        email: 'audit@test.local',
-      }),
-    });
-  }
-
-  const candidates = [
-    [process.env.AUDIT_LOGIN, process.env.AUDIT_PASSWORD],
-    ['verify_admin', 'verify_pass_8'],
-    ['audit_admin', 'audit_pass_8'],
-  ].filter(([login, password]) => login && password);
-
-  for (const [login, password] of candidates) {
-    const auth = await fetch(`${BASE}/api/auth/authenticate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ login, password, deviceFingerprint: 'load-test' }),
-    });
-    if (auth.ok) {
-      token = (await auth.json()).sessionToken;
-      break;
-    }
-  }
+  token = await resolveAuditSession();
 });
 
 describe('load / concurrency', () => {

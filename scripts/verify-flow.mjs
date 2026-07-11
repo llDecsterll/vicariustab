@@ -142,23 +142,37 @@ async function ensureSession() {
 
   const candidates = [
     [process.env.AUDIT_LOGIN, process.env.AUDIT_PASSWORD],
-    ['verify_admin', 'verify_pass_8'],
     ['audit_admin', 'audit_pass_8'],
+    ['verify_admin', 'verify_pass_8'],
   ].filter(([login, password]) => login && password);
 
   for (const [login, password] of candidates) {
-    const auth = await fetch(`${BASE}/api/auth/authenticate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        login,
-        password,
-        deviceFingerprint: 'verify-flow-test',
-      }),
-    });
-    if (auth.ok) {
-      const data = await auth.json();
-      if (data.sessionToken) return data.sessionToken;
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const auth = await fetch(`${BASE}/api/auth/authenticate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          login,
+          password,
+          deviceFingerprint: 'verify-flow-test',
+        }),
+      });
+      if (auth.status === 429) {
+        await new Promise((r) => setTimeout(r, 800 * (attempt + 1)));
+        continue;
+      }
+      if (auth.ok) {
+        const data = await auth.json();
+        if (data.requiresTwoFactor) break;
+        if (typeof auth.headers.getSetCookie === 'function') {
+          for (const cookie of auth.headers.getSetCookie()) {
+            const match = /^vt_session=([^;]+)/.exec(cookie);
+            if (match) return decodeURIComponent(match[1]);
+          }
+        }
+        if (data.sessionToken) return data.sessionToken;
+      }
+      break;
     }
   }
   return null;

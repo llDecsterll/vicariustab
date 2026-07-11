@@ -63,8 +63,10 @@ import CopyrightFooter from './CopyrightFooter';
 import CountryFlag, { languageToFlagCode } from './CountryFlag';
 import ActiveSessionsPanel from './ActiveSessionsPanel';
 import ConfirmDeleteModal from './ConfirmDeleteModal';
-import { authHeaders } from '../utils/deviceFingerprint';
-import { isBlockedBackupKey, stripLicenseFromLocalBackupData } from '../utils/backupLicensePolicy';
+import { authHeaders, sessionFetch } from '../utils/deviceFingerprint';
+import { stripLicenseFromServerData } from '../../server/backupLicensePolicy.ts';
+import { apiFetch } from '../utils/apiClient';
+import { persistWorkspaceState } from '../utils/workspaceSync';
 import { validateEmailField, validateLoginField, validatePasswordField } from '../utils/credentialValidation';
 import DocumentHeaderSettings from './DocumentHeaderSettings';
 import TwoFactorSettings from './TwoFactorSettings';
@@ -130,6 +132,7 @@ interface SettingsViewProps {
   onRefreshLicense?: () => void;
   onLogActivity?: (action: string, detail: string, type: 'create' | 'update' | 'delete' | 'system' | 'auth') => void;
   onDataRevisionSync?: (revision: number) => void;
+  dataRevision?: number | null;
 }
 
 export default function SettingsView({
@@ -167,6 +170,7 @@ export default function SettingsView({
   onRefreshLicense,
   onLogActivity,
   onDataRevisionSync,
+  dataRevision = null,
 }: SettingsViewProps) {
   const { language, setLanguage, t } = useTranslation();
 
@@ -187,7 +191,7 @@ export default function SettingsView({
   }, [publicUrl]);
 
   useEffect(() => {
-    fetch('/api/system/runtime', { headers: authHeaders() })
+    sessionFetch('/api/system/runtime', { headers: authHeaders() })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => setRuntimeInfo(data))
       .catch(() => setRuntimeInfo(null));
@@ -266,64 +270,41 @@ export default function SettingsView({
     );
   };
 
-  const handleCreateBackup = () => {
+  const handleCreateBackup = async () => {
     if (!allowBackup) {
       alertBackupBlocked();
       return;
     }
     try {
-      const keysToBackup = [
-        'it_objects',
-        'it_network',
-        'it_computers',
-        'it_employees',
-        'it_warehouse',
-        'it_software',
-        'it_custom_warehouses',
-        'it_warehouse_writeoffs',
-        'it_activities',
-        'it_audits',
-        'it_workspace_name',
-        'it_admin_email',
-        'it_public_url',
-        'it_users',
-        'it_tab_icons',
-        'it_panel_logo',
-        'it_panel_color',
-        'it_site_favicon',
-        'it_site_logo',
-        'it_sidebar_bg_color',
-        'it_sidebar_opacity',
-        'it_custom_warranties',
-        'it_custom_departments',
-        'it_removed_departments'
-      ];
-      
-      const backupData: Record<string, string | null> = {};
-      keysToBackup.forEach(key => {
-        backupData[key] = localStorage.getItem(key);
-      });
-      const sanitizedBackupData = stripLicenseFromLocalBackupData(backupData);
-      
+      const result = await apiFetch<Record<string, unknown>>('/api/data');
+      if (!result.ok || !result.data || typeof result.data !== 'object') {
+        setRestoreErrorMsg('Не удалось загрузить данные с сервера для резервной копии.');
+        return;
+      }
+      const workspace = stripLicenseFromServerData({ ...result.data });
+      delete workspace._revision;
+
       const payload = {
         app: 'Vicariustab',
-        backupVersion: '2.0',
+        backupVersion: '3.0',
         createdAt: new Date().toISOString(),
         author: 'Utkin V.V. Compliance Engine',
-        legalNote: 'Лицензионные ключи и MAC-адреса оборудования исключены из резервной копии данных платформы. После восстановления на новом компьютере потребуется повторная активация.',
-        data: sanitizedBackupData
+        source: 'server',
+        legalNote:
+          'Лицензионные ключи и MAC-адреса оборудования исключены из резервной копии данных платформы. После восстановления на новом компьютере потребуется повторная активация.',
+        data: workspace,
       };
-      
+
       const jsonStr = JSON.stringify(payload, null, 2);
-      const element = document.createElement("a");
+      const element = document.createElement('a');
       const file = new Blob([jsonStr], { type: 'application/json;charset=utf-8' });
       element.href = URL.createObjectURL(file);
-      const dateStr = new Date().toISOString().slice(0,10);
-      element.download = `Vicariustab_platform_backup_no_license_${dateStr}.json`;
+      const dateStr = new Date().toISOString().slice(0, 10);
+      element.download = `Vicariustab_server_backup_${dateStr}.json`;
       document.body.appendChild(element);
       element.click();
       document.body.removeChild(element);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
       setRestoreErrorMsg('Не удалось создать файл резервной копии.');
     }
@@ -338,71 +319,46 @@ export default function SettingsView({
     setIsRestoring(true);
     setRestoreSuccess(false);
     setRestoreErrorMsg('');
-    
+
     const reader = new FileReader();
     reader.onload = (e) => {
-      try {
-        const text = e.target?.result as string;
-        const payload = JSON.parse(text);
-        
-        if (!payload || typeof payload !== 'object' || !payload.data) {
-          throw new Error('Некорректный формат файла резервной копии. Отсутствует секция "data".');
-        }
-        
-        const data = payload.data;
-        
-        // Write only explicitly allowed tables/settings to localStorage.
-        // This prevents importing activation artifacts from another installation.
-        const allowedRestoreKeys = new Set([
-          'it_objects',
-          'it_network',
-          'it_computers',
-          'it_employees',
-          'it_warehouse',
-          'it_software',
-          'it_custom_warehouses',
-          'it_warehouse_writeoffs',
-          'it_activities',
-          'it_audits',
-          'it_workspace_name',
-          'it_admin_email',
-          'it_public_url',
-          'it_users',
-          'it_tab_icons',
-          'it_panel_logo',
-          'it_panel_color',
-          'it_site_favicon',
-          'it_site_logo',
-          'it_sidebar_bg_color',
-          'it_sidebar_opacity',
-          'it_custom_warranties',
-          'it_custom_departments',
-          'it_removed_departments',
-          'sec_last_scan'
-        ]);
-        Object.keys(data).forEach(key => {
-          if (isBlockedBackupKey(key)) return;
-          if (allowedRestoreKeys.has(key)) {
-            const val = data[key];
-            if (val !== null && val !== undefined) {
-              localStorage.setItem(key, val);
-            }
+      void (async () => {
+        try {
+          const text = e.target?.result as string;
+          const payload = JSON.parse(text);
+
+          if (!payload || typeof payload !== 'object' || !payload.data) {
+            throw new Error('Некорректный формат файла резервной копии. Отсутствует секция "data".');
           }
-        });
-        
-        // Explicitly keep the existing license key and fingerprint untouched so that 
-        // the target copy remains independent without overwriting/multiplying the activation key!
-        
-        setRestoreSuccess(true);
-        setIsRestoring(false);
-        
-        setTimeout(() => {
-          window.location.reload();
-        }, 1500);
-      } catch (err: any) {
-        setIsRestoring(false);
-        setRestoreErrorMsg(err.message || 'Ошибка разбора JSON или поврежденная структура резервной копии.');
-      }
+
+          let workspace: Record<string, unknown> | null = null;
+          if (payload.backupVersion === '3.0' && payload.data && typeof payload.data === 'object') {
+            workspace = stripLicenseFromServerData(payload.data as Record<string, unknown>);
+          } else if (payload.backupVersion === '2.0') {
+            throw new Error(
+              'Формат резервной копии v2.0 (localStorage) устарел. Создайте новую копию с сервера (v3.0).'
+            );
+          } else {
+            throw new Error('Неподдерживаемая версия резервной копии.');
+          }
+
+          const save = await persistWorkspaceState(workspace!, dataRevision, 3);
+          if (!save.ok) {
+            const failed = save as Extract<typeof save, { ok: false }>;
+            throw new Error(failed.error || 'Не удалось сохранить данные на сервере');
+          }
+          onDataRevisionSync?.(save.revision);
+
+          setRestoreSuccess(true);
+          setIsRestoring(false);
+          setTimeout(() => window.location.reload(), 1500);
+        } catch (err: unknown) {
+          setIsRestoring(false);
+          setRestoreErrorMsg(
+            err instanceof Error ? err.message : 'Ошибка разбора JSON или поврежденная структура резервной копии.'
+          );
+        }
+      })();
     };
     reader.onerror = () => {
       setIsRestoring(false);
@@ -423,7 +379,7 @@ export default function SettingsView({
   const [updateCompleted, setUpdateCompleted] = useState(false);
   const [updateErrorMsg, setUpdateErrorMsg] = useState('');
   const [pendingUpdate, setPendingUpdate] = useState<UpdateCheckResult | null>(null);
-  const [systemVersion, setSystemVersion] = useState(() => localStorage.getItem('it_system_version') || `v${APP_VERSION}-stable`);
+  const [systemVersion, setSystemVersion] = useState(() => `v${APP_VERSION}-stable`);
   const [isRebooting, setIsRebooting] = useState(false);
   const [rebootStep, setRebootStep] = useState('');
   const [rebootTimeLeft, setRebootTimeLeft] = useState(8);
@@ -462,7 +418,6 @@ export default function SettingsView({
         }
         if (job.remoteVersion) {
           setSystemVersion(`v${job.remoteVersion}`);
-          localStorage.setItem('it_system_version', `v${job.remoteVersion}`);
         }
         setPendingUpdate(null);
         window.dispatchEvent(
@@ -646,8 +601,8 @@ export default function SettingsView({
   // Load backend database settings on mount
   React.useEffect(() => {
     Promise.all([
-      fetch('/api/db-config', { headers: authHeaders() }).then((res) => res.json()),
-      fetch('/api/db-config/defaults', { headers: authHeaders() }).then((res) => res.json()),
+      sessionFetch('/api/db-config', { headers: authHeaders() }).then((res) => res.json()),
+      sessionFetch('/api/db-config/defaults', { headers: authHeaders() }).then((res) => res.json()),
     ])
       .then(([config, defaults]) => {
         if (defaults?.hint) setDbDockerHint(defaults.hint);
@@ -683,7 +638,7 @@ export default function SettingsView({
   React.useEffect(() => {
     let active = true;
     const checkStatus = () => {
-      fetch('/api/db-status', { headers: authHeaders() })
+      sessionFetch('/api/db-status', { headers: authHeaders() })
         .then(res => {
           if (!res.ok) {
             return { status: 'unchecked', error: 'Connection initializing' };
@@ -717,7 +672,7 @@ export default function SettingsView({
       setDbTestMessage('');
       setDbTestError('');
       
-      const res = await fetch('/api/db-config/test', {
+      const res = await sessionFetch('/api/db-config/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({
@@ -764,7 +719,7 @@ export default function SettingsView({
         password: dbPassword
       };
 
-      const res = await fetch('/api/db-config', {
+      const res = await sessionFetch('/api/db-config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify(payload)
@@ -806,7 +761,7 @@ export default function SettingsView({
     try {
       setBackupLoading(true);
       setBackupError('');
-      const res = await fetch('/api/backup/export', { headers: authHeaders() });
+      const res = await sessionFetch('/api/backup/export', { headers: authHeaders() });
       if (!res.ok) throw new Error(t("Не удалось получить файл бэкапа"));
       const data = await res.json();
       if (!data.backup) throw new Error(t("Файл бэкапа пуст"));
@@ -843,7 +798,7 @@ export default function SettingsView({
       setBackupSuccess('');
       const text = await file.text();
       
-      const res = await fetch('/api/backup/import', {
+      const res = await sessionFetch('/api/backup/import', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1253,7 +1208,7 @@ export default function SettingsView({
                 <h4 className="text-xs font-bold text-slate-705 uppercase tracking-wide">{t("Восстановление из резервной копии")}</h4>
               </div>
 
-              <p className="text-[11px] text-slate-505 leading-relaxed">{t("Выберите ранее экспортированный файл резервной копии JSON на локальном диске для мгновенного восстановления структуры организации, сотрудников и оборудования. Внимание: Все текущие локальные записи будут перезаписаны. Ваш текущий ключ активации при этом останется неизменным.")}</p>
+              <p className="text-[11px] text-slate-505 leading-relaxed">{t("Выберите ранее экспортированный файл резервной копии JSON (v3.0) для восстановления данных на сервере. Внимание: текущие данные workspace на сервере будут перезаписаны. Ключ активации не импортируется.")}</p>
 
               <div className="space-y-2">
                 <div className="flex items-center justify-center w-full">
@@ -1410,7 +1365,7 @@ export default function SettingsView({
                 {/* Лицензионное предупреждение */}
                 <div className="flex items-start gap-1.5 text-[10px] text-amber-750 bg-amber-50/70 border border-amber-100 p-2.5 rounded-lg leading-relaxed">
                   <AlertTriangle size={14} className="shrink-0 mt-0.5 text-amber-600" />
-                  <span>{t("Внимание: Обновление ядра Vicariustab перезаписывает только программную часть приложения. Ваши локально сохраненные данные, сотрудники, схемы сети и журналы аудита останутся целыми и невредимыми!")}</span>
+                  <span>{t("Внимание: Обновление ядра Vicariustab перезаписывает только программную часть приложения. Данные на сервере (сотрудники, схемы сети, журналы аудита) останутся целыми!")}</span>
                 </div>
 
                 {/* Progress bar */}
@@ -1561,7 +1516,7 @@ export default function SettingsView({
 
           {saveSuccess && (
             <div className="p-2 bg-emerald-50 text-emerald-700 text-xs rounded-lg font-medium border border-emerald-150 flex items-center gap-2">
-              <ShieldCheck size={14} />{t("Настройки успешно сохранены в локальном диске!")}</div>
+              <ShieldCheck size={14} />{t("Настройки успешно сохранены на сервере!")}</div>
           )}
 
           <form onSubmit={handleSave} className="space-y-3">
@@ -2597,7 +2552,7 @@ export default function SettingsView({
                 {rebootTimeLeft <= 4 && <div>[SERVICES] Sending SIGTERM to legacy middleware... OK</div>}
                 {rebootTimeLeft <= 3 && <div>[KERNEL] Loading binary image v2.5.3-production (64-bit)...</div>}
                 {rebootTimeLeft <= 3 && <div>[KERNEL] Injecting Vicariustab code updates & UI resources... OK</div>}
-                {rebootTimeLeft <= 2 && <div>[DATABASE] Verifying schema integrity of localStorage... OK</div>}
+                {rebootTimeLeft <= 2 && <div>[DATABASE] Verifying schema integrity of server database... OK</div>}
                 {rebootTimeLeft <= 2 && <div>[DATABASE] Applied 2 incremental schema migrations... OK</div>}
                 {rebootTimeLeft <= 1 && <div>[NETWORK] Testing websocket gateway ingress... OK</div>}
                 {rebootTimeLeft <= 1 && <div>[RUNTIME] Executing garbage collection & cache flush...</div>}

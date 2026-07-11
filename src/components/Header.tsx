@@ -16,6 +16,7 @@ import BrandLogo from './BrandLogo';
 import { DASHBOARD_HEADER_EDIT_SLOT_ID } from '../utils/dashboardLayout';
 import CountryFlag, { languageToFlagCode } from './CountryFlag';
 import ModalCloseButton from './ModalCloseButton';
+import { parseMemJson, WORKSPACE_MEM_KEYS } from '../utils/memoryStorage';
 import {
   computerMatchesSearch,
   findMatchingSerialValue,
@@ -76,32 +77,18 @@ export default function Header({
 }: HeaderProps) {
   const { t, language, setLanguage } = useTranslation();
   const [showResults, setShowResults] = useState(false);
-  const [notifications, setNotifications] = useState<{ id: number; text: string; title?: string; body?: string; read: boolean; targetTab?: string; isSecurity?: boolean; serverNotifId?: string }[]>(() => {
-    const saved = localStorage.getItem('Vicariustab_notifications') || localStorage.getItem('orbit_notifications');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        console.error("Failed to parse notifications storage", e);
-      }
-    }
-    return [
+  const [notifications, setNotifications] = useState<{ id: number; text: string; title?: string; body?: string; read: boolean; targetTab?: string; isSecurity?: boolean; serverNotifId?: string }[]>(() => [
       { id: 1, text: 'Срок гарантии PC-0006 истекает через 30 дней', read: false, targetTab: 'warranties' },
       { id: 2, text: 'Новое поступление оборудования на склад: Dell Latitude x5', read: false, targetTab: 'warehouse' },
       { id: 3, text: 'Обнаружено расхождение в аудите офиса на Мира', read: true, targetTab: 'inventory' }
-    ];
-  });
-
-  useEffect(() => {
-    localStorage.setItem('Vicariustab_notifications', JSON.stringify(notifications));
-  }, [notifications]);
+    ]);
 
   // Safe calculators inside Header.tsx for dynamic matching
   const getExpiringWarrantiesCount = () => {
     try {
-      const customWarranties = JSON.parse(localStorage.getItem('it_custom_warranties') || '{}');
-      const deletedWarranties = JSON.parse(localStorage.getItem('it_deleted_warranties') || '[]');
-      const manualWarranties = JSON.parse(localStorage.getItem('it_manual_warranties') || '[]');
+      const customWarranties = parseMemJson(WORKSPACE_MEM_KEYS.customWarranties, {});
+      const deletedWarranties = parseMemJson<string[]>(WORKSPACE_MEM_KEYS.deletedWarranties, []);
+      const manualWarranties = parseMemJson(WORKSPACE_MEM_KEYS.manualWarranties, []);
       
       const mockWarranties = [
         { id: 'w-1', deviceName: 'Dell Latitude 5420', type: 'computer', inventoryNumber: 'PC-0001', purchaseDate: '2025-01-10', warrantyPeriodMonths: 24, provider: 'Dell LLC Support' },
@@ -176,7 +163,7 @@ export default function Header({
 
   const getExpiringSoftwareCount = () => {
     try {
-      const items = softwareItems || JSON.parse(localStorage.getItem('it_software') || '[]');
+      const items = softwareItems || [];
       const today = new Date('2026-06-09');
       
       return items.filter((item: any) => {

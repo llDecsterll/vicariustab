@@ -1,6 +1,7 @@
 /* Release */
 import { APP_VERSION, VICARIUSTAB_UPDATE_REPO } from '../config/appConfig';
-import { authHeaders } from './deviceFingerprint';
+import { authHeaders, sessionFetch } from './deviceFingerprint';
+import { memStorage } from './memoryStorage';
 
 export interface UpdateCheckResult {
   updateAvailable: boolean;
@@ -30,23 +31,23 @@ const NOTIFIED_VERSION_KEY = 'it_update_notified_version';
 const LAST_CHECK_KEY = 'it_update_last_check_at';
 
 export function getInstalledCommit(): string {
-  return localStorage.getItem(INSTALLED_COMMIT_KEY) || '';
+  return memStorage.getItem(INSTALLED_COMMIT_KEY) || '';
 }
 
 export function markInstalledCommit(sha: string): void {
-  if (sha) localStorage.setItem(INSTALLED_COMMIT_KEY, sha);
+  if (sha) memStorage.setItem(INSTALLED_COMMIT_KEY, sha);
 }
 
 export function shouldNotifyForUpdate(remoteVersion: string): boolean {
-  return localStorage.getItem(NOTIFIED_VERSION_KEY) !== remoteVersion;
+  return memStorage.getItem(NOTIFIED_VERSION_KEY) !== remoteVersion;
 }
 
 export function markUpdateNotified(remoteVersion: string): void {
-  localStorage.setItem(NOTIFIED_VERSION_KEY, remoteVersion);
+  memStorage.setItem(NOTIFIED_VERSION_KEY, remoteVersion);
 }
 
 export function markUpdateCheckTime(): void {
-  localStorage.setItem(LAST_CHECK_KEY, new Date().toISOString());
+  memStorage.setItem(LAST_CHECK_KEY, new Date().toISOString());
 }
 
 function compareSemver(a: string, b: string): number {
@@ -108,7 +109,7 @@ export async function checkForPlatformUpdate(): Promise<UpdateCheckResult | null
   });
 
   try {
-    const res = await fetch(`/api/update/check?${params.toString()}`, { headers: authHeaders() });
+    const res = await sessionFetch(`/api/update/check?${params.toString()}`, { headers: authHeaders() });
     if (res.ok) {
       markUpdateCheckTime();
       return (await res.json()) as UpdateCheckResult;
@@ -125,7 +126,7 @@ export async function checkForPlatformUpdate(): Promise<UpdateCheckResult | null
 
 export async function applyPlatformUpdate(): Promise<{ started: boolean; error?: string }> {
   try {
-    const res = await fetch('/api/update/apply', {
+    const res = await sessionFetch('/api/update/apply', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify({ installedCommit: getInstalledCommit() }),
@@ -142,7 +143,7 @@ export async function applyPlatformUpdate(): Promise<{ started: boolean; error?:
 
 export async function fetchUpdateJobStatus(): Promise<UpdateJobStatus | null> {
   try {
-    const res = await fetch('/api/update/status', { headers: authHeaders() });
+    const res = await sessionFetch('/api/update/status', { headers: authHeaders() });
     if (!res.ok) return null;
     return (await res.json()) as UpdateJobStatus;
   } catch {

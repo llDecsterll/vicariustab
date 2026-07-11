@@ -37,7 +37,6 @@ const SIDEBAR_TABS = [
   { id: 'warranties', label: 'Гарантия и обслуживание' },
   { id: 'reports', label: 'Отчеты' },
   { id: 'activity_log', label: 'Журнал действий' },
-  { id: 'security', label: 'Кибербезопасность' },
 ];
 
 const CHROME_PATHS = [

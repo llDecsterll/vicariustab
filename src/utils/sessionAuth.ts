@@ -5,14 +5,13 @@ import {
   authHeaders,
   clearSessionCredentials,
   collectDeviceClientInfo,
-  getStoredSessionToken,
+  sessionFetch,
   storeSessionCredentials,
 } from './deviceFingerprint';
 import { apiFetch } from './apiClient';
 import type { SystemUser, UserSession } from '../types';
 
 export interface SessionLoginResult {
-  sessionToken: string;
   sessionId: string;
   userId: string;
   userName: string;
@@ -86,7 +85,7 @@ export async function authenticateCredentials(
   user?: SystemUser
 ): Promise<AuthenticateResult | null> {
   try {
-    const res = await fetch('/api/auth/authenticate', {
+    const res = await sessionFetch('/api/auth/authenticate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(buildAuthBody(login, password, user)),
@@ -101,7 +100,7 @@ export async function authenticateCredentials(
       };
     }
     const session = data as unknown as SessionLoginResult;
-    storeSessionCredentials(session.sessionToken, session.sessionId);
+    storeSessionCredentials('', session.sessionId);
     return { kind: 'session', ...session };
   } catch {
     return null;
@@ -113,14 +112,14 @@ export async function verifyTotpLogin(
   code: string
 ): Promise<SessionLoginResult | null> {
   try {
-    const res = await fetch('/api/auth/authenticate/totp', {
+    const res = await sessionFetch('/api/auth/authenticate/totp', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ challengeId, code }),
     });
     if (!res.ok) return null;
     const data = (await res.json()) as SessionLoginResult;
-    storeSessionCredentials(data.sessionToken, data.sessionId);
+    storeSessionCredentials('', data.sessionId);
     return data;
   } catch {
     return null;
@@ -140,13 +139,6 @@ export async function fetchTotpStatus(): Promise<TotpStatusResponse> {
 }
 
 export async function beginTotpSetup(): Promise<TotpSetupBeginResponse> {
-  if (!getStoredSessionToken()) {
-    return {
-      ok: false,
-      status: 401,
-      error: 'Сессия не найдена. Выйдите и войдите снова.',
-    };
-  }
   const result = await apiFetch<TotpSetupBeginResult>('/api/auth/totp/setup-begin', {
     method: 'POST',
   });
@@ -174,15 +166,25 @@ export async function disableTotp(code: string): Promise<{ ok: boolean; error?: 
   return { ok: true, revision: result.data.revision };
 }
 
+export async function fetchCurrentSession(): Promise<SessionLoginResult | null> {
+  try {
+    const res = await sessionFetch('/api/auth/session');
+    if (!res.ok) return null;
+    const data = (await res.json()) as SessionLoginResult;
+    if (data.sessionId) storeSessionCredentials('', data.sessionId);
+    return data;
+  } catch {
+    return null;
+  }
+}
+
 export async function sessionHeartbeat(): Promise<{
   ok: boolean;
   revoked?: boolean;
   notifications?: Array<{ id: string; title: string; body: string; meta: Record<string, unknown> }>;
 }> {
-  const token = authHeaders()['X-Session-Token'];
-  if (!token) return { ok: false };
   try {
-    const res = await fetch('/api/auth/heartbeat', {
+    const res = await sessionFetch('/api/auth/heartbeat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
     });
@@ -196,7 +198,7 @@ export async function sessionHeartbeat(): Promise<{
 
 export async function logoutUserSession(userName: string): Promise<void> {
   try {
-    await fetch('/api/auth/logout', {
+    await sessionFetch('/api/auth/logout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify({ userName }),
@@ -209,7 +211,7 @@ export async function logoutUserSession(userName: string): Promise<void> {
 
 export async function fetchActiveSessions(): Promise<UserSession[]> {
   try {
-    const res = await fetch('/api/auth/sessions', { headers: authHeaders() });
+    const res = await sessionFetch('/api/auth/sessions', { headers: authHeaders() });
     if (!res.ok) return [];
     const data = (await res.json()) as { sessions: UserSession[] };
     return data.sessions || [];
@@ -220,7 +222,7 @@ export async function fetchActiveSessions(): Promise<UserSession[]> {
 
 export async function revokeSessionById(sessionId: string): Promise<boolean> {
   try {
-    const res = await fetch(`/api/auth/sessions/${encodeURIComponent(sessionId)}`, {
+    const res = await sessionFetch(`/api/auth/sessions/${encodeURIComponent(sessionId)}`, {
       method: 'DELETE',
       headers: authHeaders(),
     });
@@ -232,7 +234,7 @@ export async function revokeSessionById(sessionId: string): Promise<boolean> {
 
 export async function revokeAllOtherSessions(): Promise<number> {
   try {
-    const res = await fetch('/api/auth/sessions/revoke-others', {
+    const res = await sessionFetch('/api/auth/sessions/revoke-others', {
       method: 'POST',
       headers: authHeaders(),
     });
@@ -246,7 +248,7 @@ export async function revokeAllOtherSessions(): Promise<number> {
 
 export async function markSessionNotificationsRead(ids?: string[]): Promise<void> {
   try {
-    await fetch('/api/auth/notifications/read', {
+    await sessionFetch('/api/auth/notifications/read', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify({ ids }),

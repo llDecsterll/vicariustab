@@ -10,7 +10,7 @@ import {
   revokeAllOtherSessions,
   revokeSessionById,
 } from '../utils/sessionAuth';
-import { getStoredSessionToken, SESSION_ID_KEY } from '../utils/deviceFingerprint';
+import { hasStoredSession, SESSION_ID_KEY } from '../utils/deviceFingerprint';
 
 interface ActiveSessionsPanelProps {
   onLogAuth?: (action: string, detail: string) => void;
@@ -32,7 +32,7 @@ export default function ActiveSessionsPanel({ onLogAuth }: ActiveSessionsPanelPr
   }, []);
 
   useEffect(() => {
-    if (getStoredSessionToken()) {
+    if (hasStoredSession()) {
       void loadSessions();
     } else {
       setLoading(false);
@@ -61,7 +61,7 @@ export default function ActiveSessionsPanel({ onLogAuth }: ActiveSessionsPanelPr
     await loadSessions();
   };
 
-  if (!getStoredSessionToken()) {
+  if (!hasStoredSession()) {
     return (
       <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 text-xs text-amber-800">
         {t('Управление сессиями доступно для ролей Администратор и Редактор после входа с зарегистрированной сессией.')}

@@ -4,6 +4,7 @@
  */
 import { describe, it, before } from 'node:test';
 import assert from 'node:assert/strict';
+import { isAuditServerUp, resolveAuditSession, extractSessionTokenFromResponse } from './auditAuth.mjs';
 
 const BASE = process.env.AUDIT_BASE_URL || 'http://127.0.0.1:8098';
 let token = '';
@@ -18,40 +19,9 @@ async function tryFetch(path, opts = {}) {
 }
 
 before(async () => {
-  const health = await tryFetch('/api/health');
-  serverUp = health?.ok === true;
+  serverUp = await isAuditServerUp();
   if (!serverUp) return;
-
-  const setup = await (await tryFetch('/api/auth/setup-status'))?.json();
-  if (setup?.setupRequired) {
-    await fetch(`${BASE}/api/auth/setup`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        login: 'audit_admin',
-        password: 'audit_pass_8',
-        email: 'audit@test.local',
-      }),
-    });
-  }
-
-  const candidates = [
-    [process.env.AUDIT_LOGIN, process.env.AUDIT_PASSWORD],
-    ['verify_admin', 'verify_pass_8'],
-    ['audit_admin', 'audit_pass_8'],
-  ].filter(([login, password]) => login && password);
-
-  for (const [login, password] of candidates) {
-    const auth = await fetch(`${BASE}/api/auth/authenticate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ login, password, deviceFingerprint: 'audit-integration' }),
-    });
-    if (auth.ok) {
-      token = (await auth.json()).sessionToken;
-      break;
-    }
-  }
+  token = await resolveAuditSession();
 });
 
 describe('integration API', () => {
@@ -180,7 +150,12 @@ describe('integration API', () => {
       t.skip('Viewer login failed after seed');
       return;
     }
-    const viewerToken = (await viewerAuth.json()).sessionToken;
+    const viewerBody = await viewerAuth.json();
+    const viewerToken = extractSessionTokenFromResponse(viewerAuth, viewerBody);
+    if (!viewerToken) {
+      t.skip('Viewer login failed after seed');
+      return;
+    }
 
     const viewerGet = await fetch(`${BASE}/api/data`, {
       headers: { 'X-Session-Token': viewerToken },

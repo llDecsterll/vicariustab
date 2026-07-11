@@ -27,6 +27,12 @@ sessions_store.enc.before-fresh-*.bak
 store_meta.json.before-fresh-*.bak
 sessions_store.enc.corrupt-*
 .screenshot-data/
+.browser-qa-data/
+.audit-run-data/
+.audit-run-data-fresh/
+.audit-final/
+.audit-final2/
+.audit-*/
 # i18n / translation dev dumps (not part of the app)
 cyrillic.txt
 i18n.txt

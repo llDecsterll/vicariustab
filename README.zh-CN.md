@@ -1,4 +1,4 @@
-﻿<p align="center">
+<p align="center">
   <strong>文档语言 / Documentation languages / Языки документации</strong><br>
   <a href="README.md">English</a> ·
   <a href="README.ru.md">Русский</a> ·
@@ -8,7 +8,7 @@
 # 🚀 Vicariustab
 
 <p align="center">
-  <img src="https://img.shields.io/badge/版本-2.0.15-blue?style=for-the-badge" alt="Version">
+  <img src="https://img.shields.io/badge/版本-2.0.21-blue?style=for-the-badge" alt="Version">
   <img src="https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&style=for-the-badge" alt="Docker Ready">
   <img src="https://img.shields.io/badge/Node.js-20+-339933?logo=node.js&style=for-the-badge" alt="Node.js 20">
   <img src="https://img.shields.io/badge/PM2-Supported-blue?style=for-the-badge" alt="PM2">
@@ -157,10 +157,13 @@
 - AES-256-CBC 数据加密
 - **Scrypt 密码哈希**（密码不以明文存储）
 - **服务端身份验证** — 无有效账户无法登录
+- **HttpOnly Cookie 会话**（`vt_session`）— 令牌不保存在浏览器中
 - **强制首次配置** — 无演示访问与预设用户账户
+- **集中式数据存储** — workspace、许可证与设置仅保存在服务器数据库（`db.json` / MySQL / PostgreSQL）；浏览器会话间不持久化数据
+- **API IP 速率限制**与 **Idempotency-Key**（变更类请求）
 - 数据库连接凭据加密存储
 - 自动重连与健康监控
-- 备份排除许可证字段
+- 备份排除许可证字段（服务器 JSON v3.0 + `.enc`）
 - 基于角色的访问（Admin / Editor / Viewer）
 - 分布式部署（Docker、PM2、MySQL、PostgreSQL）
 
@@ -175,6 +178,10 @@
 - 30 天免费使用
 - 自首次启动开始计时
 
+### 服务器激活（所有用户）
+
+**管理员**在 **设置 → 许可证** 中输入密钥。密钥保存在**服务器数据库**（`db.json` 或 SQL），对**整个安装**生效 — 所有用户同步后（约 30 秒轮询或刷新页面）看到相同状态。
+
 ### 迁移到新计算机
 
 激活密钥**绑定于本机 MAC 地址**（Ed25519，`UTKIN-...` 格式）。
@@ -183,8 +190,8 @@
 
 | 迁移方式 | 激活密钥 |
 |----------|----------|
-| **JSON 导出**（设置 → 平台备份） | **已排除** — 不写入文件 |
-| **下载/恢复**（.enc，AES-256-CBC） | 导出与导入时**剔除** |
+| **JSON v3.0**（设置 →「创建备份」— 从服务器导出） | **已排除** |
+| **下载/恢复**（`.enc`，AES-256-CBC，`/api/backup`） | 导出与导入时**剔除** |
 | 手动复制 `db.json` | **不推荐** — 可能保留旧 MAC 与密钥 |
 
 在新计算机上通过官方方式恢复后：
@@ -527,15 +534,15 @@ npm run dev
 
 > `npm run dev` 通过 **tsx** 启动 TypeScript 服务器（已包含在 `devDependencies` 中）。
 
-访问 `http://localhost:3000`（或 `.env` 中的端口）。测试全新安装时，删除数据文件并重启：
+访问 `http://localhost:3000`（或 `.env` 中的端口）。测试全新安装时，删除 **服务器** 数据文件并重启：
 
 ```bash
 rm -f db.json store_meta.json sessions_store.enc db_config.json
 ```
 
-若更改了 `DB_ENCRYPTION_KEY`，请同时删除 `sessions_store.enc`，否则日志中可能出现会话解密警告（服务器仍可运行）。
+> **Workspace 数据不保存在浏览器中** — 无需清除 localStorage。只需重置服务器上的数据文件。
 
-若浏览器仍显示旧登录页，请清除 `localhost` 站点数据（或使用隐私/无痕窗口）。
+若更改了 `DB_ENCRYPTION_KEY`，请同时删除 `sessions_store.enc`，否则日志中可能出现会话解密警告（服务器仍可运行）。
 
 ### 安装验证（冒烟测试）
 
@@ -563,6 +570,8 @@ npm run test:audit
 ```
 
 预期：`ALL TESTS PASSED`、`INSTALL CHECKS PASSED`，且无 i18n 键错误。
+
+完整回归清单：[`docs/VERIFICATION_PLAN.ru.md`](./docs/VERIFICATION_PLAN.ru.md)（俄语）
 
 ---
 
@@ -676,7 +685,7 @@ http://服务器IP:8080
 
 ### 设置路径
 
-**设置** → **数据库（MySQL / PostgreSQL）**
+**设置** → **数据库参数 (MySQL / PostgreSQL)**
 
 ### 连接参数
 
@@ -717,6 +726,9 @@ vicariustab/
 │   └── config/                   # 版本、更新仓库
 ├── server/                       # API、密码哈希、种子数据
 │   ├── apiAuth.ts                # 认证中间件 + 许可证校验
+│   ├── apiRateLimit.ts           # API IP 速率限制
+│   ├── idempotency.ts            # Idempotency-Key（POST/PUT/PATCH/DELETE）
+│   ├── sessionCookie.ts          # HttpOnly cookie vt_session
 │   ├── dataStore.ts              # JSON/SQL 持久化
 │   ├── sessionEngine.ts          # 会话与通知
 │   ├── updateEngine.ts           # GitHub 自动更新
@@ -738,13 +750,15 @@ vicariustab/
 │   ├── check-i18n.mjs            # npm run check:i18n
 │   ├── verify-flow.mjs           # npm run verify
 │   ├── verify-install.mjs        # npm run verify:install
-│   ├── verify-install.mjs        # npm run verify:install
 │   ├── setup-domain.mjs          # npm run setup:domain — 域名 + HTTPS
 │   └── capture-screenshots.mjs   # npm run screenshots — README 截图
-├── docs/screenshots/
-│   ├── ru/                       # README.ru.md
-│   ├── en/                       # README.md
-│   └── zh/                       # README.zh-CN.md
+├── docs/
+│   ├── VERIFICATION_PLAN.ru.md   # 完整功能回归清单（俄语）
+│   ├── FILES_INDEX.md            # 文件目录
+│   └── screenshots/
+│       ├── ru/
+│       ├── en/
+│       └── zh/
 ├── package.json
 ├── .env.example
 ├── README.md                     # English
@@ -785,6 +799,11 @@ vicariustab/
 | `STACK_TLS_EMAIL` | Let's Encrypt 联系邮箱 |
 | `TRUST_PROXY` | 在 Nginx/Caddy 后设为 `true` |
 | `STACK_FORCE_HTTPS` | 为 `true` 时 HTTP 重定向到 HTTPS |
+| `API_RATE_LIMIT_READ_MAX` | 每 IP 每分钟 read API 请求上限（默认 240） |
+| `API_RATE_LIMIT_WRITE_MAX` | 每 IP 每分钟 write API 请求上限（默认 48） |
+| `API_RATE_LIMIT_WINDOW_MS` | 速率限制窗口（毫秒，默认 60000） |
+| `IDEMPOTENCY_TTL_MS` | Idempotency-Key 缓存 TTL（默认 24 小时） |
+| `IDEMPOTENCY_MAX_ENTRIES` | idempotency 最大条目数（默认 10000） |
 
 `.env` 示例：
 
@@ -842,7 +861,7 @@ pm2 restart deploy/ecosystem.config.cjs --env production
 
 ### 通过界面
 
-**设置** → **Vicariustab 更新中心** — 检查 GitHub 发布版本。
+**设置** → **Vicariustab系统内核更新管理器** — 检查 GitHub 发布版本。更新仅覆盖应用程序文件；**服务器上的数据保持不变**。
 
 ---
 
@@ -850,7 +869,8 @@ pm2 restart deploy/ecosystem.config.cjs --env production
 
 | 问题 | 解决方案 |
 |------|----------|
-| **未出现初始配置向导** | 删除 `STACK_DATA_DIR` 中的 `db.json`、`store_meta.json`、`sessions_store.enc`；清除浏览器站点数据 |
+| **未出现初始配置向导** | 删除 `STACK_DATA_DIR` 中的 `db.json`、`store_meta.json`、`sessions_store.enc` |
+| **UI 仍显示旧数据** | 数据仅在服务器 — 检查 `STACK_DATA_DIR`，而非 localStorage |
 | **Sessions 错误 / bad decrypt** | 更改 `DB_ENCRYPTION_KEY` 后，删除 `sessions_store.enc` 并重启 |
 | **「登录名或密码错误」** | 使用初始配置时的凭据；无默认 `admin`/`admin` 账户 |
 | **Docker 内连接数据库被拒绝** | 主机 `172.17.0.1`；MySQL：`bind-address=0.0.0.0`；或 `docker-compose.host.yml` |

@@ -1721,10 +1721,10 @@ const dictionary: Record<string, Record<Language, string>> = {
     en: "General Systems Settings",
     zh: "常规系统参数设置"
   },
-  "Настройки успешно сохранены в локальном диске!": {
-    ru: "Настройки успешно сохранены в локальном диске!",
-    en: "Settings successfully saved to local device!",
-    zh: "设置已成功保存到本地存储中！"
+  "Настройки успешно сохранены на сервере!": {
+    ru: "Настройки успешно сохранены на сервере!",
+    en: "Settings successfully saved on the server!",
+    zh: "设置已成功保存到服务器！"
   },
   "Личные настройки (язык, дашборд) сохраняются на сервере в вашем профиле и доступны с любого устройства.": {
     ru: "Личные настройки (язык, дашборд) сохраняются на сервере в вашем профиле и доступны с любого устройства.",
@@ -2528,10 +2528,10 @@ const dictionary: Record<string, Record<Language, string>> = {
     en: "Restore from Backup",
     zh: "从备份中还原"
   },
-  "Выберите ранее экспортированный файл резервной копии JSON на локальном диске для мгновенного восстановления структуры организации, сотрудников и оборудования. Внимание: Все текущие локальные записи будут перезаписаны. Ваш текущий ключ активации при этом останется неизменным.": {
-    ru: "Выберите ранее экспортированный файл резервной копии JSON на локальном диске для мгновенного восстановления структуры организации, сотрудников и оборудования. Внимание: Все текущие локальные записи будут перезаписаны. Ваш текущий ключ активации при этом останется неизменным.",
-    en: "Select a previously exported JSON backup file on your local disk to instantly restore workspace structure, employees, and devices. Warning: All current local entries will be overwritten. Your current activation key will remain intact.",
-    zh: "选择从本地导入先前导出的 JSON 备份文件，以即时恢复分部结构、员工和设备。警告：本地当前的全部内容将被覆盖。您的许可证状态将保持不变。"
+  "Выберите ранее экспортированный файл резервной копии JSON (v3.0) для восстановления данных на сервере. Внимание: текущие данные workspace на сервере будут перезаписаны. Ключ активации не импортируется.": {
+    ru: "Выберите ранее экспортированный файл резервной копии JSON (v3.0) для восстановления данных на сервере. Внимание: текущие данные workspace на сервере будут перезаписаны. Ключ активации не импортируется.",
+    en: "Select a previously exported JSON backup file (v3.0) to restore data on the server. Warning: current workspace data on the server will be overwritten. The activation key is not imported.",
+    zh: "选择先前导出的 JSON 备份文件 (v3.0) 以在服务器上恢复数据。警告：服务器上的当前工作区数据将被覆盖。激活密钥不会被导入。"
   },
   "Перетащите сюда или нажмите для выбора JSON файла": {
     ru: "Перетащите сюда или нажмите для выбора JSON файла",
@@ -2608,10 +2608,10 @@ const dictionary: Record<string, Record<Language, string>> = {
     en: "ZIP files supported (*.zip)",
     zh: "支持 *.zip 统一规范文件"
   },
-  "Внимание: Обновление ядра Vicariustab перезаписывает только программную часть приложения. Ваши локально сохраненные данные, сотрудники, схемы сети и журналы аудита останутся целыми и невредимыми!": {
-    ru: "Внимание: Обновление ядра Vicariustab перезаписывает только программную часть приложения. Ваши локально сохраненные данные, сотрудники, схемы сети и журналы аудита останутся целыми и невредимыми!",
-    en: "Attention: Core update only overwrites application files. Your locally saved entries, employees, schemas, and audit logs will remain intact!",
-    zh: "注意事项：平台升级仅重新构建和覆盖软件的系统程序代码。您的本地数据、关联雇员、网络架构图等一切静态资源都将完整保留！"
+  "Внимание: Обновление ядра Vicariustab перезаписывает только программную часть приложения. Данные на сервере (сотрудники, схемы сети, журналы аудита) останутся целыми!": {
+    ru: "Внимание: Обновление ядра Vicariustab перезаписывает только программную часть приложения. Данные на сервере (сотрудники, схемы сети, журналы аудита) останутся целыми!",
+    en: "Attention: Core update only overwrites application files. Server data (employees, network layouts, audit logs) remains intact!",
+    zh: "注意事项：平台升级仅重新构建和覆盖软件的系统程序代码。服务器上的数据（员工、网络布局、审计日志）将完整保留！"
   },
   "Выполняется компиляция кода ядра Vicariustab...": {
     ru: "Выполняется компиляция кода ядра Vicariustab...",
@@ -4879,10 +4879,10 @@ const dictionary: Record<string, Record<Language, string>> = {
     en: "Equipment accounting system",
     zh: "设备管理系统"
   },
-  "Для управления кликайте по объектам, технике, сотрудникам. Все данные сохраняются в локальное хранилище.": {
-    ru: "Для управления кликайте по объектам, технике, сотрудникам. Все данные сохраняются в локальное хранилище.",
-    en: "Click on facilities, equipment, and employees to manage them. All data is saved to local storage.",
-    zh: "点击设施、设备和员工进行管理。所有数据保存在本地存储中。"
+  "Для управления кликайте по объектам, технике, сотрудникам. Все данные сохраняются на сервере и синхронизируются между пользователями.": {
+    ru: "Для управления кликайте по объектам, технике, сотрудникам. Все данные сохраняются на сервере и синхронизируются между пользователями.",
+    en: "Click on facilities, equipment, and employees to manage them. All data is saved on the server and synced across users.",
+    zh: "点击设施、设备和员工进行管理。所有数据保存在服务器上并在用户之间同步。"
   },
   "Уведомления": {
     ru: "Уведомления",
@@ -7641,6 +7641,31 @@ const dictionary: Record<string, Record<Language, string>> = {
     en: "Loading...",
     zh: "加载中..."
   },
+  "Загрузка данных с сервера…": {
+    ru: "Загрузка данных с сервера…",
+    en: "Loading data from server…",
+    zh: "正在从服务器加载数据…"
+  },
+  "Синхронизация workspace из базы данных сервера. Данные не хранятся в браузере.": {
+    ru: "Синхронизация workspace из базы данных сервера. Данные не хранятся в браузере.",
+    en: "Syncing workspace from the server database. Data is not stored in the browser.",
+    zh: "正在从服务器数据库同步工作区。数据不会保存在浏览器中。"
+  },
+  "Не удалось загрузить данные": {
+    ru: "Не удалось загрузить данные",
+    en: "Failed to load data",
+    zh: "无法加载数据"
+  },
+  "Не удалось загрузить данные с сервера": {
+    ru: "Не удалось загрузить данные с сервера",
+    en: "Failed to load data from server",
+    zh: "无法从服务器加载数据"
+  },
+  "Повторить загрузку": {
+    ru: "Повторить загрузку",
+    en: "Retry loading",
+    zh: "重试加载"
+  },
   "Пожалуйста, заполните все поля для авторизации.": {
     ru: "Пожалуйста, заполните все поля для авторизации.",
     en: "Please fill in all fields to sign in.",
@@ -8135,17 +8160,9 @@ const LanguageContext = React.createContext<LanguageContextProps>({
 });
 
 export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [language, setLanguageState] = React.useState<Language>(() => {
-    const saved = localStorage.getItem('orbit_lang');
-    return (saved as Language) || 'ru';
-  });
+  const [language, setLanguageState] = React.useState<Language>(() => 'ru');
 
   const applyLanguage = React.useCallback((lang: Language) => {
-    try {
-      localStorage.setItem('orbit_lang', lang);
-    } catch {
-      /* ignore */
-    }
     setLanguageState(lang);
   }, []);
 

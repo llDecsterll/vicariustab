@@ -1,4 +1,4 @@
-﻿# Release — варианты установки Vicariustab
+# Release — варианты установки Vicariustab
 
 Проверка API после запуска: `npm run verify:install http://127.0.0.1:8080`
 
@@ -23,7 +23,7 @@
 | `STACK_DEFAULT_DB_USER` | `stack_user` | `stack_user` | `stack_user` |
 | `STACK_DEFAULT_DB_PASSWORD` | `MYSQL_PASSWORD` | `POSTGRES_PASSWORD` | свой пароль |
 
-В UI: **Настройки → База данных** — тест и сохранение подключения.
+В UI: **Настройки → Параметры СУБД (MySQL / PostgreSQL)** — «Проверить соединение» и «Применить СУБД и мигрировать».
 
 ## HTTPS + домен
 

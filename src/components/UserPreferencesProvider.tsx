@@ -22,6 +22,8 @@ interface UserPreferencesContextValue {
 
 const UserPreferencesContext = createContext<UserPreferencesContextValue | null>(null);
 
+const prefsMigratedUsers = new Set<string>();
+
 export function useUserPreferences(): UserPreferencesContextValue {
   const ctx = useContext(UserPreferencesContext);
   if (!ctx) {
@@ -112,12 +114,7 @@ export function UserPreferencesProvider({
 
   useEffect(() => {
     if (hasAnyUserPreferences(preferences)) return;
-    const migrationKey = `vicariustab_prefs_migrated:${userId}`;
-    try {
-      if (sessionStorage.getItem(migrationKey)) return;
-    } catch {
-      /* ignore */
-    }
+    if (prefsMigratedUsers.has(userId)) return;
 
     const local = collectLocalPreferencesMigration(userId);
     if (Object.keys(local).length === 0) return;
@@ -128,11 +125,7 @@ export function UserPreferencesProvider({
         revisionRef.current = result.revision;
         prefsRef.current = result.preferences;
         onSaved(result.preferences, result.revision);
-        try {
-          sessionStorage.setItem(migrationKey, '1');
-        } catch {
-          /* ignore */
-        }
+        prefsMigratedUsers.add(userId);
       }
     })();
   }, [userId, preferences, onSaved]);

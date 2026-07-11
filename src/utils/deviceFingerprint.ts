@@ -54,26 +54,28 @@ export function collectDeviceClientInfo(): DeviceClientInfo {
   };
 }
 
-export const SESSION_TOKEN_KEY = 'vt_session_token';
 export const SESSION_ID_KEY = 'vt_session_id';
 
-export function getStoredSessionToken(): string | null {
-  if (typeof sessionStorage === 'undefined') return null;
-  return sessionStorage.getItem(SESSION_TOKEN_KEY);
+/** Session token lives in HttpOnly cookie — not readable from JS. */
+export function hasStoredSession(): boolean {
+  if (typeof sessionStorage === 'undefined') return false;
+  return sessionStorage.getItem(SESSION_ID_KEY) !== null;
 }
 
-export function storeSessionCredentials(token: string, sessionId: string) {
-  sessionStorage.setItem(SESSION_TOKEN_KEY, token);
+export function storeSessionCredentials(_token: string, sessionId: string) {
   sessionStorage.setItem(SESSION_ID_KEY, sessionId);
 }
 
 export function clearSessionCredentials() {
-  sessionStorage.removeItem(SESSION_TOKEN_KEY);
   sessionStorage.removeItem(SESSION_ID_KEY);
 }
 
 export function authHeaders(): Record<string, string> {
-  const token = getStoredSessionToken();
-  if (!token) return {};
-  return { 'X-Session-Token': token };
+  return {};
+}
+
+export const sessionFetchInit: RequestInit = { credentials: 'include' };
+
+export function sessionFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  return fetch(input, { ...sessionFetchInit, ...init });
 }

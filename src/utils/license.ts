@@ -12,6 +12,7 @@ import {
   computeServerInstallStatusSig,
 } from '../../server/licenseInstallFields.ts';
 import { verifySignedLicenseKeyClient } from './licenseCryptoClient.ts';
+import { memStorage } from './memoryStorage.ts';
 
 export { hashLicenseString };
 
@@ -51,7 +52,7 @@ export function base64ToUtf8(str: string): string {
 
 /**
  * Get or generate hardware fingerprint
- * This captures basic system properties to detect cloning of localStorage database to different equipment/browser setup
+ * This captures basic system properties to detect cloning of memStorage database to different equipment/browser setup
  */
 export function getHardwareFingerprint(): string {
   if (typeof window === 'undefined') return 'serverside-node-env';
@@ -80,16 +81,16 @@ export function getHardwareFingerprint(): string {
 export function getSystemMac(): string {
   if (typeof window === 'undefined') return '00:00:00:00:00:00';
   
-  let storedMac = localStorage.getItem('it_system_mac');
-  let storedFingerprint = localStorage.getItem('it_system_fingerprint');
+  let storedMac = memStorage.getItem('it_system_mac');
+  let storedFingerprint = memStorage.getItem('it_system_fingerprint');
   const currentFingerprint = getHardwareFingerprint();
 
   // CLONING/COPYING DETECTED: If database was copied to another device, fingerprints differ!
   // This automatically invalidates and clears the activation, forcing new activation.
   if (storedMac && storedFingerprint && storedFingerprint !== currentFingerprint) {
-    localStorage.removeItem('it_license_key');
-    localStorage.removeItem('it_system_mac');
-    localStorage.removeItem('it_system_fingerprint');
+    memStorage.removeItem('it_license_key');
+    memStorage.removeItem('it_system_mac');
+    memStorage.removeItem('it_system_fingerprint');
     storedMac = null;
   }
 
@@ -103,8 +104,8 @@ export function getSystemMac(): string {
       suffix += hexChars[Math.floor(Math.random() * 16)];
     }
     const newMac = `${prefix}:${suffix}`;
-    localStorage.setItem('it_system_mac', newMac);
-    localStorage.setItem('it_system_fingerprint', currentFingerprint);
+    memStorage.setItem('it_system_mac', newMac);
+    memStorage.setItem('it_system_fingerprint', currentFingerprint);
     return newMac;
   }
 
@@ -230,14 +231,21 @@ function verifySignedValue(value: string | null, sig: string | null, suffix: str
   return hashLicenseString(value + suffix) === sig;
 }
 
-function clearCookie(name: string): void {
-  if (typeof document === 'undefined') return;
-  document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; SameSite=Strict`;
+function clearCookie(_name: string): void {
+  /* cookies disabled — server DB is source of truth */
+}
+
+function getCookie(_name: string): string | null {
+  return null;
+}
+
+function setCookie(_name: string, _value: string): void {
+  /* cookies disabled */
 }
 
 function getVerifiedFailureCount(): number {
-  const legacy = localStorage.getItem('it_license_failures');
-  const legacySig = localStorage.getItem('it_license_failures_sig');
+  const legacy = memStorage.getItem('it_license_failures');
+  const legacySig = memStorage.getItem('it_license_failures_sig');
   if (legacy && !legacySig) {
     const legacyCount = parseInt(legacy, 10);
     if (!isNaN(legacyCount) && legacyCount > 0) {
@@ -247,8 +255,8 @@ function getVerifiedFailureCount(): number {
 
   const candidates = [0];
   const sources = [
-    { v: localStorage.getItem('it_license_failures'), s: localStorage.getItem('it_license_failures_sig') },
-    { v: localStorage.getItem('_ao_telemetry_lf'), s: localStorage.getItem('_ao_telemetry_lf_sig') },
+    { v: memStorage.getItem('it_license_failures'), s: memStorage.getItem('it_license_failures_sig') },
+    { v: memStorage.getItem('_ao_telemetry_lf'), s: memStorage.getItem('_ao_telemetry_lf_sig') },
     { v: getCookie('it_lf'), s: getCookie('it_lf_sig') },
   ];
   for (const { v, s } of sources) {
@@ -263,17 +271,17 @@ function getVerifiedFailureCount(): number {
 function setFailureCount(count: number): void {
   const str = count.toString();
   const sig = hashLicenseString(str + FAILURE_INTEGRITY_SUFFIX);
-  localStorage.setItem('it_license_failures', str);
-  localStorage.setItem('it_license_failures_sig', sig);
-  localStorage.setItem('_ao_telemetry_lf', str);
-  localStorage.setItem('_ao_telemetry_lf_sig', sig);
+  memStorage.setItem('it_license_failures', str);
+  memStorage.setItem('it_license_failures_sig', sig);
+  memStorage.setItem('_ao_telemetry_lf', str);
+  memStorage.setItem('_ao_telemetry_lf_sig', sig);
   setCookie('it_lf', str);
   setCookie('it_lf_sig', sig);
 }
 
 function getVerifiedLockoutUntil(): number {
-  const legacy = localStorage.getItem('it_license_lockout_until');
-  const legacySig = localStorage.getItem('it_license_lockout_sig');
+  const legacy = memStorage.getItem('it_license_lockout_until');
+  const legacySig = memStorage.getItem('it_license_lockout_sig');
   if (legacy && !legacySig) {
     const legacyUntil = parseInt(legacy, 10);
     if (!isNaN(legacyUntil) && legacyUntil > Date.now()) {
@@ -283,8 +291,8 @@ function getVerifiedLockoutUntil(): number {
 
   const candidates = [0];
   const sources = [
-    { v: localStorage.getItem('it_license_lockout_until'), s: localStorage.getItem('it_license_lockout_sig') },
-    { v: localStorage.getItem('_ao_telemetry_lo'), s: localStorage.getItem('_ao_telemetry_lo_sig') },
+    { v: memStorage.getItem('it_license_lockout_until'), s: memStorage.getItem('it_license_lockout_sig') },
+    { v: memStorage.getItem('_ao_telemetry_lo'), s: memStorage.getItem('_ao_telemetry_lo_sig') },
     { v: getCookie('it_lo'), s: getCookie('it_lo_sig') },
   ];
   for (const { v, s } of sources) {
@@ -299,26 +307,26 @@ function getVerifiedLockoutUntil(): number {
 function setLockoutUntil(untilMs: number): void {
   const str = untilMs.toString();
   const sig = hashLicenseString(str + LOCKOUT_INTEGRITY_SUFFIX);
-  localStorage.setItem('it_license_lockout_until', str);
-  localStorage.setItem('it_license_lockout_sig', sig);
-  localStorage.setItem('_ao_telemetry_lo', str);
-  localStorage.setItem('_ao_telemetry_lo_sig', sig);
+  memStorage.setItem('it_license_lockout_until', str);
+  memStorage.setItem('it_license_lockout_sig', sig);
+  memStorage.setItem('_ao_telemetry_lo', str);
+  memStorage.setItem('_ao_telemetry_lo_sig', sig);
   setCookie('it_lo', str);
   setCookie('it_lo_sig', sig);
 }
 
 function clearLockoutState(): void {
-  localStorage.removeItem('it_license_lockout_until');
-  localStorage.removeItem('it_license_lockout_sig');
-  localStorage.removeItem('_ao_telemetry_lo');
-  localStorage.removeItem('_ao_telemetry_lo_sig');
+  memStorage.removeItem('it_license_lockout_until');
+  memStorage.removeItem('it_license_lockout_sig');
+  memStorage.removeItem('_ao_telemetry_lo');
+  memStorage.removeItem('_ao_telemetry_lo_sig');
   clearCookie('it_lo');
   clearCookie('it_lo_sig');
 }
 
 function getMinDelayTimeLeft(): number {
   if (typeof window === 'undefined') return 0;
-  const last = parseInt(localStorage.getItem('it_license_last_attempt') || '0', 10);
+  const last = parseInt(memStorage.getItem('it_license_last_attempt') || '0', 10);
   if (isNaN(last) || last <= 0) return 0;
   return Math.max(0, MIN_ATTEMPT_INTERVAL_MS - (Date.now() - last));
 }
@@ -326,11 +334,11 @@ function getMinDelayTimeLeft(): number {
 function setActivationSignature(key: string): void {
   const mac = getSystemMac().replace(/:/g, '').toUpperCase();
   const sig = hashLicenseString(key.trim() + mac + ACTIVATION_INTEGRITY_SUFFIX);
-  localStorage.setItem('it_license_key_sig', sig);
+  memStorage.setItem('it_license_key_sig', sig);
 }
 
 function isActivationSignatureValid(key: string): boolean {
-  const storedSig = localStorage.getItem('it_license_key_sig');
+  const storedSig = memStorage.getItem('it_license_key_sig');
   if (!storedSig) return false;
   const mac = getSystemMac().replace(/:/g, '').toUpperCase();
   const expectedSig = hashLicenseString(key.trim() + mac + ACTIVATION_INTEGRITY_SUFFIX);
@@ -346,20 +354,20 @@ function syncSignedTrialField(
   if (typeof start !== 'string' || typeof sig !== 'string') return;
   const expected = hashLicenseString(start + '_secured_trial_integrity');
   if (sig === expected) {
-    localStorage.setItem(lsStart, start);
-    localStorage.setItem(lsSig, sig);
+    memStorage.setItem(lsStart, start);
+    memStorage.setItem(lsSig, sig);
   }
 }
 
 function clearServerLicenseSummary(): void {
-  localStorage.removeItem('it_license_server_activated');
-  localStorage.removeItem('it_license_server_expired');
-  localStorage.removeItem('it_license_server_type');
-  localStorage.removeItem('it_license_server_expires_year');
-  localStorage.removeItem('it_license_server_status_sig');
-  localStorage.removeItem('it_license_client_name');
-  localStorage.removeItem('it_license_client_email');
-  localStorage.removeItem('it_license_client_phone');
+  memStorage.removeItem('it_license_server_activated');
+  memStorage.removeItem('it_license_server_expired');
+  memStorage.removeItem('it_license_server_type');
+  memStorage.removeItem('it_license_server_expires_year');
+  memStorage.removeItem('it_license_server_status_sig');
+  memStorage.removeItem('it_license_client_name');
+  memStorage.removeItem('it_license_client_email');
+  memStorage.removeItem('it_license_client_phone');
 }
 
 function readVerifiedServerInstallation(macAddress: string): {
@@ -369,15 +377,15 @@ function readVerifiedServerInstallation(macAddress: string): {
   clientEmail: string;
   clientPhone: string;
 } | null {
-  const activated = localStorage.getItem('it_license_server_activated');
-  const expired = localStorage.getItem('it_license_server_expired');
-  const sig = localStorage.getItem('it_license_server_status_sig');
+  const activated = memStorage.getItem('it_license_server_activated');
+  const expired = memStorage.getItem('it_license_server_expired');
+  const sig = memStorage.getItem('it_license_server_status_sig');
   if (!sig || activated !== 'true' || expired === 'true') return null;
 
-  const typeRaw = localStorage.getItem('it_license_server_type');
+  const typeRaw = memStorage.getItem('it_license_server_type');
   const licenseType: 'annual' | 'perpetual' =
     typeRaw === 'perpetual' ? 'perpetual' : 'annual';
-  const expiresYear = parseInt(localStorage.getItem('it_license_server_expires_year') || '', 10);
+  const expiresYear = parseInt(memStorage.getItem('it_license_server_expires_year') || '', 10);
   const expiresYearOrNull = Number.isNaN(expiresYear) ? null : expiresYear;
 
   const expectedSig = computeServerInstallStatusSig(
@@ -392,9 +400,9 @@ function readVerifiedServerInstallation(macAddress: string): {
   return {
     licenseType,
     expiresYear: expiresYearOrNull,
-    clientName: localStorage.getItem('it_license_client_name') || '',
-    clientEmail: localStorage.getItem('it_license_client_email') || '',
-    clientPhone: localStorage.getItem('it_license_client_phone') || '',
+    clientName: memStorage.getItem('it_license_client_name') || '',
+    clientEmail: memStorage.getItem('it_license_client_email') || '',
+    clientPhone: memStorage.getItem('it_license_client_phone') || '',
   };
 }
 
@@ -402,42 +410,42 @@ function syncServerLicenseSummary(data: Record<string, unknown>): void {
   if (typeof data.license_is_activated !== 'boolean') return;
 
   if (data.license_is_activated) {
-    localStorage.setItem('it_license_server_activated', 'true');
+    memStorage.setItem('it_license_server_activated', 'true');
     if (typeof data.license_type === 'string') {
-      localStorage.setItem('it_license_server_type', data.license_type);
+      memStorage.setItem('it_license_server_type', data.license_type);
     }
     if (typeof data.license_expires_year === 'number') {
-      localStorage.setItem('it_license_server_expires_year', String(data.license_expires_year));
+      memStorage.setItem('it_license_server_expires_year', String(data.license_expires_year));
     } else {
-      localStorage.removeItem('it_license_server_expires_year');
+      memStorage.removeItem('it_license_server_expires_year');
     }
     if (typeof data.license_client_name === 'string') {
-      localStorage.setItem('it_license_client_name', data.license_client_name);
+      memStorage.setItem('it_license_client_name', data.license_client_name);
     } else {
-      localStorage.removeItem('it_license_client_name');
+      memStorage.removeItem('it_license_client_name');
     }
     if (typeof data.license_client_email === 'string') {
-      localStorage.setItem('it_license_client_email', data.license_client_email);
+      memStorage.setItem('it_license_client_email', data.license_client_email);
     } else {
-      localStorage.removeItem('it_license_client_email');
+      memStorage.removeItem('it_license_client_email');
     }
     if (typeof data.license_client_phone === 'string') {
-      localStorage.setItem('it_license_client_phone', data.license_client_phone);
+      memStorage.setItem('it_license_client_phone', data.license_client_phone);
     } else {
-      localStorage.removeItem('it_license_client_phone');
+      memStorage.removeItem('it_license_client_phone');
     }
   } else {
     clearServerLicenseSummary();
   }
 
   if (typeof data.license_is_expired === 'boolean') {
-    localStorage.setItem('it_license_server_expired', data.license_is_expired ? 'true' : 'false');
+    memStorage.setItem('it_license_server_expired', data.license_is_expired ? 'true' : 'false');
   }
 
   if (typeof data.license_status_sig === 'string' && data.license_status_sig) {
-    localStorage.setItem('it_license_server_status_sig', data.license_status_sig);
+    memStorage.setItem('it_license_server_status_sig', data.license_status_sig);
   } else {
-    localStorage.removeItem('it_license_server_status_sig');
+    memStorage.removeItem('it_license_server_status_sig');
   }
 }
 
@@ -459,16 +467,16 @@ export function applyLicenseStateFromServer(data: Record<string, unknown>): void
   );
 
   if (fingerprintMismatch) {
-    localStorage.removeItem('it_license_key');
-    localStorage.removeItem('it_license_key_sig');
+    memStorage.removeItem('it_license_key');
+    memStorage.removeItem('it_license_key_sig');
     getSystemMac();
     mergeLicenseSecurityFromServer(data);
     return;
   }
 
   if (serverMac) {
-    localStorage.setItem('it_system_mac', serverMac);
-    localStorage.setItem('it_system_fingerprint', currentFingerprint);
+    memStorage.setItem('it_system_mac', serverMac);
+    memStorage.setItem('it_system_fingerprint', currentFingerprint);
   } else {
     getSystemMac();
   }
@@ -482,12 +490,12 @@ export function applyLicenseStateFromServer(data: Record<string, unknown>): void
   );
 
   if (typeof data.max_time === 'string' && data.max_time) {
-    localStorage.setItem('it_max_time', data.max_time);
-    localStorage.setItem('_ao_telemetry_mt', data.max_time);
+    memStorage.setItem('it_max_time', data.max_time);
+    memStorage.setItem('_ao_telemetry_mt', data.max_time);
   }
 
   if (typeof data.tamper_flag === 'string') {
-    localStorage.setItem('it_tamper_flag', data.tamper_flag);
+    memStorage.setItem('it_tamper_flag', data.tamper_flag);
   }
 
   syncServerLicenseSummary(data);
@@ -496,19 +504,19 @@ export function applyLicenseStateFromServer(data: Record<string, unknown>): void
   if (serverKey) {
     const validation = validateKey(serverKey);
     if (validation) {
-      localStorage.setItem('it_license_key', serverKey);
+      memStorage.setItem('it_license_key', serverKey);
       setActivationSignature(serverKey);
       if (typeof data.license_key_sig === 'string' && data.license_key_sig) {
-        localStorage.setItem('it_license_key_sig', data.license_key_sig);
+        memStorage.setItem('it_license_key_sig', data.license_key_sig);
       }
       clearServerLicenseSummary();
     } else {
-      localStorage.removeItem('it_license_key');
-      localStorage.removeItem('it_license_key_sig');
+      memStorage.removeItem('it_license_key');
+      memStorage.removeItem('it_license_key_sig');
     }
   } else {
-    localStorage.removeItem('it_license_key');
-    localStorage.removeItem('it_license_key_sig');
+    memStorage.removeItem('it_license_key');
+    memStorage.removeItem('it_license_key_sig');
   }
 
   mergeLicenseSecurityFromServer(data);
@@ -533,15 +541,15 @@ export function mergeLicenseSecurityFromServer(data: Record<string, unknown>): v
   }
 
   if (typeof data.license_key_sig === 'string' && data.license_key_sig) {
-    const key = localStorage.getItem('it_license_key');
+    const key = memStorage.getItem('it_license_key');
     if (!key) return;
-    const previousSig = localStorage.getItem('it_license_key_sig');
-    localStorage.setItem('it_license_key_sig', data.license_key_sig);
+    const previousSig = memStorage.getItem('it_license_key_sig');
+    memStorage.setItem('it_license_key_sig', data.license_key_sig);
     if (!isActivationSignatureValid(key)) {
       if (previousSig) {
-        localStorage.setItem('it_license_key_sig', previousSig);
+        memStorage.setItem('it_license_key_sig', previousSig);
       } else {
-        localStorage.removeItem('it_license_key_sig');
+        memStorage.removeItem('it_license_key_sig');
       }
     }
   }
@@ -549,12 +557,28 @@ export function mergeLicenseSecurityFromServer(data: Record<string, unknown>): v
 
 export function getLicenseSecuritySnapshot(): Record<string, string> {
   return {
-    license_failures: localStorage.getItem('it_license_failures') || '0',
-    license_failures_sig: localStorage.getItem('it_license_failures_sig') || '',
-    license_lockout_until: localStorage.getItem('it_license_lockout_until') || '',
-    license_lockout_sig: localStorage.getItem('it_license_lockout_sig') || '',
-    license_key_sig: localStorage.getItem('it_license_key_sig') || '',
-    license_last_attempt: localStorage.getItem('it_license_last_attempt') || '',
+    license_failures: memStorage.getItem('it_license_failures') || '0',
+    license_failures_sig: memStorage.getItem('it_license_failures_sig') || '',
+    license_lockout_until: memStorage.getItem('it_license_lockout_until') || '',
+    license_lockout_sig: memStorage.getItem('it_license_lockout_sig') || '',
+    license_key_sig: memStorage.getItem('it_license_key_sig') || '',
+    license_last_attempt: memStorage.getItem('it_license_last_attempt') || '',
+  };
+}
+
+export function getLicenseWorkspaceFields(): Record<string, string> {
+  return {
+    license_key: memStorage.getItem('it_license_key') || '',
+    system_mac: memStorage.getItem('it_system_mac') || '',
+    system_fingerprint: memStorage.getItem('it_system_fingerprint') || '',
+    trial_start: memStorage.getItem('it_trial_start') || '',
+    trial_sig: memStorage.getItem('it_trial_sig') || '',
+    _ao_telemetry_pt: memStorage.getItem('_ao_telemetry_pt') || '',
+    _ao_telemetry_sig: memStorage.getItem('_ao_telemetry_sig') || '',
+    _ao_telemetry_mt: memStorage.getItem('_ao_telemetry_mt') || '',
+    max_time: memStorage.getItem('it_max_time') || '',
+    tamper_flag: memStorage.getItem('it_tamper_flag') || '',
+    ...getLicenseSecuritySnapshot(),
   };
 }
 
@@ -570,38 +594,18 @@ export function getLockoutTimeLeft(): number {
   return timeLeft;
 }
 
-// Cookie utilities for persistent multi-layered synchronization
-function getCookie(name: string): string | null {
-  if (typeof document === 'undefined') return null;
-  const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
-  if (match) {
-    try {
-      return decodeURIComponent(match[2]);
-    } catch {
-      return match[2];
-    }
-  }
-  return null;
-}
-
-function setCookie(name: string, value: string): void {
-  if (typeof document === 'undefined') return;
-  const expires = "; expires=Fri, 31 Dec 2077 23:59:59 GMT";
-  document.cookie = name + "=" + encodeURIComponent(value) + expires + "; path=/; SameSite=Strict";
-}
-
 export function getLicenseStatus(): LicenseStatus {
   const macAddress = getSystemMac();
   const failedAttempts = getVerifiedFailureCount();
   const lockoutTimeLeft = getLockoutTimeLeft();
   
   // Read all 3 decentralized synchronization nodes
-  const storedKey = localStorage.getItem('it_license_key');
-  const trialStartStr = localStorage.getItem('it_trial_start');
-  const trialSig = localStorage.getItem('it_trial_sig');
+  const storedKey = memStorage.getItem('it_license_key');
+  const trialStartStr = memStorage.getItem('it_trial_start');
+  const trialSig = memStorage.getItem('it_trial_sig');
   
-  const trialStartHidden = localStorage.getItem('_ao_telemetry_pt');
-  const trialSigHidden = localStorage.getItem('_ao_telemetry_sig');
+  const trialStartHidden = memStorage.getItem('_ao_telemetry_pt');
+  const trialSigHidden = memStorage.getItem('_ao_telemetry_sig');
   
   const trialStartCookie = getCookie('it_ts');
   const trialSigCookie = getCookie('it_sg');
@@ -640,13 +644,13 @@ export function getLicenseStatus(): LicenseStatus {
   const expectedSig = hashLicenseString(resolvedStart + "_secured_trial_integrity");
 
   // Re-sync all nodes with the computed source-of-truth
-  if (localStorage.getItem('it_trial_start') !== resolvedStart || localStorage.getItem('it_trial_sig') !== expectedSig) {
-    localStorage.setItem('it_trial_start', resolvedStart);
-    localStorage.setItem('it_trial_sig', expectedSig);
+  if (memStorage.getItem('it_trial_start') !== resolvedStart || memStorage.getItem('it_trial_sig') !== expectedSig) {
+    memStorage.setItem('it_trial_start', resolvedStart);
+    memStorage.setItem('it_trial_sig', expectedSig);
   }
-  if (localStorage.getItem('_ao_telemetry_pt') !== resolvedStart || localStorage.getItem('_ao_telemetry_sig') !== expectedSig) {
-    localStorage.setItem('_ao_telemetry_pt', resolvedStart);
-    localStorage.setItem('_ao_telemetry_sig', expectedSig);
+  if (memStorage.getItem('_ao_telemetry_pt') !== resolvedStart || memStorage.getItem('_ao_telemetry_sig') !== expectedSig) {
+    memStorage.setItem('_ao_telemetry_pt', resolvedStart);
+    memStorage.setItem('_ao_telemetry_sig', expectedSig);
   }
   if (getCookie('it_ts') !== resolvedStart || getCookie('it_sg') !== expectedSig) {
     setCookie('it_ts', resolvedStart);
@@ -656,11 +660,11 @@ export function getLicenseStatus(): LicenseStatus {
   // -------------------------------------------------------------
   // Anti-Time Rollback Protection (Sticky Block)
   // -------------------------------------------------------------
-  let maxTimeStr = localStorage.getItem('it_max_time');
+  let maxTimeStr = memStorage.getItem('it_max_time');
   let maxTime = maxTimeStr ? parseInt(maxTimeStr, 10) : 0;
   if (isNaN(maxTime)) maxTime = 0;
 
-  let maxTimeHiddenStr = localStorage.getItem('_ao_telemetry_mt');
+  let maxTimeHiddenStr = memStorage.getItem('_ao_telemetry_mt');
   let maxTimeHidden = maxTimeHiddenStr ? parseInt(maxTimeHiddenStr, 10) : 0;
   if (isNaN(maxTimeHidden)) maxTimeHidden = 0;
 
@@ -670,23 +674,23 @@ export function getLicenseStatus(): LicenseStatus {
 
   const highestObservedMax = Math.max(maxTime, maxTimeHidden, maxTimeCookie, resolvedStart ? parseInt(resolvedStart, 10) : 0);
 
-  let tamperFlag = localStorage.getItem('it_tamper_flag') === 'true' || 
-                    localStorage.getItem('_ao_telemetry_tf') === 'true' ||
+  let tamperFlag = memStorage.getItem('it_tamper_flag') === 'true' || 
+                    memStorage.getItem('_ao_telemetry_tf') === 'true' ||
                     getCookie('it_tf') === 'true';
 
   // If clock rolled back > 5 minutes relative to maximum recorded past timestamp, trigger persistent tamper lock!
   if (now < highestObservedMax - 300000) { 
     tamperFlag = true;
-    localStorage.setItem('it_tamper_flag', 'true');
-    localStorage.setItem('_ao_telemetry_tf', 'true');
+    memStorage.setItem('it_tamper_flag', 'true');
+    memStorage.setItem('_ao_telemetry_tf', 'true');
     setCookie('it_tf', 'true');
   }
 
   // Track maximum system clock reached
   if (now > highestObservedMax) {
     const nextMax = now.toString();
-    localStorage.setItem('it_max_time', nextMax);
-    localStorage.setItem('_ao_telemetry_mt', nextMax);
+    memStorage.setItem('it_max_time', nextMax);
+    memStorage.setItem('_ao_telemetry_mt', nextMax);
     setCookie('it_mt', nextMax);
   }
 
@@ -695,7 +699,7 @@ export function getLicenseStatus(): LicenseStatus {
     const mainSigExpected = hashLicenseString(trialStartStr + "_secured_trial_integrity");
     if (trialSig !== mainSigExpected) {
       tamperFlag = true;
-      localStorage.setItem('it_tamper_flag', 'true');
+      memStorage.setItem('it_tamper_flag', 'true');
     }
   }
 
@@ -745,8 +749,8 @@ export function getLicenseStatus(): LicenseStatus {
       };
     }
 
-    localStorage.removeItem('it_license_key');
-    localStorage.removeItem('it_license_key_sig');
+    memStorage.removeItem('it_license_key');
+    memStorage.removeItem('it_license_key_sig');
     isTampered = true;
   }
 
@@ -802,18 +806,18 @@ export function activateSystem(key: string): boolean {
   }
 
   if (typeof window !== 'undefined') {
-    localStorage.setItem('it_license_last_attempt', Date.now().toString());
+    memStorage.setItem('it_license_last_attempt', Date.now().toString());
   }
 
   const result = validateKey(key);
   if (result) {
     const trimmed = key.trim();
-    localStorage.setItem('it_license_key', trimmed);
+    memStorage.setItem('it_license_key', trimmed);
     setActivationSignature(trimmed);
     setFailureCount(0);
     clearLockoutState();
-    localStorage.removeItem('it_tamper_flag');
-    localStorage.removeItem('_ao_telemetry_tf');
+    memStorage.removeItem('it_tamper_flag');
+    memStorage.removeItem('_ao_telemetry_tf');
     setCookie('it_tf', '');
     return true;
   }
@@ -840,7 +844,7 @@ export function activateSystem(key: string): boolean {
 }
 
 export function deactivateSystem(): void {
-  localStorage.removeItem('it_license_key');
-  localStorage.removeItem('it_license_key_sig');
+  memStorage.removeItem('it_license_key');
+  memStorage.removeItem('it_license_key_sig');
   clearServerLicenseSummary();
 }

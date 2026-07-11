@@ -31,10 +31,5 @@ export function initTheme(): () => void {
 }
 
 export function setThemeMode(_mode: ThemeMode): 'light' {
-  try {
-    localStorage.setItem(THEME_STORAGE_KEY, 'light');
-  } catch {
-    /* ignore */
-  }
   return applyTheme('light');
 }

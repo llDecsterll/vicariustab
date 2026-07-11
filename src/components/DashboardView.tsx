@@ -1125,14 +1125,7 @@ function DashboardViewInner({
 
   const DASHBOARD_AUDIT_STORAGE_KEY = 'dashboard_selected_audit_id';
   const serverAuditId = prefsCtx?.preferences?.dashboardSelectedAuditId;
-  const [selectedAuditId, setSelectedAuditId] = useState<string>(() => {
-    if (serverAuditId) return serverAuditId;
-    try {
-      return localStorage.getItem(DASHBOARD_AUDIT_STORAGE_KEY) || '';
-    } catch {
-      return '';
-    }
-  });
+  const [selectedAuditId, setSelectedAuditId] = useState<string>(() => serverAuditId || '');
   const skipAuditPersistRef = React.useRef(false);
 
   useEffect(() => {
@@ -1174,12 +1167,6 @@ function DashboardViewInner({
 
   const handleAuditSelectionChange = (auditId: string) => {
     setSelectedAuditId(auditId);
-    try {
-      if (auditId) localStorage.setItem(DASHBOARD_AUDIT_STORAGE_KEY, auditId);
-      else localStorage.removeItem(DASHBOARD_AUDIT_STORAGE_KEY);
-    } catch {
-      /* ignore */
-    }
     if (skipAuditPersistRef.current) {
       skipAuditPersistRef.current = false;
       return;
