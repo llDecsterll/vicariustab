@@ -584,6 +584,18 @@ export function reduceWarehouseItemAfterWriteOff(
   };
 }
 
+/** Resolve per-unit serial list from warehouse specs (handles qty=1 lines that store serialNumber only). */
+export function extractUnitSerialNumbersForMerge(
+  specs: Pick<ComputerReceiptSpecs, 'serialNumber' | 'unitSerialNumbers'>,
+  qty: number
+): string[] {
+  const normalized = normalizeUnitSerialNumbers(qty, specs.unitSerialNumbers);
+  if (normalized.some((s) => s.trim())) return normalized;
+  const sn = (specs.serialNumber || '').trim();
+  if (sn) return normalizeUnitSerialNumbers(Math.max(1, qty), [sn]);
+  return normalized;
+}
+
 /** Merge receipt specs and per-unit serial lists when combining warehouse lines. */
 export function mergeWarehouseLineSpecs(
   parentQty: number,
@@ -592,12 +604,10 @@ export function mergeWarehouseLineSpecs(
   added: ComputerReceiptSpecs
 ): ComputerReceiptSpecs & { unitSerialNumbers?: string[] } {
   const merged = mergeWarehouseReceiptSpecs(parent, added);
-  const mergedSerials = mergeUnitSerialNumbers(
-    parentQty,
-    parent.unitSerialNumbers,
-    addedQty,
-    added.unitSerialNumbers
-  );
+  const mergedSerials = [
+    ...extractUnitSerialNumbersForMerge(parent, parentQty),
+    ...extractUnitSerialNumbersForMerge(added, addedQty),
+  ];
   const newQty = parentQty + addedQty;
   return warehouseSpecsForQuantity(merged, newQty, mergedSerials);
 }

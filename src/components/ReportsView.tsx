@@ -610,7 +610,7 @@ export default function ReportsView({
           <div className="border-b-2 border-slate-800 pb-4 flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold">{t("ОТЧЕТ ПО УЧЕТУ ИТ-ИНВЕНТАРЯ")}</h1>
-              <p className="text-xs text-slate-500 mt-1">{t("Область аналитики:")}<strong className="text-slate-850">{reportScope === 'company' ? 'Вся компания' : `Объект: ${selectedObjectName}`}</strong>
+              <p className="text-xs text-slate-500 mt-1">{t("Область аналитики:")}<strong className="text-slate-850">{reportScope === 'company' ? t('Вся компания') : `${t('Объект')}: ${selectedObjectName}`}</strong>
               </p>
               <p className="text-xs text-slate-500">{t('Сформирован автоматически системой учета')} • {new Date().toLocaleDateString(language === 'zh' ? 'zh-CN' : language === 'en' ? 'en-US' : 'ru-RU')}</p>
             </div>
@@ -619,7 +619,7 @@ export default function ReportsView({
 
           <div className="space-y-4">
             <h2 className="text-lg font-bold border-b border-slate-300 pb-1 font-sans">{t("1. Сводные показатели")}</h2>
-            <table className="w-full text-sm border-collapse border border-slate-300 text-left">
+            <table className="report-print-table w-full text-sm border-collapse border border-slate-300 text-left">
               <thead>
                 <tr className="bg-slate-100">
                   <th className="border border-slate-300 p-2">{t("Показатель")}</th>
@@ -629,15 +629,15 @@ export default function ReportsView({
               <tbody>
                 <tr>
                   <td className="border border-slate-300 p-2">{t("Общее число рабочих станций / ПК")}</td>
-                  <td className="border border-slate-300 p-2 text-right">{filteredComputers.length} шт.</td>
+                  <td className="border border-slate-300 p-2 text-right">{filteredComputers.length} {t('шт.')}</td>
                 </tr>
                 <tr>
                   <td className="border border-slate-300 p-2">{t("Активно у сотрудников в работе")}</td>
-                  <td className="border border-slate-300 p-2 text-right">{filteredComputers.filter(c => c.status === 'В работе').length} шт.</td>
+                  <td className="border border-slate-300 p-2 text-right">{filteredComputers.filter(c => c.status === 'В работе').length} {t('шт.')}</td>
                 </tr>
                 <tr>
                   <td className="border border-slate-300 p-2">{t("Роутеры и коммутаторы на сетях")}</td>
-                  <td className="border border-slate-300 p-2 text-right">{filteredNetworkDevices.length} шт.</td>
+                  <td className="border border-slate-300 p-2 text-right">{filteredNetworkDevices.length} {t('шт.')}</td>
                 </tr>
                 <tr>
                   <td className="border border-slate-300 p-2">{t("Действующий баланс оцениваемого склада")}</td>
@@ -651,15 +651,15 @@ export default function ReportsView({
                 </tr>
                 <tr>
                   <td className="border border-slate-300 p-2">{t("Старше 3 лет")}</td>
-                  <td className="border border-slate-300 p-2 text-right">{olderThan3} шт.</td>
+                  <td className="border border-slate-300 p-2 text-right">{olderThan3} {t('шт.')}</td>
                 </tr>
                 <tr>
                   <td className="border border-slate-300 p-2">{t("Старше 5 лет")}</td>
-                  <td className="border border-slate-300 p-2 text-right">{olderThan5} шт.</td>
+                  <td className="border border-slate-300 p-2 text-right">{olderThan5} {t('шт.')}</td>
                 </tr>
                 <tr>
                   <td className="border border-slate-300 p-2">{t("Старше 7 лет")}</td>
-                  <td className="border border-slate-300 p-2 text-right">{olderThan7} шт.</td>
+                  <td className="border border-slate-300 p-2 text-right">{olderThan7} {t('шт.')}</td>
                 </tr>
               </tbody>
             </table>
@@ -667,7 +667,7 @@ export default function ReportsView({
 
           <div className="space-y-4 pt-6">
             <h2 className="text-lg font-bold border-b border-slate-300 pb-1 font-sans">{t("2. Состояние оборудования")}</h2>
-            <table className="w-full text-sm border-collapse border border-slate-300 text-left">
+            <table className="report-print-table w-full text-sm border-collapse border border-slate-300 text-left">
               <thead>
                 <tr className="bg-slate-100">
                   <th className="border border-slate-300 p-2">{t("Статус")}</th>
@@ -678,7 +678,7 @@ export default function ReportsView({
                 {REPORT_LIFECYCLE_ORDER.map((status) => (
                   <tr key={status}>
                     <td className="border border-slate-300 p-2">{t(status)}</td>
-                    <td className="border border-slate-300 p-2 text-right">{lifecycleCounts[status]} шт.</td>
+                    <td className="border border-slate-300 p-2 text-right">{lifecycleCounts[status]} {t('шт.')}</td>
                   </tr>
                 ))}
               </tbody>
@@ -687,7 +687,7 @@ export default function ReportsView({
 
           <div className="space-y-4 pt-6">
             <h2 className="text-lg font-bold border-b border-slate-300 pb-1 font-sans">{t("3. Возраст техники")}</h2>
-            <table className="w-full text-sm border-collapse border border-slate-300 text-left">
+            <table className="report-print-table w-full text-sm border-collapse border border-slate-300 text-left">
               <thead>
                 <tr className="bg-slate-100">
                   <th className="border border-slate-300 p-2">{t("Возрастная группа")}</th>
@@ -698,7 +698,7 @@ export default function ReportsView({
                 {AGE_BUCKET_ORDER.map((bucket) => (
                   <tr key={bucket}>
                     <td className="border border-slate-300 p-2">{t(bucket)}</td>
-                    <td className="border border-slate-300 p-2 text-right">{ageBucketCounts[bucket]} шт.</td>
+                    <td className="border border-slate-300 p-2 text-right">{ageBucketCounts[bucket]} {t('шт.')}</td>
                   </tr>
                 ))}
               </tbody>
@@ -710,7 +710,7 @@ export default function ReportsView({
             {repairHistory.length === 0 ? (
               <p className="text-sm text-slate-500 italic">{t("Записей о ремонтах и заменах пока нет")}</p>
             ) : (
-              <table className="w-full text-[10px] border-collapse border border-slate-300 text-left">
+              <table className="report-print-table w-full text-[10px] border-collapse border border-slate-300 text-left">
                 <thead>
                   <tr className="bg-slate-100">
                     <th className="border border-slate-300 p-1.5">{t("Дата")}</th>
@@ -743,7 +743,7 @@ export default function ReportsView({
 
           <div className="space-y-4 pt-10">
             <h2 className="text-lg font-bold border-b border-slate-300 pb-1 font-sans">{t("5. Список локаций и филиалов")}</h2>
-            <table className="w-full text-sm border-collapse border border-slate-300 text-left">
+            <table className="report-print-table w-full text-sm border-collapse border border-slate-300 text-left">
               <thead>
                 <tr className="bg-slate-100">
                   <th className="border border-slate-300 p-2">{t("Название объекта")}</th>

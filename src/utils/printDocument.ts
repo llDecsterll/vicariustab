@@ -21,8 +21,9 @@ function resolvePrintTarget(elementId?: string): HTMLElement | null {
 }
 
 function buildPrintHtml(innerHtml: string): string {
+  const lang = document.documentElement.lang || 'ru';
   return `<!DOCTYPE html>
-<html lang="ru">
+<html lang="${lang}">
 <head>
   <meta charset="utf-8" />
   <title></title>

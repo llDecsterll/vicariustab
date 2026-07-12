@@ -113,6 +113,11 @@ import {
   type WarehouseExcelRow,
 } from './utils/warehouseExcel';
 import { clearActDraftLocalStorage } from './utils/actDraft';
+import {
+  EMPLOYEE_PHONE_VALIDATION_ERROR_KEY,
+  isValidEmployeePhone,
+  normalizeEmployeePhone,
+} from './utils/phoneValidation';
 import { clearDocumentHeaderLocalStorage, applyDocumentHeaderFromServer, loadDocumentHeader, loadDocumentHeaderPresets } from './utils/documentHeader';
 import { clearInventoryLocalStorage } from './emptyWorkspace';
 import { fetchSetupStatus } from './utils/setupAuth';
@@ -2287,6 +2292,11 @@ export default function App() {
 
   const handleAddEmployee = (name: string, position: string, department: string, status?: EmployeeStatus, objectName?: string, email?: string, phone?: string) => {
     if (checkLicenseBlocked()) return;
+    const normalizedPhone = normalizeEmployeePhone(phone);
+    if (!isValidEmployeePhone(normalizedPhone)) {
+      alert(t(EMPLOYEE_PHONE_VALIDATION_ERROR_KEY));
+      return;
+    }
     const newEmp: EmployeeItem = {
       id: `emp-${Date.now()}`,
       name,
@@ -2295,7 +2305,7 @@ export default function App() {
       status: status || 'Работает',
       objectName,
       email,
-      phone,
+      phone: normalizedPhone || undefined,
     };
     setEmployees(prev => [...prev, newEmp]);
     logActivity('Добавлен сотрудник', `Добавлен новый профиль сотрудника "${name}" (${position})${objectName ? ` на объект "${objectName}"` : ''}`, 'create');
@@ -2303,12 +2313,17 @@ export default function App() {
 
   const handleEditEmployee = (id: string, name: string, position: string, department: string, status?: EmployeeStatus, objectName?: string, email?: string, phone?: string) => {
     if (checkLicenseBlocked()) return;
+    const normalizedPhone = normalizeEmployeePhone(phone);
+    if (!isValidEmployeePhone(normalizedPhone)) {
+      alert(t(EMPLOYEE_PHONE_VALIDATION_ERROR_KEY));
+      return;
+    }
     const target = employees.find(e => e.id === id);
     if (target && target.name !== name) {
       // Renaming employee changes the link in computer inventory items
       setComputers(prev => prev.map(c => c.employeeName === target.name ? { ...c, employeeName: name } : c));
     }
-    setEmployees(prev => prev.map(e => e.id === id ? { ...e, name, position, department, status: status || e.status || 'Работает', objectName, email, phone } : e));
+    setEmployees(prev => prev.map(e => e.id === id ? { ...e, name, position, department, status: status || e.status || 'Работает', objectName, email, phone: normalizedPhone || undefined } : e));
     logActivity('Изменен профиль сотрудника', `Обновлены данные о сотруднике "${name}"`, 'update');
   };
 

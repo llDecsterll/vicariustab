@@ -806,7 +806,7 @@ export default function AuditsView({
             <div className="flex-1 overflow-y-auto overflow-x-auto bg-slate-100 p-4 sm:p-6 flex justify-center min-h-0 pointer-events-auto">
               <div
                 id="printable-audit-doc"
-                className="doc-official-page audit-print-page shadow-lg border border-slate-200 bg-white"
+                className="doc-official-page audit-print-page audit-print-page--preview shadow-lg border border-slate-200 bg-white"
               >
                 <DocumentPrintShell>
                 {(previewDoc.type === 'start_order' || previewDoc.startParams) ? (
@@ -814,6 +814,7 @@ export default function AuditsView({
                     params={buildStartParams(previewDoc.audit)}
                     workspaceName={workspaceName}
                     objects={objects}
+                    previewPaginated
                   />
                 ) : (
                   <div className="audit-a4-sheet whitespace-pre-wrap font-mono text-[10pt]">

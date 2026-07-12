@@ -8,13 +8,19 @@ import { hasActiveDocumentHeader } from '../utils/documentHeader';
 import { formatClauseNumber, type ActFormState } from '../utils/actDraft';
 import { formatPersonShortName } from '../utils/personName';
 import { getDocStatusBadgeClass } from '../utils/docStatus';
+import { getDeviceSerialDisplayLines } from '../utils/equipmentFields';
 import DocumentPrintShell from './DocumentPrintShell';
 
-function equipmentCategoryLabel(c: { category: string; deviceType?: string }): string {
-  if (c.deviceType && c.deviceType !== c.category) {
-    return `${c.category} / ${c.deviceType}`;
+function equipmentCategoryLabel(
+  c: { category: string; deviceType?: string },
+  t: (key: string) => string
+): string {
+  const category = t(c.category);
+  const deviceType = c.deviceType ? t(c.deviceType) : '';
+  if (deviceType && deviceType !== category) {
+    return `${category} / ${deviceType}`;
   }
-  return c.category;
+  return category;
 }
 
 function equipmentDescriptionLabel(c: {
@@ -25,7 +31,7 @@ function equipmentDescriptionLabel(c: {
   return (c.deviceType?.trim() || c.category?.trim() || '—');
 }
 
-export type ActItemType = 'computer' | 'employee' | 'object' | 'network';
+export type ActItemType = 'computer' | 'employee' | 'object' | 'network' | 'warehouse';
 
 export interface ActPrintContentProps {
   itemType: ActItemType;
@@ -73,7 +79,7 @@ export default function ActPrintContent({
       )}
       <div className="doc-act-meta-row">
         <span className="doc-act-meta-left">
-          {itemType === 'object' ? t('ПАСПОРТ ИНВЕНТАРЯ') : `АКТ № ${actNumber}`}
+          {itemType === 'object' ? t('ПАСПОРТ ИНВЕНТАРЯ') : `${t('АКТ №')} ${actNumber}`}
         </span>
         <span className="doc-act-meta-right">
           {itemType === 'object' ? t('Дата выгрузки') : t('Дата выдачи')}: {actDate}
@@ -93,6 +99,17 @@ export default function ActPrintContent({
         <EmployeeActBody
           item={item}
           computers={computers}
+          actReceiver={actReceiver}
+          actReceiverSub={actReceiverSub}
+          clauses={clauses}
+          signerName={signerName}
+          t={t}
+        />
+      ) : itemType === 'warehouse' ? (
+        <WarehouseActBody
+          item={item}
+          actSender={actSender}
+          actSenderSub={actSenderSub}
           actReceiver={actReceiver}
           actReceiverSub={actReceiverSub}
           clauses={clauses}
@@ -234,6 +251,116 @@ function EmployeeActBody({
                   <td className="doc-status-cell">
                     <span className={getDocStatusBadgeClass(c.status)}>{c.status}</span>
                   </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      <ClausesBlock clauses={clauses} t={t} />
+      <SignaturesBlock
+        leftLabel={t('Отпустил (Сдал) Администратор:')}
+        rightLabel={t('Принял на баланс Получатель:')}
+        signerName={signerName}
+        actReceiver={actReceiver}
+        t={t}
+      />
+    </div>
+  );
+}
+
+function WarehouseActBody({
+  item,
+  actSender,
+  actSenderSub,
+  actReceiver,
+  actReceiverSub,
+  clauses,
+  signerName,
+  t,
+}: {
+  item: Record<string, unknown>;
+  actSender: string;
+  actSenderSub: string;
+  actReceiver: string;
+  actReceiverSub: string;
+  clauses: string[];
+  signerName: string;
+  t: (s: string) => string;
+}) {
+  const qty = Math.max(1, Number(item.quantity) || 1);
+  const serialLines = getDeviceSerialDisplayLines({
+    serialNumber: item.serialNumber as string | undefined,
+    unitSerialNumbers: item.unitSerialNumbers as string[] | undefined,
+    quantity: qty,
+  });
+  const itemTypeLabel = item.type ? t(String(item.type)) : t('Склад IT');
+
+  return (
+    <div className="doc-block">
+      <div className="doc-act-title-block">
+        <h1>{t('Акт Приема-Передачи ИТ-Оборудования')}</h1>
+        <p>{t('передача партии ТМЦ со склада')}</p>
+      </div>
+
+      <div className="doc-info-panel">
+        <div>
+          <span className="doc-info-label">{t('Передающая Сторона')}</span>
+          <strong className="doc-info-value">{actSender || t('Основной склад ИТ')}</strong>
+          <span className="doc-info-sub">{actSenderSub || itemTypeLabel}</span>
+        </div>
+        <div>
+          <span className="doc-info-label">{t('Получающая Сторона (Сотрудник)')}</span>
+          <strong className="doc-info-value">{actReceiver}</strong>
+          <span className="doc-info-sub">{actReceiverSub}</span>
+        </div>
+      </div>
+
+      <div className="doc-block">
+        <span className="doc-section-title">{t('1. Сведения о передаваемой партии')}</span>
+        <table className="doc-equipment-table doc-details-table">
+          <tbody>
+            <tr>
+              <th>{t('Наименование / Модель:')}</th>
+              <td className="doc-info-value" style={{ fontSize: '9pt' }}>
+                {(item.name as string) || (item.model as string) || t('Базовое ИТ-оборудование')}
+              </td>
+            </tr>
+            <tr>
+              <th>{t('Категория:')}</th>
+              <td>{itemTypeLabel}</td>
+            </tr>
+            <tr>
+              <th>{t('Инвентарный номер ТМЦ:')}</th>
+              <td className="mono">{(item.inventoryNumber as string) || t('ИНВ-НЕУКАЗАН')}</td>
+            </tr>
+            <tr>
+              <th>{t('Количество:')}</th>
+              <td>
+                {qty} {t('шт.')}
+              </td>
+            </tr>
+            <tr>
+              <th>{t('Склад хранения:')}</th>
+              <td>{t(String(item.warehouseName || 'Основной склад ИТ'))}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        {serialLines.length > 0 && (
+          <table className="doc-equipment-table" style={{ marginTop: '4mm' }}>
+            <thead>
+              <tr>
+                <th>{t('№')}</th>
+                <th>{t('Серийный номер')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {serialLines.map((sn, idx) => (
+                <tr key={`${sn}-${idx}`}>
+                  <td className="text-center tabular-nums">{idx + 1}</td>
+                  <td className="mono">{sn || t('SN-НЕУКАЗАН')}</td>
                 </tr>
               ))}
             </tbody>
@@ -500,7 +627,7 @@ function ObjectActBody({
             <tbody>
               {objComputers.map(c => (
                 <tr key={c.id}>
-                  <td className="col-cat">{equipmentCategoryLabel(c)}</td>
+                  <td className="col-cat">{equipmentCategoryLabel(c, t)}</td>
                   <td className="col-model">{c.model}</td>
                   <td className="col-inv">{c.inventoryNumber}</td>
                   <td>{c.deviceType || 'Базовая техника'}</td>

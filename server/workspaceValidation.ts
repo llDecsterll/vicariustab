@@ -6,6 +6,10 @@ import {
   getSoftwareWarehouseInv,
   inventoryNumbersMatch,
 } from "../src/utils/equipmentFields.ts";
+import {
+  isValidEmployeePhone,
+  normalizeEmployeePhone,
+} from "../src/utils/phoneValidation.ts";
 
 type InvCtx = {
   warehouseItems: { id?: string; inventoryNumber?: string }[];
@@ -152,6 +156,22 @@ export function validateAdminUsersRemain(payload: Record<string, unknown>): stri
   return null;
 }
 
+export function validateEmployeePhones(payload: Record<string, unknown>): string | null {
+  if (!Array.isArray(payload.employees)) return null;
+  for (const emp of payload.employees as { id?: string; name?: string; phone?: string }[]) {
+    const phone = normalizeEmployeePhone(emp.phone);
+    if (!isValidEmployeePhone(phone)) {
+      const label = emp.name?.trim() || emp.id || "?";
+      return `Некорректный телефон сотрудника «${label}»`;
+    }
+  }
+  return null;
+}
+
 export function validateWorkspacePayload(payload: Record<string, unknown>): string | null {
-  return validateWorkspaceInventory(payload) || validateAdminUsersRemain(payload);
+  return (
+    validateWorkspaceInventory(payload) ||
+    validateEmployeePhones(payload) ||
+    validateAdminUsersRemain(payload)
+  );
 }

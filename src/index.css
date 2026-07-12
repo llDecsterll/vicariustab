@@ -404,6 +404,11 @@ body {
   min-width: 0;
 }
 
+.dashboard-page--edit {
+  overflow: visible;
+  max-width: none;
+}
+
 @media (max-width: 1023px) {
   .dashboard-page {
     padding-left: 0.25rem;
@@ -457,6 +462,14 @@ body {
 
 .dashboard-grid-root--edit {
   user-select: none;
+  overflow: visible;
+  padding: 10px 10px 14px;
+  box-sizing: border-box;
+}
+
+.dashboard-edit-mode {
+  overflow: visible;
+  min-width: 0;
 }
 
 .dashboard-grid-root--edit .dashboard-grid-item--edit {
@@ -1513,6 +1526,46 @@ body {
   overflow: hidden;
 }
 
+.audit-print-page--preview {
+  overflow: visible;
+  height: auto;
+  min-height: 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+.audit-preview-pages {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  max-width: 210mm;
+}
+
+.audit-preview-page {
+  min-height: 297mm;
+  padding: 12mm 14mm;
+  box-sizing: border-box;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 4px 24px rgba(15, 23, 42, 0.08);
+  overflow: visible;
+}
+
+.audit-doc-title--continued {
+  font-size: 10pt;
+  margin-bottom: 6mm;
+}
+
+.audit-page-number {
+  margin-top: 6mm;
+  text-align: center;
+  font-size: 8pt;
+  color: #94a3b8;
+}
+
 .audit-a4-sheet {
   width: 100%;
   max-width: 100%;
@@ -2275,4 +2328,75 @@ body {
 @utility table-scroll-x {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
+}
+
+.warehouse-stock-table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+.warehouse-stock-table th,
+.warehouse-stock-table td {
+  overflow: hidden;
+  vertical-align: top;
+}
+
+.warehouse-stock-table .wh-cell-truncate {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.warehouse-stock-table .wh-col-name {
+  width: 16%;
+  min-width: 9rem;
+}
+
+.warehouse-stock-table .wh-col-category {
+  width: 10%;
+  min-width: 5.5rem;
+}
+
+.warehouse-stock-table .wh-col-model {
+  width: 12%;
+  min-width: 6rem;
+}
+
+.warehouse-stock-table .wh-col-inv {
+  width: 11%;
+  min-width: 6rem;
+}
+
+.warehouse-stock-table .wh-col-actions {
+  width: 7.5rem;
+  min-width: 7.5rem;
+}
+
+.report-print-table {
+  width: 100%;
+  max-width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 9pt;
+}
+
+.report-print-table th,
+.report-print-table td {
+  border: 1px solid #cbd5e1;
+  padding: 2mm 2.5mm;
+  vertical-align: top;
+  word-wrap: break-word;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+
+.report-print-table thead {
+  display: table-header-group;
+}
+
+.report-print-table tr {
+  page-break-inside: avoid;
+  break-inside: avoid;
 }

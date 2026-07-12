@@ -1657,7 +1657,7 @@ function DashboardViewInner({
   };
 
   return (
-    <div className="dashboard-page w-full max-w-[1600px] mx-auto">
+    <div className={`dashboard-page w-full max-w-[1600px] mx-auto${editMode ? ' dashboard-page--edit' : ''}`}>
       <DashboardGridLayout
         layout={gridItems}
         editMode={editMode}

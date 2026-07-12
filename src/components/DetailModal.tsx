@@ -226,7 +226,11 @@ export default function DetailModal({
   const isViewer = currentUser?.role === 'Viewer';
 
   const actItemType: ActItemType | null =
-    itemType === 'computer' || itemType === 'employee' || itemType === 'object' || itemType === 'network'
+    itemType === 'computer' ||
+    itemType === 'employee' ||
+    itemType === 'object' ||
+    itemType === 'network' ||
+    itemType === 'warehouse'
       ? itemType
       : null;
 

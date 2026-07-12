@@ -18,6 +18,7 @@ import {
   reduceWarehouseItemAfterDeploy,
   reduceWarehouseItemAfterWriteOff,
   mergeWarehouseLineSpecs,
+  extractUnitSerialNumbersForMerge,
   findActiveWarehouseStockLineIndex,
   repairDuplicateComputerInventoryNumbers,
   resolveWarehouseItemSerialLines,
@@ -214,6 +215,23 @@ describe('equipmentFields', () => {
       { unitSerialNumbers: ['4', '5'] }
     );
     assert.deepEqual(merged.unitSerialNumbers, ['1', '2', '3', '4', '5']);
+  });
+
+  it('mergeWarehouseLineSpecs recovers serial from qty=1 line serialNumber field', () => {
+    const merged = mergeWarehouseLineSpecs(
+      5,
+      { unitSerialNumbers: ['1', '2', '3', '4', '5'] },
+      1,
+      { serialNumber: '6', unitSerialNumbers: undefined }
+    );
+    assert.deepEqual(merged.unitSerialNumbers, ['1', '2', '3', '4', '5', '6']);
+  });
+
+  it('extractUnitSerialNumbersForMerge reads serialNumber on single-unit lines', () => {
+    assert.deepEqual(
+      extractUnitSerialNumbersForMerge({ serialNumber: 'SN-42', unitSerialNumbers: undefined }, 1),
+      ['SN-42']
+    );
   });
 
   it('findActiveWarehouseStockLineIndex prefers exact split line', () => {

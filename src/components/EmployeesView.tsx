@@ -11,8 +11,13 @@ import React, { useState } from 'react';
 import { memStorage } from '../utils/memoryStorage';
 import { useTranslation } from '../utils/i18n';
 import { interpolate } from '../utils/localeRuntime';
-import { Users, Plus, Search, Trash2, Edit2, ShieldAlert, Laptop, Briefcase, Mail, Phone, ArrowLeftRight, Check, X, MapPin, Building2 } from 'lucide-react';
+import {
+  EMPLOYEE_PHONE_VALIDATION_ERROR_KEY,
+  isValidEmployeePhone,
+  normalizeEmployeePhone,
+} from '../utils/phoneValidation';
 import { EmployeeItem, ComputerItem, EmployeeStatus, ObjectItem } from '../types';
+import { Users, Plus, Search, Trash2, Edit2, ShieldAlert, Laptop, Briefcase, Mail, Phone, ArrowLeftRight, Check, X, MapPin, Building2 } from 'lucide-react';
 import ModalCloseButton from './ModalCloseButton';
 import ConfirmDeleteModal from './ConfirmDeleteModal';
 
@@ -72,6 +77,7 @@ export default function EmployeesView({
   const [objectName, setObjectName] = useState('Без привязки');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+  const [phoneError, setPhoneError] = useState('');
 
   // Transfer states
   const [showTransferModal, setShowTransferModal] = useState(false);
@@ -87,6 +93,7 @@ export default function EmployeesView({
     setObjectName('Без привязки');
     setEmail('');
     setPhone('');
+    setPhoneError('');
     setShowModal(true);
   };
 
@@ -106,11 +113,18 @@ export default function EmployeesView({
     e.preventDefault();
     if (!name.trim() || !position.trim()) return;
 
+    const normalizedPhone = normalizeEmployeePhone(phone);
+    if (!isValidEmployeePhone(normalizedPhone)) {
+      setPhoneError(t(EMPLOYEE_PHONE_VALIDATION_ERROR_KEY));
+      return;
+    }
+    setPhoneError('');
+
     const finalObjectName = objectName === 'Без привязки' ? undefined : objectName;
     if (editingId) {
-      onEdit(editingId, name, position, department, status, finalObjectName, email, phone);
+      onEdit(editingId, name, position, department, status, finalObjectName, email, normalizedPhone || undefined);
     } else {
-      onAdd(name, position, department, status, finalObjectName, email, phone);
+      onAdd(name, position, department, status, finalObjectName, email, normalizedPhone || undefined);
     }
     setShowModal(false);
   };
@@ -573,11 +587,22 @@ export default function EmployeesView({
                   <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">{t("Телефон")}</label>
                   <input
                     type="text"
+                    inputMode="tel"
+                    autoComplete="tel"
                     placeholder="+7 (999) 000-00-00"
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-705 font-mono"
+                    onChange={(e) => {
+                      setPhone(e.target.value);
+                      if (phoneError) setPhoneError('');
+                    }}
+                    aria-invalid={phoneError ? true : undefined}
+                    className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-705 font-mono ${
+                      phoneError ? 'border-rose-300 bg-rose-50/40' : 'border-slate-200'
+                    }`}
                   />
+                  {phoneError ? (
+                    <p className="mt-1 text-[11px] font-semibold text-rose-600">{phoneError}</p>
+                  ) : null}
                 </div>
               </div>
 

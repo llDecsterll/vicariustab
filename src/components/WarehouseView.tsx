@@ -1934,20 +1934,20 @@ export default function WarehouseView({
           {/* Stock Inventory Table View */}
           <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm border-collapse">
+              <table className="warehouse-stock-table w-full text-left text-sm border-collapse">
                 <thead>
                   <tr className="border-b border-slate-100 bg-slate-50/50 text-slate-400">
-                    <th className="py-3 px-5 font-semibold text-slate-500 text-xs uppercase tracking-wider">{t("Товар / Склад хранения")}</th>
-                    <th className="py-3 px-5 font-semibold text-slate-500 text-xs uppercase tracking-wider">{t("Категория")}</th>
-                    <th className="py-3 px-5 font-semibold text-slate-500 text-xs uppercase tracking-wider">{t("Модель")}</th>
-                    <th className="py-3 px-5 font-semibold text-slate-500 text-xs uppercase tracking-wider">{t("Инвентарный номер")}</th>
+                    <th className="wh-col-name py-3 px-5 font-semibold text-slate-500 text-xs uppercase tracking-wider">{t("Товар / Склад хранения")}</th>
+                    <th className="wh-col-category py-3 px-5 font-semibold text-slate-500 text-xs uppercase tracking-wider">{t("Категория")}</th>
+                    <th className="wh-col-model py-3 px-5 font-semibold text-slate-500 text-xs uppercase tracking-wider">{t("Модель")}</th>
+                    <th className="wh-col-inv py-3 px-5 font-semibold text-slate-500 text-xs uppercase tracking-wider">{t("Инвентарный номер")}</th>
                     <th className="py-3 px-5 font-semibold text-slate-500 text-xs uppercase tracking-wider">{t("Дата поступления")}</th>
                     <th className="py-3 px-5 text-center font-semibold text-slate-500 text-xs uppercase tracking-wider">{t("Остаток")}</th>
                     <th className="py-3 px-5 font-semibold text-slate-500 text-xs uppercase tracking-wider">{t("Ед.")}</th>
                     <th className="py-3 px-5 text-right font-semibold text-slate-500 text-xs uppercase tracking-wider">{t("Цена за ед.")}</th>
                     <th className="py-3 px-5 text-right font-semibold text-slate-500 text-xs uppercase tracking-wider">{t("Общая сумма")}</th>
                     <th className="py-3 px-5 text-center font-semibold text-slate-500 text-xs uppercase tracking-wider">{t("Статус")}</th>
-                    <th className="py-3 px-5 text-center font-semibold text-slate-500 text-xs uppercase tracking-wider">{t("Действия")}</th>
+                    <th className="wh-col-actions py-3 px-5 text-center font-semibold text-slate-500 text-xs uppercase tracking-wider">{t("Действия")}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-700">
@@ -1961,7 +1961,8 @@ export default function WarehouseView({
                           <div className="flex flex-col">
                             <span 
                               onClick={() => onViewDetails?.(item.itemSource === 'warehouse' ? 'warehouse' : item.itemSource === 'computer' ? 'computer' : 'network', item.id)}
-                              className="hover:text-blue-650 hover:underline cursor-pointer font-bold text-slate-900"
+                              className="hover:text-blue-650 hover:underline cursor-pointer font-bold text-slate-900 wh-cell-truncate"
+                              title={item.name}
                             >
                               {item.name}
                             </span>
@@ -1980,11 +1981,15 @@ export default function WarehouseView({
                           </div>
                         </div>
                       </td>
-                      <td className="py-3.5 px-5 text-slate-500 text-xs font-semibold">{t(item.type)}</td>
-                      <td className="py-3.5 px-5 text-slate-600 font-bold">{item.model}</td>
+                      <td className="py-3.5 px-5 text-slate-500 text-xs font-semibold">
+                        <span className="wh-cell-truncate" title={t(item.type)}>{t(item.type)}</span>
+                      </td>
+                      <td className="py-3.5 px-5 text-slate-600 font-bold">
+                        <span className="wh-cell-truncate" title={item.model}>{item.model}</span>
+                      </td>
                       <td className="py-3.5 px-5 font-mono text-slate-500 text-xs font-bold">
-                        <div className="flex flex-col gap-0.5">
-                          <span>{item.inventoryNumber}</span>
+                        <div className="flex flex-col gap-0.5 min-w-0">
+                          <span className="wh-cell-truncate" title={item.inventoryNumber}>{item.inventoryNumber}</span>
                           {item.itemSource === 'warehouse' && item.splitFromInventoryNumber && (
                             <span className="text-[9px] font-sans font-semibold text-violet-600 normal-case">
                               {interpolate(t('разд. от {root}'), { root: item.splitFromInventoryNumber })}
@@ -2670,7 +2675,7 @@ export default function WarehouseView({
                     type="text"
                     required
                     maxLength={EQUIPMENT_TITLE_MAX_LENGTH}
-                    placeholder="e.g. Ноутбук ASUS ExpertBook"
+                    placeholder={t("Например, MSI Katana")}
                     value={name}
                     onChange={(e) => setName(limitEquipmentTitle(e.target.value))}
                     className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 text-slate-700"

@@ -44,6 +44,13 @@ export function useDashboardLayout(): DashboardLayoutContextValue {
   return ctx;
 }
 
+function cloneLayoutState(state: DashboardLayoutState): DashboardLayoutState {
+  return {
+    version: state.version,
+    items: state.items.map((item) => ({ ...item })),
+  };
+}
+
 function DashboardHeaderEditPortal() {
   const { t } = useTranslation();
   const { editMode, setEditMode } = useDashboardLayout();
@@ -174,81 +181,134 @@ export function DashboardLayoutProvider({ children }: { children: React.ReactNod
   const serverLayout = prefsCtx?.preferences?.dashboardLayout;
   const persistPreferences = prefsCtx?.persistPreferences;
 
-  const [layout, setLayout] = useState<DashboardLayoutState>(() =>
+  const [committedLayout, setCommittedLayout] = useState<DashboardLayoutState>(() =>
     resolveDashboardLayout(serverLayout, userId)
   );
+  const [draftLayout, setDraftLayout] = useState<DashboardLayoutState>(() => committedLayout);
   const [editMode, setEditModeRaw] = useState(false);
   const [selectedWidgetId, setSelectedWidgetId] = useState<string | null>(null);
 
   const skipPersistRef = useRef(false);
   const isInitialLayoutEffectRef = useRef(true);
+  const editModeRef = useRef(false);
+  const editBaselineRef = useRef<DashboardLayoutState | null>(null);
+
+  editModeRef.current = editMode;
+
+  const layout = editMode ? draftLayout : committedLayout;
 
   useEffect(() => {
     const next = resolveDashboardLayout(serverLayout, userId);
-    setLayout((prev) => {
+    setCommittedLayout((prev) => {
       if (JSON.stringify(prev.items) === JSON.stringify(next.items)) return prev;
       skipPersistRef.current = true;
       return next;
     });
-    setEditModeRaw(false);
-    setSelectedWidgetId(null);
-  }, [userId, serverLayout]);
-
-  const setEditMode = useCallback((value: boolean) => {
-    if (value) {
-      setLayout((prev) =>
-        hasOverlappingGridItems(prev.items)
-          ? { version: 11, items: buildDefaultGridLayout() }
-          : prev
-      );
-    } else {
+    if (!editModeRef.current) {
+      setDraftLayout(next);
+      setEditModeRaw(false);
       setSelectedWidgetId(null);
     }
-    setEditModeRaw(value);
-  }, []);
+  }, [userId, serverLayout]);
+
+  const commitLayout = useCallback(
+    (next: DashboardLayoutState) => {
+      setCommittedLayout(next);
+      saveDashboardLayout(next, userId);
+      persistPreferences?.({ dashboardLayout: next });
+    },
+    [userId, persistPreferences]
+  );
+
+  const setEditMode = useCallback(
+    (value: boolean) => {
+      if (value) {
+        setCommittedLayout((current) => {
+          const start = hasOverlappingGridItems(current.items)
+            ? { version: 11 as const, items: buildDefaultGridLayout() }
+            : current;
+          const baseline = cloneLayoutState(start);
+          editBaselineRef.current = baseline;
+          setDraftLayout(baseline);
+          return start;
+        });
+        setEditModeRaw(true);
+        return;
+      }
+
+      setDraftLayout((draft) => {
+        commitLayout(draft);
+        return draft;
+      });
+      setSelectedWidgetId(null);
+      setEditModeRaw(false);
+    },
+    [commitLayout]
+  );
 
   useEffect(() => {
-    saveDashboardLayout(layout, userId);
+    if (editMode) return;
+    saveDashboardLayout(committedLayout, userId);
     if (skipPersistRef.current || isInitialLayoutEffectRef.current) {
       skipPersistRef.current = false;
       isInitialLayoutEffectRef.current = false;
       return;
     }
-    persistPreferences?.({ dashboardLayout: layout });
-  }, [layout, userId, persistPreferences]);
+    persistPreferences?.({ dashboardLayout: committedLayout });
+  }, [committedLayout, userId, persistPreferences, editMode]);
 
   const updateGridLayout = useCallback((items: GridLayout) => {
     const sanitized = sanitizeLayoutItems(items);
     const packed = packDashboardLayout(sanitized);
-    setLayout({ version: 11, items: hasOverlappingGridItems(packed) ? sanitized : packed });
+    const next: DashboardLayoutState = {
+      version: 11,
+      items: hasOverlappingGridItems(packed) ? sanitized : packed,
+    };
+    if (editModeRef.current) {
+      setDraftLayout(next);
+    } else {
+      setCommittedLayout(next);
+    }
   }, []);
 
   const resetLayout = useCallback(() => {
-    setLayout({
+    if (editModeRef.current && editBaselineRef.current) {
+      setDraftLayout(cloneLayoutState(editBaselineRef.current));
+      return;
+    }
+    const defaults: DashboardLayoutState = {
       version: 11,
       items: buildDefaultGridLayout().map((item) => ({ ...item })),
-    });
+    };
+    setCommittedLayout(defaults);
+    setDraftLayout(defaults);
   }, []);
 
   const removeWidget = useCallback((widgetId: string) => {
-    setLayout((prev) => {
+    const apply = (prev: DashboardLayoutState): DashboardLayoutState => {
       const next = prev.items.filter((item) => item.i !== widgetId);
-      if (next.length === 0) {
-        return prev;
-      }
+      if (next.length === 0) return prev;
       return { version: 11, items: next };
-    });
+    };
+    if (editModeRef.current) {
+      setDraftLayout(apply);
+    } else {
+      setCommittedLayout(apply);
+    }
     setSelectedWidgetId((prev) => (prev === widgetId ? null : prev));
   }, []);
 
   const addWidget = useCallback((widgetId: DashboardWidgetId) => {
-    setLayout((prev) => {
-      if (prev.items.some((item) => item.i === widgetId)) {
-        return prev;
-      }
+    const apply = (prev: DashboardLayoutState): DashboardLayoutState => {
+      if (prev.items.some((item) => item.i === widgetId)) return prev;
       const placement = findPlacementForWidget(prev.items, widgetId);
       return { version: 11, items: [...prev.items, placement] };
-    });
+    };
+    if (editModeRef.current) {
+      setDraftLayout(apply);
+    } else {
+      setCommittedLayout(apply);
+    }
   }, []);
 
   const availableWidgets = useMemo(

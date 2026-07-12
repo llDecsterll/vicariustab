@@ -7,6 +7,7 @@ import {
   validateWorkspaceInventory,
   validateAdminUsersRemain,
   validateWorkspacePayload,
+  validateEmployeePhones,
 } from '../../server/workspaceValidation.ts';
 import { getSoftwareWarehouseInv } from '../../src/utils/equipmentFields.ts';
 
@@ -71,6 +72,21 @@ describe('workspaceValidation', () => {
       computers: [],
       networkDevices: [],
       softwareItems: [],
+      employees: [{ id: 'e1', name: 'Test', phone: '+7 (905) 123-45-67' }],
+    });
+    assert.equal(err, null);
+  });
+
+  it('validateEmployeePhones rejects invalid phone text', () => {
+    const err = validateEmployeePhones({
+      employees: [{ id: 'e1', name: 'Bad Phone', phone: 'abc-not-a-phone' }],
+    });
+    assert.ok(err?.includes('Некорректный телефон'));
+  });
+
+  it('validateEmployeePhones allows empty phone', () => {
+    const err = validateEmployeePhones({
+      employees: [{ id: 'e1', name: 'No Phone', phone: '' }],
     });
     assert.equal(err, null);
   });

@@ -359,7 +359,7 @@ export const DOCUMENT_PRINT_CSS = `
     margin: 0 auto;
     padding: 0;
     box-sizing: border-box;
-    overflow: hidden;
+    overflow: visible;
   }
   .audit-a4-sheet {
     width: 100%;
@@ -450,4 +450,44 @@ export const DOCUMENT_PRINT_CSS = `
   }
   .audit-signatures { margin-top: 6mm; font-size: 10pt; }
   .audit-signatures p { margin: 0 0 4mm; }
+
+  #printable-report-area {
+    width: 100%;
+    max-width: 100%;
+    margin: 0 auto;
+    padding: 0;
+    background: #fff;
+    color: #0f172a;
+    font-family: 'Times New Roman', Times, serif;
+    font-size: 10pt;
+    line-height: 1.45;
+  }
+
+  #printable-report-area .report-print-table {
+    width: 100%;
+    max-width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    font-size: 9pt;
+    margin-bottom: 4mm;
+  }
+
+  #printable-report-area .report-print-table th,
+  #printable-report-area .report-print-table td {
+    border: 1px solid #cbd5e1;
+    padding: 2mm 2.5mm;
+    vertical-align: top;
+    word-wrap: break-word;
+    overflow-wrap: anywhere;
+    hyphens: auto;
+  }
+
+  #printable-report-area .report-print-table thead {
+    display: table-header-group;
+  }
+
+  #printable-report-area .report-print-table tr {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
 `;

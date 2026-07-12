@@ -159,12 +159,21 @@ export default function ActEditorModal({
   };
 
   const handleReset = () => {
-    if (!window.confirm(t('Сбросить все изменения к исходным значениям?'))) return;
+    const message = lastSaved
+      ? t('Сбросить несохранённые изменения к последней сохранённой версии черновика?')
+      : t('Сбросить несохранённые изменения к исходным значениям?');
+    if (!window.confirm(message)) return;
+    setForm({ ...baseline });
+  };
+
+  const handleDeleteDraft = () => {
+    if (!lastSaved) return;
+    if (!window.confirm(t('Удалить сохранённый черновик акта? Это действие нельзя отменить.'))) return;
+    clearActDraft(draftKey);
     const defaults = buildDefaultActForm(item, itemType, workspaceName, currentUser);
     setForm(defaults);
     setBaseline(defaults);
     setLastSaved(null);
-    clearActDraft(draftKey);
   };
 
   const handleAddClause = () => {
@@ -508,6 +517,16 @@ export default function ActEditorModal({
           <RotateCcw size={14} />
           {t('Сбросить изменения')}
         </button>
+        {lastSaved ? (
+          <button
+            type="button"
+            onClick={handleDeleteDraft}
+            className="px-3.5 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 rounded-xl flex items-center gap-1.5 cursor-pointer"
+          >
+            <Trash2 size={14} />
+            {t('Удалить черновик')}
+          </button>
+        ) : null}
         <button
           type="button"
           onClick={handleSaveDraft}

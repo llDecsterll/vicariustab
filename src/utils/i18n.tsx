@@ -8140,7 +8140,57 @@ const dictionary: Record<string, Record<Language, string>> = {
     en: "Cannot delete department «{name}»: {count} employee(s) are assigned to it.",
     zh: "无法删除部门「{name}」：仍有 {count} 名员工归属该部门。"
   },
-  "Закрыть меню": { ru: "Закрыть меню", en: "Close menu", zh: "关闭菜单" }
+  "Закрыть меню": { ru: "Закрыть меню", en: "Close menu", zh: "关闭菜单" },
+  "АКТ №": { ru: "АКТ №", en: "ACT No.", zh: "移交单编号" },
+  "ПАСПОРТ ИНВЕНТАРЯ": { ru: "ПАСПОРТ ИНВЕНТАРЯ", en: "INVENTORY PASSPORT", zh: "资产护照" },
+  "Дата выгрузки": { ru: "Дата выгрузки", en: "Export date", zh: "导出日期" },
+  "передача партии ТМЦ со склада": { ru: "передача партии ТМЦ со склада", en: "warehouse batch handover", zh: "仓库批次物资移交" },
+  "1. Сведения о передаваемой партии": { ru: "1. Сведения о передаваемой партии", en: "1. Batch details", zh: "1. 批次信息" },
+  "Категория:": { ru: "Категория:", en: "Category:", zh: "类别：" },
+  "Количество:": { ru: "Количество:", en: "Quantity:", zh: "数量：" },
+  "Склад хранения:": { ru: "Склад хранения:", en: "Storage warehouse:", zh: "存储仓库：" },
+  "№": { ru: "№", en: "No.", zh: "序号" },
+  "Базовое ИТ-оборудование": { ru: "Базовое ИТ-оборудование", en: "Standard IT equipment", zh: "标准IT设备" },
+  "ИНВ-НЕУКАЗАН": { ru: "ИНВ-НЕУКАЗАН", en: "INV-N/A", zh: "库存号未指定" },
+  "SN-НЕУКАЗАН": { ru: "SN-НЕУКАЗАН", en: "SN-N/A", zh: "序列号未指定" },
+  "Сбросить несохранённые изменения к последней сохранённой версии черновика?": {
+    ru: "Сбросить несохранённые изменения к последней сохранённой версии черновика?",
+    en: "Discard unsaved changes and restore the last saved draft?",
+    zh: "放弃未保存的更改并恢复上次保存的草稿？"
+  },
+  "Сбросить несохранённые изменения к исходным значениям?": {
+    ru: "Сбросить несохранённые изменения к исходным значениям?",
+    en: "Discard unsaved changes and restore initial values?",
+    zh: "放弃未保存的更改并恢复初始值？"
+  },
+  "Удалить черновик": { ru: "Удалить черновик", en: "Delete draft", zh: "删除草稿" },
+  "Удалить сохранённый черновик акта? Это действие нельзя отменить.": {
+    ru: "Удалить сохранённый черновик акта? Это действие нельзя отменить.",
+    en: "Delete the saved act draft? This cannot be undone.",
+    zh: "删除已保存的移交单草稿？此操作无法撤销。"
+  },
+  "Некорректный формат телефона. Разрешены цифры, «+» в начале, пробелы, дефисы и скобки (7–15 цифр).": {
+    ru: "Некорректный формат телефона. Разрешены цифры, «+» в начале, пробелы, дефисы и скобки (7–15 цифр).",
+    en: "Invalid phone format. Allowed: digits, leading +, spaces, dashes, and parentheses (7–15 digits).",
+    zh: "电话格式无效。允许：数字、开头+、空格、连字符和括号（7–15位数字）。"
+  },
+  "Перечень оборудования (продолжение):": {
+    ru: "Перечень оборудования (продолжение):",
+    en: "Equipment list (continued):",
+    zh: "设备清单（续）："
+  },
+  "Страница {n} из {total}": { ru: "Страница {n} из {total}", en: "Page {n} of {total}", zh: "第 {n} 页，共 {total} 页" },
+  "Моноблок": { ru: "Моноблок", en: "All-in-one PC", zh: "一体机" },
+  "Неттоп": { ru: "Неттоп", en: "Mini PC", zh: "迷你电脑" },
+  "Сервер": { ru: "Сервер", en: "Server", zh: "服务器" },
+  "Веб-камера": { ru: "Веб-камера", en: "Webcam", zh: "网络摄像头" },
+  "Сканер": { ru: "Сканер", en: "Scanner", zh: "扫描仪" },
+  "Например, MSI Katana": { ru: "Например, MSI Katana", en: "e.g. MSI Katana", zh: "例如 MSI Katana" },
+  "Storage Warehouse": { ru: "Склад хранения", en: "Storage warehouse", zh: "存储仓库" },
+  "Item Name": { ru: "Наименование", en: "Item name", zh: "物品名称" },
+  "Register New Software": { ru: "Регистрация нового ПО", en: "Register new software", zh: "注册新软件" },
+  "Product License Key": { ru: "Ключ лицензии продукта", en: "Product license key", zh: "产品许可证密钥" },
+  "Заполните это поле": { ru: "Заполните это поле", en: "Fill in this field", zh: "请填写此字段" }
 };
 
 export const useTranslation = () => React.useContext(LanguageContext);
