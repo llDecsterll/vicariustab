@@ -7,7 +7,7 @@
  * Все права защищены. Копирование, изменение, распространение и коммерческое использование без письменного согласия правообладателя запрещено.
  * Release
  */
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Warehouse, Plus, Search, Trash2, Edit2, AlertTriangle, Upload, FileText, Building, ClipboardList, Check, ArrowLeftRight, RotateCcw, Shuffle, Eye, Split, Combine, Image as ImageIcon, Download, FileSpreadsheet } from 'lucide-react';
 import { WarehouseItem, WarehouseItemType, WarehouseItemStatus, CustomWarehouse, WarehouseWriteOff, ObjectItem, EmployeeItem, ComputerItem, NetworkDevice, SoftwareItem, SystemUser, EquipmentCustomSpec } from '../types';
 import { useTranslation } from '../utils/i18n';
@@ -1344,179 +1344,258 @@ export default function WarehouseView({
     }
   };
 
-  // 1. Standard Warehouse Stock items (ПО ведётся только в реестре ПО)
-  const whUnified = warehouseItems
-    .filter(
-      (item) =>
-        item.type !== 'Лицензии ПО' &&
-        item.quantity > 0 &&
-        item.status !== 'Списано' &&
-        item.status !== 'На списание'
-    )
-    .map(item => ({
-    id: item.id,
-    name: item.name,
-    type: item.type,
-    model: item.model,
-    inventoryNumber: item.inventoryNumber,
-    quantity: item.quantity,
-    unit: item.unit || 'шт.',
-    costPerUnit: item.costPerUnit || 0,
-    status: item.status || 'В наличии',
-    location: item.warehouseName || 'Основной склад ИТ',
-    employeeName: '—',
-    itemSource: 'warehouse' as const,
-    warehouseName: item.warehouseName || 'Основной склад ИТ',
-    splitFromInventoryNumber: item.splitFromInventoryNumber,
-    splitPartIndex: item.splitPartIndex,
-    serialNumbers: resolveWarehouseItemSerialLines(item, computers || []),
-    receiptDate: item.receiptDate,
-  }));
-
-  // 2. Active Issued Computers (status is not "На складе" and not "Списано")
-  const compsUnified = (computers || [])
-    .filter(c => c.status !== 'На складе' && c.status !== 'Списано' && c.status !== 'На списание')
-    .map(c => {
-      // Find the warehouse associated with the object location of the computer
-      const linkedWhName = warehouses.find(w => w.objectName === c.objectName)?.name || 'Основной склад ИТ';
-      return {
-        id: c.id,
-        name: t(c.deviceType || c.category),
-        type: c.category === 'Ноутбук' || c.category === 'ПК' ? 'Компьютеры' : 
-              c.category === 'Периферия' || c.category === 'Монитор' ? 'Периферия' :
-              c.category === 'Оргтехника' ? 'Оргтехника' :
-              c.category === 'Видеонаблюдение' ? 'Видеонаблюдение' :
-              c.category === 'Расходники' ? 'Расходные материалы' : 'Другое',
-        model: c.model,
-        inventoryNumber: c.inventoryNumber,
-        quantity: 1,
-        unit: 'шт.',
-        costPerUnit: c.cost || 0,
-        status: c.status === 'В работе' ? 'Привязано' : c.status,
-        location: c.objectName,
-        employeeName: c.employeeName,
-        itemSource: 'computer' as const,
-        warehouseName: linkedWhName,
-        serialNumbers: getDeviceSerialDisplayLines({ serialNumber: c.serialNumber, quantity: 1 }),
-        receiptDate: undefined as string | undefined,
-      };
-    });
-
-  // 2b. Stock registry computers (status "На складе") — only orphans not already in whUnified
-  const stockCompsUnified = (computers || [])
-    .filter(
-      (c) =>
-        c.status === 'На складе' &&
-        !isStockRegistryDuplicateOfWarehouseBatch(c, warehouseItems || [])
-    )
-    .map(c => {
-      const linkedWhName = warehouses.find(w => w.objectName === c.objectName)?.name || 'Основной склад ИТ';
-      return {
-        id: c.id,
-        name: t(c.deviceType || c.category),
-        type: c.category === 'Ноутбук' || c.category === 'ПК' ? 'Компьютеры' :
-              c.category === 'Периферия' || c.category === 'Монитор' ? 'Периферия' :
-              c.category === 'Оргтехника' ? 'Оргтехника' :
-              c.category === 'Видеонаблюдение' ? 'Видеонаблюдение' :
-              c.category === 'Расходники' ? 'Расходные материалы' : 'Другое',
-        model: c.model,
-        inventoryNumber: c.inventoryNumber,
-        quantity: 1,
-        unit: 'шт.',
-        costPerUnit: c.cost || 0,
-        status: 'На складе' as const,
-        location: c.objectName,
-        employeeName: '—',
-        itemSource: 'computer' as const,
-        warehouseName: linkedWhName,
-        isStockRegistry: true as const,
-        serialNumbers: getDeviceSerialDisplayLines({ serialNumber: c.serialNumber, quantity: 1 }),
-        receiptDate: undefined as string | undefined,
-      };
-    });
-
-  // 3. Active Network Devices linked to objects
-  const netUnified = (networkDevices || [])
-    .filter((n) => {
-      const displayStatus = getNetworkDeviceDisplayStatus(n, warehouseItems || [], warehouses, objects);
-      return (
-        displayStatus !== 'На списание' &&
-        displayStatus !== 'Списано' &&
-        !isStockRegistryDuplicateOfWarehouseBatch(n, warehouseItems || [])
-      );
-    })
-    .map((n) => {
-      const displayStatus = getNetworkDeviceDisplayStatus(n, warehouseItems || [], warehouses, objects);
-      const linkedWhName = warehouses.find(w => w.objectName === n.objectName)?.name || 'Основной склад ИТ';
-      return {
-        id: n.id,
-        name: n.deviceName,
-        type: 'Сетевое оборудование' as const,
-        model: n.deviceName,
-        inventoryNumber: n.inventoryNumber || 'NET-EQ',
-        quantity: n.quantity || 1,
-        unit: 'шт.',
-        costPerUnit: n.cost || 0,
-        status: displayStatus === 'На складе' ? ('На складе' as const) : ('Привязано' as const),
-        location: n.objectName,
-        employeeName: '—',
-        itemSource: 'network' as const,
-        warehouseName: linkedWhName,
-        serialNumbers: [] as string[],
-        receiptDate: undefined as string | undefined,
-      };
-    });
-
-  // Combine lists of overall company-wide TMZ assets (без ПО — учёт в разделе «Программное обеспечение»)
-  const totalUnifiedList = [...whUnified, ...stockCompsUnified, ...compsUnified, ...netUnified];
-
-  // Apply filters on the unified assets list
-  const filtered = totalUnifiedList.filter(item => {
-    const searchLower = search.toLowerCase();
-    const matchesSearch =
-      !search.trim() ||
-      (() => {
-      if (item.itemSource === 'computer') {
-        const c = computers.find((x) => x.id === item.id);
-        return c ? computerMatchesSearch(c, search) : false;
-      }
-      if (item.itemSource === 'warehouse') {
-        const w = warehouseItems.find((x) => x.id === item.id);
-        return w ? warehouseItemMatchesSearch(w, search) : false;
-      }
-      if (item.itemSource === 'network') {
-        const n = networkDevices.find((x) => x.id === item.id);
-        return n ? networkDeviceMatchesSearch(n, search) : false;
-      }
-      return false;
-    })();
-    
-    // Category match
-    const matchesTab = activeTab === 'Все' || item.type === activeTab;
-    
-    // Warehouse Filter
-    let matchesWarehouse = true;
-    if (selectedWarehouseFilter !== 'all') {
-      const activeWhName = warehouses.find(w => w.id === selectedWarehouseFilter)?.name;
-      const itemWarehouse = item.warehouseName || 'Основной склад ИТ';
-      matchesWarehouse = (itemWarehouse === activeWhName);
+  // Unified stock registry lists (memoized — rebuilt only when source data changes)
+  const warehouseNameByObject = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const w of warehouses) {
+      if (w.objectName) map.set(w.objectName, w.name);
     }
+    return map;
+  }, [warehouses]);
 
-    // Placement status filter
-    let matchesPlacement = true;
-    if (placementFilter === 'stock') {
-      matchesPlacement =
-        item.itemSource === 'warehouse' ||
-        (item.itemSource === 'computer' && item.status === 'На складе') ||
-        (item.itemSource === 'network' && item.status === 'На складе');
-    } else if (placementFilter === 'issued') {
-      matchesPlacement =
-        (item.itemSource === 'computer' && item.status !== 'На складе') ||
-        (item.itemSource === 'network' && item.status !== 'На складе');
-    }
+  const warehouseById = useMemo(
+    () => new Map(warehouseItems.map((w) => [w.id, w])),
+    [warehouseItems]
+  );
 
-    return matchesSearch && matchesTab && matchesWarehouse && matchesPlacement;
-  });
+  const computerById = useMemo(
+    () => new Map((computers || []).map((c) => [c.id, c])),
+    [computers]
+  );
+
+  const networkById = useMemo(
+    () => new Map((networkDevices || []).map((n) => [n.id, n])),
+    [networkDevices]
+  );
+
+  const whUnified = useMemo(
+    () =>
+      warehouseItems
+        .filter(
+          (item) =>
+            item.type !== 'Лицензии ПО' &&
+            item.quantity > 0 &&
+            item.status !== 'Списано' &&
+            item.status !== 'На списание'
+        )
+        .map((item) => ({
+          id: item.id,
+          name: item.name,
+          type: item.type,
+          model: item.model,
+          inventoryNumber: item.inventoryNumber,
+          quantity: item.quantity,
+          unit: item.unit || 'шт.',
+          costPerUnit: item.costPerUnit || 0,
+          status: item.status || 'В наличии',
+          location: item.warehouseName || 'Основной склад ИТ',
+          employeeName: '—',
+          itemSource: 'warehouse' as const,
+          warehouseName: item.warehouseName || 'Основной склад ИТ',
+          splitFromInventoryNumber: item.splitFromInventoryNumber,
+          splitPartIndex: item.splitPartIndex,
+          serialNumbers: resolveWarehouseItemSerialLines(item, computers || []),
+          receiptDate: item.receiptDate,
+        })),
+    [warehouseItems, computers]
+  );
+
+  const compsUnified = useMemo(
+    () =>
+      (computers || [])
+        .filter(
+          (c) =>
+            c.status !== 'На складе' && c.status !== 'Списано' && c.status !== 'На списание'
+        )
+        .map((c) => {
+          const linkedWhName =
+            warehouseNameByObject.get(c.objectName) || 'Основной склад ИТ';
+          return {
+            id: c.id,
+            name: t(c.deviceType || c.category),
+            type:
+              c.category === 'Ноутбук' || c.category === 'ПК'
+                ? 'Компьютеры'
+                : c.category === 'Периферия' || c.category === 'Монитор'
+                  ? 'Периферия'
+                  : c.category === 'Оргтехника'
+                    ? 'Оргтехника'
+                    : c.category === 'Видеонаблюдение'
+                      ? 'Видеонаблюдение'
+                      : c.category === 'Расходники'
+                        ? 'Расходные материалы'
+                        : 'Другое',
+            model: c.model,
+            inventoryNumber: c.inventoryNumber,
+            quantity: 1,
+            unit: 'шт.',
+            costPerUnit: c.cost || 0,
+            status: c.status === 'В работе' ? 'Привязано' : c.status,
+            location: c.objectName,
+            employeeName: c.employeeName,
+            itemSource: 'computer' as const,
+            warehouseName: linkedWhName,
+            serialNumbers: getDeviceSerialDisplayLines({ serialNumber: c.serialNumber, quantity: 1 }),
+            receiptDate: undefined as string | undefined,
+          };
+        }),
+    [computers, warehouseNameByObject, t]
+  );
+
+  const stockCompsUnified = useMemo(
+    () =>
+      (computers || [])
+        .filter(
+          (c) =>
+            c.status === 'На складе' &&
+            !isStockRegistryDuplicateOfWarehouseBatch(c, warehouseItems || [])
+        )
+        .map((c) => {
+          const linkedWhName =
+            warehouseNameByObject.get(c.objectName) || 'Основной склад ИТ';
+          return {
+            id: c.id,
+            name: t(c.deviceType || c.category),
+            type:
+              c.category === 'Ноутбук' || c.category === 'ПК'
+                ? 'Компьютеры'
+                : c.category === 'Периферия' || c.category === 'Монитор'
+                  ? 'Периферия'
+                  : c.category === 'Оргтехника'
+                    ? 'Оргтехника'
+                    : c.category === 'Видеонаблюдение'
+                      ? 'Видеонаблюдение'
+                      : c.category === 'Расходники'
+                        ? 'Расходные материалы'
+                        : 'Другое',
+            model: c.model,
+            inventoryNumber: c.inventoryNumber,
+            quantity: 1,
+            unit: 'шт.',
+            costPerUnit: c.cost || 0,
+            status: 'На складе' as const,
+            location: c.objectName,
+            employeeName: '—',
+            itemSource: 'computer' as const,
+            warehouseName: linkedWhName,
+            isStockRegistry: true as const,
+            serialNumbers: getDeviceSerialDisplayLines({ serialNumber: c.serialNumber, quantity: 1 }),
+            receiptDate: undefined as string | undefined,
+          };
+        }),
+    [computers, warehouseItems, warehouseNameByObject, t]
+  );
+
+  const netUnified = useMemo(
+    () =>
+      (networkDevices || [])
+        .filter((n) => {
+          const displayStatus = getNetworkDeviceDisplayStatus(
+            n,
+            warehouseItems || [],
+            warehouses,
+            objects
+          );
+          return (
+            displayStatus !== 'На списание' &&
+            displayStatus !== 'Списано' &&
+            !isStockRegistryDuplicateOfWarehouseBatch(n, warehouseItems || [])
+          );
+        })
+        .map((n) => {
+          const displayStatus = getNetworkDeviceDisplayStatus(
+            n,
+            warehouseItems || [],
+            warehouses,
+            objects
+          );
+          const linkedWhName =
+            warehouseNameByObject.get(n.objectName) || 'Основной склад ИТ';
+          return {
+            id: n.id,
+            name: n.deviceName,
+            type: 'Сетевое оборудование' as const,
+            model: n.deviceName,
+            inventoryNumber: n.inventoryNumber || 'NET-EQ',
+            quantity: n.quantity || 1,
+            unit: 'шт.',
+            costPerUnit: n.cost || 0,
+            status: displayStatus === 'На складе' ? ('На складе' as const) : ('Привязано' as const),
+            location: n.objectName,
+            employeeName: '—',
+            itemSource: 'network' as const,
+            warehouseName: linkedWhName,
+            serialNumbers: [] as string[],
+            receiptDate: undefined as string | undefined,
+          };
+        }),
+    [networkDevices, warehouseItems, warehouses, objects, warehouseNameByObject]
+  );
+
+  const totalUnifiedList = useMemo(
+    () => [...whUnified, ...stockCompsUnified, ...compsUnified, ...netUnified],
+    [whUnified, stockCompsUnified, compsUnified, netUnified]
+  );
+
+  const selectedWarehouseName = useMemo(() => {
+    if (selectedWarehouseFilter === 'all') return null;
+    return warehouses.find((w) => w.id === selectedWarehouseFilter)?.name ?? null;
+  }, [selectedWarehouseFilter, warehouses]);
+
+  const filtered = useMemo(() => {
+    const searchTrimmed = search.trim();
+    return totalUnifiedList.filter((item) => {
+      const matchesSearch =
+        !searchTrimmed ||
+        (item.itemSource === 'computer'
+          ? (() => {
+              const c = computerById.get(item.id);
+              return c ? computerMatchesSearch(c, search) : false;
+            })()
+          : item.itemSource === 'warehouse'
+            ? (() => {
+                const w = warehouseById.get(item.id);
+                return w ? warehouseItemMatchesSearch(w, search) : false;
+              })()
+            : item.itemSource === 'network'
+              ? (() => {
+                  const n = networkById.get(item.id);
+                  return n ? networkDeviceMatchesSearch(n, search) : false;
+                })()
+              : false);
+
+      const matchesTab = activeTab === 'Все' || item.type === activeTab;
+
+      let matchesWarehouse = true;
+      if (selectedWarehouseName) {
+        const itemWarehouse = item.warehouseName || 'Основной склад ИТ';
+        matchesWarehouse = itemWarehouse === selectedWarehouseName;
+      }
+
+      let matchesPlacement = true;
+      if (placementFilter === 'stock') {
+        matchesPlacement =
+          item.itemSource === 'warehouse' ||
+          (item.itemSource === 'computer' && item.status === 'На складе') ||
+          (item.itemSource === 'network' && item.status === 'На складе');
+      } else if (placementFilter === 'issued') {
+        matchesPlacement =
+          (item.itemSource === 'computer' && item.status !== 'На складе') ||
+          (item.itemSource === 'network' && item.status !== 'На складе');
+      }
+
+      return matchesSearch && matchesTab && matchesWarehouse && matchesPlacement;
+    });
+  }, [
+    totalUnifiedList,
+    search,
+    activeTab,
+    selectedWarehouseName,
+    placementFilter,
+    computerById,
+    warehouseById,
+    networkById,
+  ]);
 
   const getWarehouseItemsForExcelExport = (): WarehouseItem[] => {
     const ids = new Set(

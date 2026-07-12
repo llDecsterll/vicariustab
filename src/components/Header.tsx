@@ -7,7 +7,7 @@
  * Все права защищены. Копирование, изменение, распространение и коммерческое использование без письменного согласия правообладателя запрещено.
  * Release
  */
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, memo } from 'react';
 import { useTranslation, type Language } from '../utils/i18n';
 import { interpolate, translateNotificationText, translateSecurityText } from '../utils/localeRuntime';
 import { Search, Bell, Laptop, Network, Users, Building2, X, PanelLeftOpen, Settings, Globe, ChevronDown, ChevronRight, LogOut, Package } from 'lucide-react';
@@ -52,7 +52,7 @@ interface HeaderProps {
   activeTab?: string;
 }
 
-export default function Header({
+function Header({
   searchQuery,
   setSearchQuery,
   computers,
@@ -1072,3 +1072,5 @@ export default function Header({
     </header>
   );
 }
+
+export default memo(Header);

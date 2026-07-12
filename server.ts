@@ -69,7 +69,7 @@ import {
 import { buildPurgedWorkspacePayload } from "./server/purgeWorkspace.ts";
 import {
   ensureWorkspaceWarehouses,
-  workspaceWarehousesChanged,
+  persistWorkspaceWarehouseHealIfNeeded,
 } from "./server/workspaceWarehouses.ts";
 import {
   assertBackupHasNoLicenseFields,
@@ -928,6 +928,15 @@ async function startServer() {
   // All other /api routes require a valid session token
   app.use("/api", requireApiAuth);
 
+  app.get("/api/data/revision", (_req, res) => {
+    try {
+      return res.json({ revision: getDataRevision() });
+    } catch (error) {
+      console.error("Error reading data revision:", error);
+      return res.status(500).json({ error: "Failed to read data revision" });
+    }
+  });
+
   // Main data API with optimistic locking
   app.get("/api/data", async (req: AuthedRequest, res) => {
     try {
@@ -935,21 +944,12 @@ async function startServer() {
       if (!data) return res.json({ _revision: revision });
       const raw = data as Record<string, unknown>;
       const normalized = ensureWorkspaceWarehouses(raw);
-      let revisionOut = revision;
-      if (workspaceWarehousesChanged(raw, normalized)) {
-        const healed = await saveApplicationData(normalized, revision);
-        if (healed.ok) {
-          revisionOut = healed.revision;
-        } else if ("revision" in healed) {
-          revisionOut = healed.revision;
-        }
-      }
       const safe = sanitizePayloadForClientWithRole(
         normalized,
         req.authSession?.userRole,
         normalized
       );
-      return res.json({ ...(safe || normalized), _revision: revisionOut });
+      return res.json({ ...(safe || normalized), _revision: revision });
     } catch (error) {
       console.error("Error reading database:", error);
       return res.status(500).json({ error: "Failed to read server database" });
@@ -1461,6 +1461,7 @@ async function startServer() {
   // Active self-monitoring СУБД system checks: initial check and query every 12 seconds
   bootstrapDbConfigFromEnv()
     .then(() => checkDatabaseConnection())
+    .then(() => persistWorkspaceWarehouseHealIfNeeded())
     .catch((err) => console.error("Initial startup database link failure:", err));
   setInterval(() => {
     checkDatabaseConnection().catch((err) => console.error("Periodic database link failure:", err));

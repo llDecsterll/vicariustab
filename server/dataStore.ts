@@ -117,7 +117,7 @@ export async function saveApplicationData(
     await d.saveToSql(config, payload);
   }
 
-  const rawString = JSON.stringify(payload, null, 2);
+  const rawString = JSON.stringify(payload);
   const encryptedData = d.encrypt(rawString);
   fs.writeFileSync(d.dbPath, encryptedData, "utf-8");
 

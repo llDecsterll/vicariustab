@@ -252,7 +252,7 @@ function EquipmentDynamicsWidget({
   const stats = [
     { label: t('Всего'), value: total, tone: 'text-slate-900' },
     { label: t('Выдано'), value: issued, tone: 'text-emerald-600' },
-    { label: t('На складе'), value: warehouse, tone: 'text-slate-900' },
+    { label: t('На складе'), value: warehouse, tone: 'text-blue-600' },
     { label: t('Списано'), value: writtenOff, tone: 'text-slate-500' },
   ];
 
@@ -442,11 +442,13 @@ function MiniBar({ percent }: { percent: number }) {
 
 function DashKpiRow({
   items,
+  compact: compactOverride,
 }: {
   items: Array<{ label: string; value: number | string; tone?: string }>;
+  compact?: boolean;
 }) {
   const { width } = useDashboardWidgetMetrics();
-  const compact = width < 420;
+  const compact = compactOverride ?? width < 420;
 
   return (
     <div className={`dash-kpis shrink-0 ${compact ? 'dash-kpis--compact' : ''}`}>
@@ -506,11 +508,9 @@ function DashMetricTable({
 const StatusLegendRow: React.FC<{
   name: string;
   color: string;
-  value: number;
   rowIndex: number;
-}> = ({ name, color, value, rowIndex }) => {
+}> = ({ name, color, rowIndex }) => {
   const { t } = useTranslation();
-  const animatedValue = useAnimatedNumber(value, 360, rowIndex * 40);
 
   return (
     <div
@@ -519,7 +519,6 @@ const StatusLegendRow: React.FC<{
     >
       <span className="dash-status-legend__dot shrink-0" style={{ backgroundColor: color }} />
       <span className="dash-status-legend__label truncate">{t(name)}</span>
-      <span className="dash-status-legend__value tabular-nums">{animatedValue}</span>
     </div>
   );
 };
@@ -664,6 +663,8 @@ function SoftwareMonitoringWidget({
   onNavigate: (tabId: string) => void;
 }) {
   const { t } = useTranslation();
+  const { width, height } = useDashboardWidgetMetrics();
+  const compact = width < 420 || height < 280;
   const totalSeats = useAnimatedNumber(summary.totalSeats, 850, 0);
   const assignedSeats = useAnimatedNumber(summary.assignedSeats, 850, 40);
   const unassignedSeats = useAnimatedNumber(summary.unassignedSeats, 850, 80);
@@ -680,7 +681,7 @@ function SoftwareMonitoringWidget({
     <div className={`${PANEL} dash-widget-software ${dashboardStaggerClass(staggerIndex, 2)}`}>
       <h2 className={`${TITLE} shrink-0 min-w-0 truncate`}>{t('Мониторинг ПО')}</h2>
 
-      <DashKpiRow items={kpis} />
+      <DashKpiRow items={kpis} compact={compact} />
 
       <div className="dash-widget-software-body flex-1 min-h-0 flex flex-col min-w-0 overflow-hidden">
         {summary.rows.length === 0 ? (
@@ -757,7 +758,7 @@ function EquipmentStatusWidget({
         </div>
         <div className="dash-status-legend">
           {slices.map((s, i) => (
-            <StatusLegendRow key={s.name} name={s.name} color={s.color} value={s.value} rowIndex={i} />
+            <StatusLegendRow key={s.name} name={s.name} color={s.color} rowIndex={i} />
           ))}
         </div>
       </div>
@@ -1106,8 +1107,8 @@ function DashboardViewInner({
   };
 
   const statusSlices = useMemo(
-    () => buildEquipmentStatusSlices(computers, networkDevices),
-    [computers, networkDevices]
+    () => buildEquipmentStatusSlices(computers, networkDevices, warehouseItems, warehouses),
+    [computers, networkDevices, warehouseItems, warehouses]
   );
   const statusTotal = statusSlices.reduce((s, x) => s + x.value, 0);
 
@@ -1118,8 +1119,12 @@ function DashboardViewInner({
     [activities, dynamicsPeriod, dateLocale]
   );
   const equipmentTotals = useMemo(
-    () => buildEquipmentTotals(computers, networkDevices),
-    [computers, networkDevices]
+    () => buildEquipmentTotals(computers, networkDevices, warehouseItems, warehouses),
+    [computers, networkDevices, warehouseItems, warehouses]
+  );
+  const registryEquipmentTotal = useMemo(
+    () => buildEquipmentTotals(computers, networkDevices, [], warehouses).total,
+    [computers, networkDevices, warehouses]
   );
   const periodDelta = useMemo(() => dynamicsPeriodDelta(dynamicsData), [dynamicsData]);
 
@@ -1156,11 +1161,11 @@ function DashboardViewInner({
       buildDashboardAuditCard(
         selectedAudit,
         objects,
-        equipmentTotals.total,
+        registryEquipmentTotal,
         computers,
         networkDevices
       ),
-    [selectedAudit, objects, equipmentTotals.total, computers, networkDevices]
+    [selectedAudit, objects, registryEquipmentTotal, computers, networkDevices]
   );
 
   const inventoryProgress = auditCard.progress;
@@ -1194,8 +1199,8 @@ function DashboardViewInner({
     [objects, activeComputers, activeNetworkDevices]
   );
   const alerts = useMemo(
-    () => buildDashboardAlerts({ computers: activeComputers, audits }),
-    [activeComputers, audits]
+    () => buildDashboardAlerts({ computers: activeComputers, audits, softwareItems }),
+    [activeComputers, audits, softwareItems]
   );
   const softwareMonitoring = useMemo(
     () => buildSoftwareMonitoringSummary(softwareItems),

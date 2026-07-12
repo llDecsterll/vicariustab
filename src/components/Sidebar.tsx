@@ -2,7 +2,7 @@
  * COPYRIGHT NOTICE | УВЕДОМЛЕНИЕ ОБ АВТОРСКИХ ПРАВАХ | 版权声明
  * © 2026 Utkin Vladislav Vyacheslavovich (Уткин Владислав Вячеславович)
  */
-import React from 'react';
+import React, { memo } from 'react';
 import { useTranslation } from '../utils/i18n';
 import BrandLogo from './BrandLogo';
 import {
@@ -59,7 +59,7 @@ interface SidebarProps {
 
 type NavItem = { id: string; label: string; icon: React.ReactNode };
 
-export default function Sidebar({
+function Sidebar({
   activeTab,
   setActiveTab,
   isCollapsed,
@@ -235,3 +235,5 @@ export default function Sidebar({
     </>
   );
 }
+
+export default memo(Sidebar);

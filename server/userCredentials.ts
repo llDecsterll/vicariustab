@@ -5,6 +5,7 @@ import { loadApplicationData, saveApplicationData, type StoredUser } from "./dat
 import { hashPassword, validateEmailField, validateLoginField, validatePasswordField } from "./passwordHash.ts";
 import { buildDefaultWorkspacePayload } from "./defaultWorkspaceSeed.ts";
 import { validateWorkspacePayload } from "./workspaceValidation.ts";
+import { capActivitiesInPayload } from "../src/utils/activitiesCap.ts";
 import { ensureWorkspaceWarehouses } from "./workspaceWarehouses.ts";
 import { preserveTotpFields } from "./totpUserOps.ts";
 import { redactLicenseSecretsForNonAdmin, buildLicenseStatusForClient } from "./licenseInstallFields.ts";
@@ -99,7 +100,7 @@ export function processUsersForStorage(
 export async function preparePayloadForSave(
   payload: Record<string, unknown>
 ): Promise<Record<string, unknown>> {
-  const normalized = ensureWorkspaceWarehouses(payload);
+  const normalized = capActivitiesInPayload(ensureWorkspaceWarehouses(payload));
   const validationError = validateWorkspacePayload(normalized);
   if (validationError) throw new Error(validationError);
 

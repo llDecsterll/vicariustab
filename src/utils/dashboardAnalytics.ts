@@ -35,9 +35,38 @@ export interface EquipmentStatusSlice {
   color: string;
 }
 
+function resolveNetworkAssetBucket(
+  device: NetworkDevice,
+  warehouseItems: WarehouseItem[],
+  warehouses: CustomWarehouse[]
+): 'working' | 'warehouse' | 'writtenOff' {
+  if (device.status === 'Списано' || device.status === 'На списание') return 'writtenOff';
+  const displayStatus =
+    warehouses.length > 0
+      ? getNetworkDeviceDisplayStatus(device, warehouseItems, warehouses)
+      : device.status === 'На складе'
+        ? 'На складе'
+        : 'В работе';
+  return displayStatus === 'На складе' ? 'warehouse' : 'working';
+}
+
+export function countActiveWarehouseStock(warehouseItems: WarehouseItem[]): number {
+  return warehouseItems
+    .filter(isActiveWarehouseLine)
+    .reduce((sum, item) => sum + item.quantity, 0);
+}
+
+function countWrittenOffWarehouseStock(warehouseItems: WarehouseItem[]): number {
+  return warehouseItems
+    .filter((item) => item.status === 'Списано' || item.status === 'На списание')
+    .reduce((sum, item) => sum + Math.max(item.quantity, 0), 0);
+}
+
 export function buildEquipmentStatusSlices(
   computers: ComputerItem[],
-  networkDevices: NetworkDevice[]
+  networkDevices: NetworkDevice[],
+  warehouseItems: WarehouseItem[] = [],
+  warehouses: CustomWarehouse[] = []
 ): EquipmentStatusSlice[] {
   let working = 0;
   let warehouse = 0;
@@ -51,10 +80,14 @@ export function buildEquipmentStatusSlices(
 
   for (const n of networkDevices) {
     const qty = n.quantity || 1;
-    if (n.status === 'Списано' || n.status === 'На списание') writtenOff += qty;
-    else if (n.status === 'На складе') warehouse += qty;
+    const bucket = resolveNetworkAssetBucket(n, warehouseItems, warehouses);
+    if (bucket === 'writtenOff') writtenOff += qty;
+    else if (bucket === 'warehouse') warehouse += qty;
     else working += qty;
   }
+
+  warehouse += countActiveWarehouseStock(warehouseItems);
+  writtenOff += countWrittenOffWarehouseStock(warehouseItems);
 
   return [
     { name: 'Работает', value: working, color: '#22c55e' },
@@ -294,7 +327,9 @@ export interface EquipmentTotals {
 
 export function buildEquipmentTotals(
   computers: ComputerItem[],
-  networkDevices: NetworkDevice[]
+  networkDevices: NetworkDevice[],
+  warehouseItems: WarehouseItem[] = [],
+  warehouses: CustomWarehouse[] = []
 ): EquipmentTotals {
   let issued = 0;
   let warehouse = 0;
@@ -308,10 +343,14 @@ export function buildEquipmentTotals(
 
   for (const n of networkDevices) {
     const qty = n.quantity || 1;
-    if (n.status === 'Списано' || n.status === 'На списание') writtenOff += qty;
-    else if (n.status === 'На складе') warehouse += qty;
+    const bucket = resolveNetworkAssetBucket(n, warehouseItems, warehouses);
+    if (bucket === 'writtenOff') writtenOff += qty;
+    else if (bucket === 'warehouse') warehouse += qty;
     else issued += qty;
   }
+
+  warehouse += countActiveWarehouseStock(warehouseItems);
+  writtenOff += countWrittenOffWarehouseStock(warehouseItems);
 
   return { total: issued + warehouse + writtenOff, issued, warehouse, writtenOff };
 }

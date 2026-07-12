@@ -16,7 +16,7 @@
     "test:audit": "node scripts/audit-tests/run-all.mjs",
     "test:all": "npm run test:audit && npm run verify",
     "browser:qa": "node scripts/browser-qa.mjs",
-    "test:unit": "node --import tsx/esm --test scripts/audit-tests/unit-writeoff.mjs scripts/audit-tests/unit-restore-writeoff.mjs scripts/audit-tests/unit-routing.mjs scripts/audit-tests/unit-license-server.mjs scripts/audit-tests/unit-warehouse-full-lifecycle.mjs scripts/audit-tests/unit-lifecycle.mjs scripts/audit-tests/unit-totp.mjs && node --test scripts/audit-tests/unit-equipment.mjs scripts/audit-tests/unit-validation.mjs scripts/audit-tests/unit-backup-license.mjs",
+    "test:unit": "node --import tsx/esm --test scripts/audit-tests/unit-writeoff.mjs scripts/audit-tests/unit-restore-writeoff.mjs scripts/audit-tests/unit-routing.mjs scripts/audit-tests/unit-license-server.mjs scripts/audit-tests/unit-warehouse-full-lifecycle.mjs scripts/audit-tests/unit-lifecycle.mjs scripts/audit-tests/unit-totp.mjs && node --test scripts/audit-tests/unit-equipment.mjs scripts/audit-tests/unit-validation.mjs scripts/audit-tests/unit-backup-license.mjs scripts/audit-tests/unit-activities-cap.mjs",
     "screenshots": "node scripts/capture-screenshots.mjs",
     "license:keypair": "node scripts/generate-license-keypair.mjs",
     "license:sync-public": "node scripts/sync-license-public-from-pem.mjs",

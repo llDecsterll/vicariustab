@@ -13,7 +13,6 @@ import {
   ShieldAlert, 
   ShieldX, 
   Search, 
-  Calendar, 
   Laptop, 
   Network, 
   Edit2, 
@@ -57,6 +56,76 @@ interface WarrantyItem {
   warrantyPeriodMonths: number;
   provider: string;
   pdfFile?: WarrantyPdf;
+}
+
+const WR_ACTION_ICON_TONES = {
+  neutral: 'wh-action-icon--neutral',
+  blue: 'wh-action-icon--blue',
+  rose: 'wh-action-icon--rose',
+  amber: 'wh-action-icon--amber',
+} as const;
+
+function WrTableIconButton({
+  title,
+  onClick,
+  children,
+  tone = 'neutral',
+}: {
+  title: string;
+  onClick?: () => void;
+  children: React.ReactNode;
+  tone?: keyof typeof WR_ACTION_ICON_TONES;
+}) {
+  const classes = `wh-action-icon ${WR_ACTION_ICON_TONES[tone]}`;
+
+  return (
+    <button type="button" onClick={onClick} title={title} aria-label={title} className={classes}>
+      {children}
+    </button>
+  );
+}
+
+function renderDeviceIcon(type: string) {
+  if (type === 'computer' || type === 'laptops') {
+    return (
+      <span className="p-1.5 bg-blue-50 text-blue-601 rounded-lg shrink-0">
+        <Laptop size={14} />
+      </span>
+    );
+  }
+  if (type === 'printers') {
+    return (
+      <span className="p-1.5 bg-pink-50 text-pink-600 rounded-lg shrink-0">
+        <Printer size={14} />
+      </span>
+    );
+  }
+  if (type === 'cameras') {
+    return (
+      <span className="p-1.5 bg-purple-50 text-purple-600 rounded-lg shrink-0">
+        <Camera size={14} />
+      </span>
+    );
+  }
+  if (type === 'dvrs') {
+    return (
+      <span className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg shrink-0">
+        <Video size={14} />
+      </span>
+    );
+  }
+  if (type === 'peripherals') {
+    return (
+      <span className="p-1.5 bg-orange-50 text-orange-600 rounded-lg shrink-0">
+        <Monitor size={14} />
+      </span>
+    );
+  }
+  return (
+    <span className="p-1.5 bg-lime-50 text-lime-600 rounded-lg shrink-0">
+      <Network size={14} />
+    </span>
+  );
 }
 
 export default function WarrantiesView({
@@ -457,45 +526,48 @@ export default function WarrantiesView({
   return (
     <div className="space-y-6">
       {/* Search and filter bar */}
-      <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-4">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="relative w-full max-w-sm">
+      <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-100 shadow-sm space-y-3">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="relative w-full max-w-md">
             <input
               type="text"
               placeholder={t("Поиск по устройству, инвентарному или провайдеру...")}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+              className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-705"
             />
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex flex-wrap gap-1">
-              {(['Все', 'Действует', 'Истекает', 'Истекла'] as const).map((st) => (
-                <button
-                  key={st}
-                  onClick={() => setFilterState(st)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold select-none transition-all ${
-                    filterState === st
-                      ? 'bg-blue-600 text-white'
-                      : 'text-slate-500 hover:bg-slate-100'
-                  }`}
-                >
-                  {t(st)}
-                </button>
-              ))}
-            </div>
-            
+          <div className="flex flex-wrap items-center gap-2">
             {!isViewer && (
               <button
+                type="button"
                 onClick={() => setIsAdding(true)}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold transition-all shadow-sm flex items-center gap-1.5"
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer text-white border border-blue-500 shrink-0"
               >
-                <Plus size={14} />{t("Добавить Гарантию")}
+                <Plus size={13} />
+                {t("Добавить Гарантию")}
               </button>
             )}
           </div>
+        </div>
+
+        <div className="flex border-b border-slate-100 pb-1.5 gap-1 overflow-x-auto scrollbar-none">
+          {(['Все', 'Действует', 'Истекает', 'Истекла'] as const).map((st) => (
+            <button
+              key={st}
+              type="button"
+              onClick={() => setFilterState(st)}
+              className={`py-1.5 px-3 text-xs font-bold rounded-lg transition-all cursor-pointer shrink-0 ${
+                filterState === st
+                  ? 'bg-slate-800 text-white shadow-xs'
+                  : 'text-slate-500 hover:bg-slate-50/50 hover:text-slate-800'
+              }`}
+            >
+              {t(st)}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -540,18 +612,28 @@ export default function WarrantiesView({
 
       {/* Main Warranties List Table */}
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto text-slate-800">
-          <table className="w-full text-left text-sm border-collapse min-w-[1000px]">
+        <div className="overflow-x-auto">
+          <table className="warehouse-stock-table warranty-table w-full text-left text-sm border-collapse">
+            <colgroup>
+              <col className="wr-col-device" />
+              <col className="wr-col-inv" />
+              <col className="wr-col-provider" />
+              <col className="wr-col-pdf" />
+              <col className="wr-col-date" />
+              <col className="wr-col-expiry" />
+              <col className="wr-col-status" />
+              <col className="wr-col-actions" />
+            </colgroup>
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50/50 text-slate-400">
-                <th className="py-3 px-5 font-semibold text-slate-500">{t("Оборудование / Спецификация")}</th>
-                <th className="py-3 px-5 font-semibold text-slate-500">{t("Инв. номер")}</th>
-                <th className="py-3 px-5 font-semibold text-slate-500">{t("Провайдер обслуживания")}</th>
-                <th className="py-3 px-5 font-semibold text-slate-500">{t("Гарантийный талон")}</th>
-                <th className="py-3 px-5 font-semibold text-slate-500">{t("Дата покупки")}</th>
-                <th className="py-3 px-5 font-semibold text-slate-500">{t("Окончание гарантии")}</th>
-                <th className="py-3 px-5 text-center font-semibold text-slate-500">{t("Статус")}</th>
-                <th className="py-3 px-5 text-center font-semibold text-slate-500">{t("Действие")}</th>
+                <th className="font-semibold text-slate-500 uppercase">{t("Оборудование / Спецификация")}</th>
+                <th className="font-semibold text-slate-500 uppercase">{t("Инв. номер")}</th>
+                <th className="font-semibold text-slate-500 uppercase">{t("Провайдер обслуживания")}</th>
+                <th className="text-center font-semibold text-slate-500 uppercase">{t("Гарантийный талон")}</th>
+                <th className="font-semibold text-slate-500 uppercase">{t("Дата покупки")}</th>
+                <th className="font-semibold text-slate-500 uppercase">{t("Окончание гарантии")}</th>
+                <th className="text-center font-semibold text-slate-500 uppercase">{t("Статус")}</th>
+                <th className="wh-actions-head text-center font-semibold text-slate-500 uppercase">{t("Действие")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700">
@@ -563,7 +645,7 @@ export default function WarrantiesView({
                   badgeClass = 'bg-emerald-50 text-emerald-700 border-emerald-200';
                   remainingText = t("Действует (осталось {days} дн.)").replace("{days}", String(item.remainingDays));
                 } else if (item.status === 'Истекает') {
-                  badgeClass = 'bg-amber-50 text-amber-700 border-amber-200 animate-pulse';
+                  badgeClass = 'bg-amber-50 text-amber-700 border-amber-200';
                   remainingText = t("Истекает (осталось {days} дн.)").replace("{days}", String(item.remainingDays));
                 } else {
                   badgeClass = 'bg-rose-50 text-rose-700 border-rose-200';
@@ -572,143 +654,156 @@ export default function WarrantiesView({
 
                 return (
                   <tr key={item.id} className="hover:bg-slate-50/60 transition-colors">
-                    <td className="py-3.5 px-5 font-medium flex items-center gap-2.5 text-slate-800">
-                      {item.type === 'computer' || item.type === 'laptops' ? (
-                        <span className="p-1.5 bg-blue-50 text-blue-600 rounded-lg"><Laptop size={14} /></span>
-                      ) : item.type === 'printers' ? (
-                        <span className="p-1.5 bg-pink-50 text-pink-600 rounded-lg"><Printer size={14} /></span>
-                      ) : item.type === 'cameras' ? (
-                        <span className="p-1.5 bg-purple-50 text-purple-600 rounded-lg"><Camera size={14} /></span>
-                      ) : item.type === 'dvrs' ? (
-                        <span className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg"><Video size={14} /></span>
-                      ) : item.type === 'peripherals' ? (
-                        <span className="p-1.5 bg-orange-50 text-orange-600 rounded-lg"><Monitor size={14} /></span>
-                      ) : (
-                        <span className="p-1.5 bg-lime-50 text-lime-600 rounded-lg"><Network size={14} /></span>
-                      )}
-                      {item.deviceName}
-                    </td>
-                    <td className="py-3.5 px-5 font-mono text-xs text-slate-400 font-bold select-all">{item.inventoryNumber}</td>
-                    <td className="py-3.5 px-5 text-slate-650 font-semibold">{item.provider}</td>
-
-                    {/* PDF Ticket interactive column */}
-                    <td className="py-3.5 px-5">
-                      {item.pdfFile ? (
-                        <div className="flex items-center gap-1.5">
-                          <span 
-                            onClick={() => handlePreviewPdf(item.pdfFile!)}
-                            className="flex items-center gap-1 p-1 bg-red-50 text-rose-600 hover:text-rose-800 border border-red-100 rounded text-[11px] font-bold cursor-pointer hover:bg-red-100 transition-colors shrink-0 max-w-[140px]"
-                            title={item.pdfFile.name}
-                          >
-                            <FileText size={12} />
-                            <span className="truncate">{item.pdfFile.name}</span>
-                          </span>
-                          <button
-                            onClick={() => handleDownloadPdf(item.pdfFile!)}
-                            className="p-1 text-slate-400 hover:text-slate-750 transition-colors hover:bg-slate-100 rounded cursor-pointer"
-                            title={t("Скачать PDF")}
-                          >
-                            <Download size={12} />
-                          </button>
-                          {!isViewer && (
-                            <>
-                              {confirmDeletePdfInv === item.inventoryNumber ? (
-                                <div className="flex items-center gap-1 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200 text-[10px] animate-fade-in shadow-xs select-none">
-                                  <span className="text-rose-700 font-bold">{t("Удалить файл?")}</span>
-                                  <button
-                                    onClick={() => {
-                                      handleDeletePdf(item.inventoryNumber);
-                                      setConfirmDeletePdfInv(null);
-                                    }}
-                                    className="px-1.5 py-0.5 bg-rose-600 hover:bg-rose-700 text-white rounded font-bold cursor-pointer transition-colors text-[9px]"
-                                  >{t("Да")}</button>
-                                  <button
-                                    onClick={() => setConfirmDeletePdfInv(null)}
-                                    className="px-1.5 py-0.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded font-bold cursor-pointer transition-colors text-[9px]"
-                                  >{t("Нет")}</button>
-                                </div>
-                              ) : (
-                                <button
-                                  onClick={() => setConfirmDeletePdfInv(item.inventoryNumber)}
-                                  className="p-1 text-slate-400 hover:text-red-505 hover:bg-red-50 rounded transition-colors cursor-pointer"
-                                  title={t("Удалить файл")}
-                                >
-                                  <Trash2 size={12} />
-                                </button>
-                              )}
-                            </>
-                          )}
-                        </div>
-                      ) : (
-                        <div>
-                          {!isViewer ? (
-                            <label className="flex items-center gap-1.5 border border-dashed border-slate-200 hover:border-blue-500 bg-slate-50 hover:bg-blue-50/20 text-slate-500 hover:text-blue-650 px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-colors max-w-[150px] select-none">
-                              <Upload size={12} className="shrink-0" />
-                              <span>{t("Прикрепить PDF")}</span>
-                              <input
-                                type="file"
-                                accept=".pdf"
-                                className="hidden"
-                                onChange={(e) => {
-                                  const file = e.target.files?.[0] || null;
-                                  handlePdfUpload(item.inventoryNumber, file);
-                                }}
-                              />
-                            </label>
-                          ) : (
-                            <span className="text-[11px] text-slate-400 italic font-mono">{t("Не прикреплен")}</span>
-                          )}
-                        </div>
-                      )}
-                    </td>
-
-                    <td className="py-3.5 px-5 text-slate-500 font-mono text-xs">{item.purchaseDate}</td>
-                    <td className="py-3.5 px-5 font-mono text-sm text-slate-800 font-semibold">{item.expirationDate}</td>
-                    <td className="py-3.5 px-5 text-center">
-                      <div className="flex flex-col items-center gap-0.5">
-                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${badgeClass}`}>
-                          {t(item.status)}
+                    <td className="wh-name-cell font-medium text-slate-850">
+                      <div className="flex items-center gap-2 min-w-0">
+                        {renderDeviceIcon(item.type)}
+                        <span className="wh-cell-clamp-2 font-bold text-slate-900" title={item.deviceName}>
+                          {item.deviceName}
                         </span>
-                        <span className="text-[9px] text-slate-400 font-mono font-medium">{remainingText}</span>
                       </div>
                     </td>
-                    <td className="py-3.5 px-5 text-center">
+                    <td className="font-mono text-slate-500 text-xs font-bold">
+                      <span className="wh-cell-truncate" title={item.inventoryNumber}>
+                        {item.inventoryNumber}
+                      </span>
+                    </td>
+                    <td className="text-slate-600 text-xs font-semibold">
+                      <span className="wh-cell-wrap" title={item.provider}>
+                        {item.provider}
+                      </span>
+                    </td>
+                    <td className="text-center">
+                      {item.pdfFile ? (
+                        confirmDeletePdfInv === item.inventoryNumber && !isViewer ? (
+                          <div className="flex items-center justify-center gap-1 text-[10px]">
+                            <span className="text-rose-700 font-bold">{t("Удалить файл?")}</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                handleDeletePdf(item.inventoryNumber);
+                                setConfirmDeletePdfInv(null);
+                              }}
+                              className="px-1.5 py-0.5 rounded bg-rose-600 text-white font-bold"
+                            >
+                              {t("Да")}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setConfirmDeletePdfInv(null)}
+                              className="px-1.5 py-0.5 rounded bg-slate-200 text-slate-700 font-bold"
+                            >
+                              {t("Нет")}
+                            </button>
+                          </div>
+                        ) : (
+                          <div
+                            className={`wh-actions-toolbar ${!isViewer ? 'wh-actions-toolbar--3' : 'wh-actions-toolbar--2'}`}
+                            role="group"
+                            aria-label={t("Гарантийный талон")}
+                          >
+                            <WrTableIconButton
+                              title={item.pdfFile.name}
+                              tone="rose"
+                              onClick={() => handlePreviewPdf(item.pdfFile!)}
+                            >
+                              <FileText size={15} strokeWidth={2} />
+                            </WrTableIconButton>
+                            <WrTableIconButton
+                              title={t("Скачать PDF")}
+                              tone="blue"
+                              onClick={() => handleDownloadPdf(item.pdfFile!)}
+                            >
+                              <Download size={15} strokeWidth={2} />
+                            </WrTableIconButton>
+                            {!isViewer && (
+                              <WrTableIconButton
+                                title={t("Удалить файл")}
+                                tone="rose"
+                                onClick={() => setConfirmDeletePdfInv(item.inventoryNumber)}
+                              >
+                                <Trash2 size={15} strokeWidth={2} />
+                              </WrTableIconButton>
+                            )}
+                          </div>
+                        )
+                      ) : !isViewer ? (
+                        <label className="wh-pdf-upload mx-auto" title={t("Прикрепить PDF")} aria-label={t("Прикрепить PDF")}>
+                          <Upload size={15} strokeWidth={2} />
+                          <input
+                            type="file"
+                            accept=".pdf"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0] || null;
+                              handlePdfUpload(item.inventoryNumber, file);
+                            }}
+                          />
+                        </label>
+                      ) : (
+                        <span className="text-[11px] text-slate-300 italic">{t("Не прикреплен")}</span>
+                      )}
+                    </td>
+                    <td className="text-slate-500 text-xs whitespace-nowrap wh-num-cell">{item.purchaseDate}</td>
+                    <td className="font-mono font-semibold text-slate-800 text-xs wh-num-cell">{item.expirationDate}</td>
+                    <td className="text-center">
+                      <span className={`wh-status-badge inline-flex items-center gap-1 px-1.5 py-0.5 rounded-lg text-[10px] font-bold border ${badgeClass}`}>
+                        {item.status === 'Истекает' && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse shrink-0" />
+                        )}
+                        {item.status === 'Действует' && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                        )}
+                        {item.status === 'Истекла' && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />
+                        )}
+                        {t(item.status)}
+                      </span>
+                      <span className="wh-status-sub">{remainingText}</span>
+                    </td>
+                    <td className="wh-actions-cell">
                       {!isViewer ? (
-                        <div className="flex items-center justify-center gap-2">
-                          {confirmDeleteInv === item.inventoryNumber ? (
-                            <div className="flex items-center gap-1.5 bg-rose-50 px-2 py-1 rounded border border-rose-200 text-xs shadow-xs select-none">
-                              <span className="text-rose-700 font-bold">{t("Удалить?")}</span>
-                              <button
-                                onClick={() => handleDeleteWarrantyRow(item.inventoryNumber)}
-                                className="px-2 py-0.5 bg-rose-600 hover:bg-rose-700 text-white rounded font-bold cursor-pointer transition-colors text-[11px]"
-                              >{t("Да")}</button>
-                              <button
-                                onClick={() => setConfirmDeleteInv(null)}
-                                className="px-2 py-0.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded font-bold cursor-pointer transition-colors text-[11px]"
-                              >{t("Нет")}</button>
-                            </div>
-                          ) : (
-                            <>
-                              <button
-                                onClick={() => {
-                                  setEditingItem(item);
-                                  setEditPurchaseDate(item.purchaseDate);
-                                  setEditWarrantyPeriod(item.warrantyPeriodMonths);
-                                  setEditProvider(item.provider);
-                                  setEditPdfFile(item.pdfFile || null);
-                                }}
-                                className="p-1 px-2.5 bg-slate-100 hover:bg-blue-600 text-slate-600 hover:text-white rounded border border-slate-200 transition-colors cursor-pointer text-xs font-semibold flex items-center gap-1"
-                              >
-                                <Edit2 size={11} />{t("Изменить")}</button>
-                              <button
-                                onClick={() => setConfirmDeleteInv(item.inventoryNumber)}
-                                className="p-1 px-2.5 bg-red-50 hover:bg-red-650 text-red-600 hover:text-white rounded border border-red-100 transition-colors cursor-pointer text-xs font-semibold flex items-center gap-1"
-                                title={t("Удалить из гарантии")}
-                              >
-                                <Trash2 size={11} />{t("Удалить")}</button>
-                            </>
-                          )}
-                        </div>
+                        confirmDeleteInv === item.inventoryNumber ? (
+                          <div className="flex items-center justify-center gap-1 text-[10px]">
+                            <span className="text-rose-700 font-bold">{t("Удалить?")}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteWarrantyRow(item.inventoryNumber)}
+                              className="px-1.5 py-0.5 rounded bg-rose-600 text-white font-bold"
+                            >
+                              {t("Да")}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setConfirmDeleteInv(null)}
+                              className="px-1.5 py-0.5 rounded bg-slate-200 text-slate-700 font-bold"
+                            >
+                              {t("Нет")}
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="wh-actions-toolbar wh-actions-toolbar--2" role="group" aria-label={t("Действие")}>
+                            <WrTableIconButton
+                              title={t("Изменить")}
+                              tone="blue"
+                              onClick={() => {
+                                setEditingItem(item);
+                                setEditPurchaseDate(item.purchaseDate);
+                                setEditWarrantyPeriod(item.warrantyPeriodMonths);
+                                setEditProvider(item.provider);
+                                setEditPdfFile(item.pdfFile || null);
+                              }}
+                            >
+                              <Edit2 size={15} strokeWidth={2} />
+                            </WrTableIconButton>
+                            <WrTableIconButton
+                              title={t("Удалить из гарантии")}
+                              tone="rose"
+                              onClick={() => setConfirmDeleteInv(item.inventoryNumber)}
+                            >
+                              <Trash2 size={15} strokeWidth={2} />
+                            </WrTableIconButton>
+                          </div>
+                        )
                       ) : (
                         <span className="text-slate-400 italic text-xs">{t("Только чтение")}</span>
                       )}
@@ -716,6 +811,13 @@ export default function WarrantiesView({
                   </tr>
                 );
               })}
+              {filtered.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="text-center py-10 text-slate-400">
+                    {t("Нет записей по заданным критериям фильтрации.")}
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

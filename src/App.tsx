@@ -47,6 +47,7 @@ import {
 import { ObjectItem, NetworkDevice, ComputerItem, EmployeeItem, EmployeeStatus, WarehouseItem, WarehouseItemType, Activity, InventoryAudit, SystemUser, UserRole, SoftwareItem, ComputerCategory, CustomWarehouse, WarehouseWriteOff, UserPreferences } from './types';
 import { getLicenseStatus, activateSystem, deactivateSystem, getSystemRequestCode, applyLicenseStateFromServer, getLicenseWorkspaceFields, canUseWarehouseExcel } from './utils/license';
 import { purgeLegacyBrowserStorage, applyWorkspaceMemFieldsFromServer, getWorkspaceMemFieldsForPayload } from './utils/memoryStorage';
+import { capActivitiesList } from './utils/activitiesCap';
 import { checkForPlatformUpdate, markInstalledCommit, buildUpdateNotificationText, shouldNotifyForUpdate, markUpdateNotified } from './utils/updateCheck';
 import { APP_VERSION } from './config/appConfig';
 import {
@@ -355,7 +356,9 @@ export default function App() {
     if (nextWarehouseItems) {
       setWarehouseItems(repairWarehousePendingDuplicates(nextWarehouseItems));
     }
-    if (Array.isArray(data.activities)) setActivities(data.activities as Activity[]);
+    if (Array.isArray(data.activities)) {
+      setActivities(capActivitiesList(data.activities as Activity[]));
+    }
     if (Array.isArray(data.audits)) setAudits(data.audits as InventoryAudit[]);
     if (Array.isArray(data.softwareItems)) setSoftwareItems(data.softwareItems as SoftwareItem[]);
     if (nextWriteOffs) setWarehouseWriteOffs(nextWriteOffs);
@@ -467,24 +470,40 @@ export default function App() {
 
   useEffect(() => {
     if (!isLoggedIn || !isLoadedFromServer) return;
+
+    let cancelled = false;
+
+    const pollRemoteRevision = async () => {
+      if (document.hidden) return;
+      const result = await apiFetch<{ revision: number }>('/api/data/revision');
+      if (!result.ok || cancelled) return;
+      const serverRev =
+        typeof result.data?.revision === 'number' ? result.data.revision : null;
+      if (serverRev === null) return;
+      if (
+        dataRevisionRef.current !== null &&
+        serverRev <= dataRevisionRef.current
+      ) {
+        return;
+      }
+      await loadDataFromServer();
+    };
+
     const interval = setInterval(() => {
-      void (async () => {
-        const result = await apiFetch<Record<string, unknown>>('/api/data');
-        if (!result.ok || !result.data || typeof result.data !== 'object') return;
-        const serverRev =
-          typeof result.data._revision === 'number' ? result.data._revision : null;
-        if (
-          serverRev !== null &&
-          dataRevisionRef.current !== null &&
-          serverRev <= dataRevisionRef.current
-        ) {
-          return;
-        }
-        applyServerPayload(result.data);
-      })();
+      void pollRemoteRevision();
     }, 30_000);
-    return () => clearInterval(interval);
-  }, [isLoggedIn, isLoadedFromServer, applyServerPayload]);
+
+    const onVisibilityChange = () => {
+      if (!document.hidden) void pollRemoteRevision();
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, [isLoggedIn, isLoadedFromServer, loadDataFromServer]);
 
   useEffect(() => {
     if (isLoggedIn && currentUser && currentUser.isBlocked) {
@@ -578,7 +597,7 @@ export default function App() {
       computers: repairedComputers,
       employees,
       warehouseItems: repairedWarehouseItems,
-      activities,
+      activities: capActivitiesList(activities),
       audits,
       softwareItems,
       warehouses,
@@ -770,7 +789,7 @@ export default function App() {
       detail,
       type,
     };
-    setActivities(prev => [newLog, ...prev]);
+    setActivities((prev) => capActivitiesList([newLog, ...prev]));
   };
 
   const pushSessionSecurityAlert = useCallback((title: string, body: string, serverNotifId?: string) => {
@@ -938,9 +957,12 @@ export default function App() {
     logActivity('Изменен элемент', `Изменены параметры (${label}, ID: ${id})`, 'update');
   };
 
-  const handleNavigateDetail = (type: 'computer' | 'network' | 'employee' | 'object' | 'warehouse', id: string) => {
-    setSelectedDetail({ type, id });
-  };
+  const handleNavigateDetail = useCallback(
+    (type: 'computer' | 'network' | 'employee' | 'object' | 'warehouse', id: string) => {
+      setSelectedDetail({ type, id });
+    },
+    []
+  );
 
   const checkLicenseBlocked = (): boolean => {
     if (licenseStatus.isExpired) {
@@ -4183,8 +4205,7 @@ export default function App() {
     }
   };
 
-  // Capitalize active view title for header
-  const getHeaderTitle = () => {
+  const headerTitle = useMemo(() => {
     switch (activeTab) {
       case 'dashboard': return workspaceName;
       case 'objects': return t('Каталог объектов и филиалов');
@@ -4205,7 +4226,7 @@ export default function App() {
       case 'other_equip': return t('Другое неучтенное оборудование');
       default: return t('Инвентаризация оборудования');
     }
-  };
+  }, [activeTab, workspaceName, t]);
 
   // Setup Dynamic Theme Palettes
   const COLOR_MAP: Record<string, string> = {
@@ -4553,7 +4574,7 @@ export default function App() {
           objects={objects}
           onNavigate={navigateToTab}
           onViewDetails={handleNavigateDetail}
-          title={getHeaderTitle()}
+          title={headerTitle}
           users={users}
           currentUser={currentUser}
           onSwitchUser={handleSwitchUser}

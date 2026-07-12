@@ -53,3 +53,16 @@ export function workspaceWarehousesChanged(
 ): boolean {
   return !warehouseCatalogsEqual(readWarehouses(before), readWarehouses(after));
 }
+
+/** Run once at server startup — do not heal-and-write on every GET /api/data poll. */
+export async function persistWorkspaceWarehouseHealIfNeeded(): Promise<void> {
+  const { loadApplicationData, saveApplicationData } = await import("./dataStore.ts");
+  const { data, revision } = await loadApplicationData();
+  if (!data) return;
+  const normalized = ensureWorkspaceWarehouses(data);
+  if (!workspaceWarehousesChanged(data, normalized)) return;
+  const result = await saveApplicationData(normalized, revision);
+  if (!result.ok && "conflict" in result && result.conflict) {
+    console.warn("[workspace] Warehouse catalog heal skipped: revision conflict");
+  }
+}

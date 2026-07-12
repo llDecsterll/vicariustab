@@ -146,7 +146,7 @@ const WIDGET_SIZE: Record<
   'detail:activities': { w: 4, h: 6, minW: 2, minH: 5, maxW: 12, maxH: 14 },
   'detail:by_object': { w: 5, h: 6, minW: 2, minH: 3, maxW: 12, maxH: 14 },
   'detail:inventory': { w: 3, h: 12, minW: 2, minH: 8, maxW: 12, maxH: 14 },
-  'detail:software_monitoring': { w: 4, h: 6, minW: 3, minH: 4, maxW: 12, maxH: 8 },
+  'detail:software_monitoring': { w: 4, h: 6, minW: 3, minH: 5, maxW: 12, maxH: 8 },
   'warehouse:title': { w: 12, h: 1, minW: 3, minH: 1, maxW: 12, maxH: 2 },
   'warehouse:laptops': { w: 2, h: 3, minW: 1, minH: 2, maxW: 6, maxH: 8 },
   'warehouse:monitors': { w: 2, h: 3, minW: 1, minH: 2, maxW: 6, maxH: 8 },
