@@ -10,6 +10,7 @@ import {
   isValidEmployeePhone,
   normalizeEmployeePhone,
 } from "../src/utils/phoneValidation.ts";
+import { validateEmployeeEmailField } from "../src/utils/emailIdn.ts";
 
 type InvCtx = {
   warehouseItems: { id?: string; inventoryNumber?: string }[];
@@ -168,10 +169,25 @@ export function validateEmployeePhones(payload: Record<string, unknown>): string
   return null;
 }
 
+export function validateEmployeeEmails(payload: Record<string, unknown>): string | null {
+  if (!Array.isArray(payload.employees)) return null;
+  for (const emp of payload.employees as { id?: string; name?: string; email?: string }[]) {
+    const email = emp.email?.trim();
+    if (!email) continue;
+    const err = validateEmployeeEmailField(email);
+    if (err) {
+      const label = emp.name?.trim() || emp.id || "?";
+      return `Некорректный email сотрудника «${label}»`;
+    }
+  }
+  return null;
+}
+
 export function validateWorkspacePayload(payload: Record<string, unknown>): string | null {
   return (
     validateWorkspaceInventory(payload) ||
     validateEmployeePhones(payload) ||
+    validateEmployeeEmails(payload) ||
     validateAdminUsersRemain(payload)
   );
 }

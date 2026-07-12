@@ -35,7 +35,6 @@ import {
 import { formatPersonShortName } from '../utils/personName';
 import { downloadDocumentAsPdf, printDocument } from '../utils/printDocument';
 import ActPrintContent, { type ActItemType } from './ActPrintContent';
-import DocStampSeal from './DocStampSeal';
 
 interface ActEditorModalProps {
   isOpen: boolean;
@@ -489,7 +488,7 @@ export default function ActEditorModal({
               >
                 <div
                   id="printable-act-block"
-                  className="doc-official-page relative w-full max-w-[210mm] bg-white border border-slate-200 shadow-lg rounded-lg p-8 text-[10px] leading-relaxed"
+                  className="doc-official-page doc-official-page--preview"
                 >
                   <ActPrintContent
                     itemType={itemType}
@@ -501,7 +500,6 @@ export default function ActEditorModal({
                     currentUser={currentUser}
                     workspaceName={workspaceName}
                   />
-                  <DocStampSeal workspaceName={workspaceName} />
                 </div>
               </div>
             </div>

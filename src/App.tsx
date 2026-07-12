@@ -119,6 +119,7 @@ import {
   isValidEmployeePhone,
   normalizeEmployeePhone,
 } from './utils/phoneValidation';
+import { normalizeEmailForStorage } from './utils/emailIdn';
 import { clearDocumentHeaderLocalStorage, applyDocumentHeaderFromServer, loadDocumentHeader, loadDocumentHeaderPresets } from './utils/documentHeader';
 import { clearInventoryLocalStorage } from './emptyWorkspace';
 import { fetchSetupStatus } from './utils/setupAuth';
@@ -2319,6 +2320,7 @@ export default function App() {
       alert(t(EMPLOYEE_PHONE_VALIDATION_ERROR_KEY));
       return;
     }
+    const storedEmail = email?.trim() ? normalizeEmailForStorage(email) : undefined;
     const newEmp: EmployeeItem = {
       id: `emp-${Date.now()}`,
       name,
@@ -2326,7 +2328,7 @@ export default function App() {
       department,
       status: status || 'Работает',
       objectName,
-      email,
+      email: storedEmail,
       phone: normalizedPhone || undefined,
     };
     setEmployees(prev => [...prev, newEmp]);
@@ -2345,7 +2347,7 @@ export default function App() {
       // Renaming employee changes the link in computer inventory items
       setComputers(prev => prev.map(c => c.employeeName === target.name ? { ...c, employeeName: name } : c));
     }
-    setEmployees(prev => prev.map(e => e.id === id ? { ...e, name, position, department, status: status || e.status || 'Работает', objectName, email, phone: normalizedPhone || undefined } : e));
+    setEmployees(prev => prev.map(e => e.id === id ? { ...e, name, position, department, status: status || e.status || 'Работает', objectName, email: email?.trim() ? normalizeEmailForStorage(email) : undefined, phone: normalizedPhone || undefined } : e));
     logActivity('Изменен профиль сотрудника', `Обновлены данные о сотруднике "${name}"`, 'update');
   };
 

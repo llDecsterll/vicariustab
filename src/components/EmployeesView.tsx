@@ -16,6 +16,13 @@ import {
   isValidEmployeePhone,
   normalizeEmployeePhone,
 } from '../utils/phoneValidation';
+import {
+  displayEmailAddress,
+  employeeEmailMatchesSearch,
+  normalizeEmailForStorage,
+  validateEmployeeEmailField,
+} from '../utils/emailIdn';
+import EmployeeEmailDisplay from './EmployeeEmailDisplay';
 import { EmployeeItem, ComputerItem, EmployeeStatus, ObjectItem } from '../types';
 import { Users, Plus, Search, Trash2, Edit2, ShieldAlert, Laptop, Briefcase, Mail, Phone, ArrowLeftRight, Check, X, MapPin, Building2 } from 'lucide-react';
 import ModalCloseButton from './ModalCloseButton';
@@ -76,6 +83,7 @@ export default function EmployeesView({
   const [status, setStatus] = useState<EmployeeStatus>('Работает');
   const [objectName, setObjectName] = useState('Без привязки');
   const [email, setEmail] = useState('');
+  const [emailError, setEmailError] = useState('');
   const [phone, setPhone] = useState('');
   const [phoneError, setPhoneError] = useState('');
 
@@ -92,6 +100,7 @@ export default function EmployeesView({
     setStatus('Работает');
     setObjectName('Без привязки');
     setEmail('');
+    setEmailError('');
     setPhone('');
     setPhoneError('');
     setShowModal(true);
@@ -104,7 +113,8 @@ export default function EmployeesView({
     setDepartment(emp.department);
     setStatus(emp.status || 'Работает');
     setObjectName(emp.objectName || 'Без привязки');
-    setEmail(emp.email || '');
+    setEmail(displayEmailAddress(emp.email || ''));
+    setEmailError('');
     setPhone(emp.phone || '');
     setShowModal(true);
   };
@@ -120,11 +130,20 @@ export default function EmployeesView({
     }
     setPhoneError('');
 
+    const emailErrKey = email.trim() ? validateEmployeeEmailField(email) : null;
+    if (emailErrKey) {
+      setEmailError(t(emailErrKey));
+      return;
+    }
+    setEmailError('');
+
+    const storedEmail = email.trim() ? normalizeEmailForStorage(email) : undefined;
+
     const finalObjectName = objectName === 'Без привязки' ? undefined : objectName;
     if (editingId) {
-      onEdit(editingId, name, position, department, status, finalObjectName, email, normalizedPhone || undefined);
+      onEdit(editingId, name, position, department, status, finalObjectName, storedEmail, normalizedPhone || undefined);
     } else {
-      onAdd(name, position, department, status, finalObjectName, email, normalizedPhone || undefined);
+      onAdd(name, position, department, status, finalObjectName, storedEmail, normalizedPhone || undefined);
     }
     setShowModal(false);
   };
@@ -226,7 +245,7 @@ export default function EmployeesView({
     const matchesSearch = e.name.toLowerCase().includes(search.toLowerCase()) || 
          e.position.toLowerCase().includes(search.toLowerCase()) || 
          e.department.toLowerCase().includes(search.toLowerCase()) ||
-         (e.email && e.email.toLowerCase().includes(search.toLowerCase())) ||
+         (e.email && employeeEmailMatchesSearch(e.email, search)) ||
          (e.phone && e.phone.toLowerCase().includes(search.toLowerCase()));
     const matchesDept = selectedDepartment === 'Все отделы' || e.department === selectedDepartment;
     const matchesObj = selectedObjectFilter === 'Все объекты' 
@@ -412,9 +431,16 @@ export default function EmployeesView({
               <div className="space-y-1.5 py-2.5 border-y border-slate-50 text-xs">
                 <div className="flex items-center justify-between text-slate-500">
                   <span className="font-semibold px-2 py-0.5 bg-slate-100 rounded text-slate-600">{emp.department}</span>
-                  <span className="text-slate-600 flex items-center gap-1 font-mono">
-                    <Mail size={12} className="text-slate-450" />
-                    {emp.email || <span className="text-slate-350 italic">{t("не указана")}</span>}
+                  <span className="text-slate-600 flex items-center gap-1 font-mono min-w-0">
+                    <Mail size={12} className="text-slate-450 shrink-0" />
+                    {emp.email ? (
+                      <EmployeeEmailDisplay
+                        email={emp.email}
+                        className="truncate hover:text-blue-600 hover:underline"
+                      />
+                    ) : (
+                      <span className="text-slate-350 italic">{t("не указана")}</span>
+                    )}
                   </span>
                 </div>
                 <div className="flex items-center justify-between text-[11px] text-slate-500">
@@ -576,12 +602,24 @@ export default function EmployeesView({
                 <div>
                   <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">{t("Эл. почта")}</label>
                   <input
-                    type="email"
+                    type="text"
+                    inputMode="email"
+                    autoComplete="email"
+                    spellCheck={false}
                     placeholder="mail@it-dep.ru"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-705 font-mono"
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      if (emailError) setEmailError('');
+                    }}
+                    aria-invalid={emailError ? true : undefined}
+                    className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-705 font-mono ${
+                      emailError ? 'border-rose-300 bg-rose-50/40' : 'border-slate-200'
+                    }`}
                   />
+                  {emailError ? (
+                    <p className="mt-1 text-[11px] font-semibold text-rose-600">{emailError}</p>
+                  ) : null}
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">{t("Телефон")}</label>

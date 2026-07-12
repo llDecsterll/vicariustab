@@ -55,6 +55,12 @@ import {
 import { findRegistryComputersForWarehouseLine } from '../utils/equipmentDelete';
 import { isVideoCameraDevice, isVideoRecorderDevice } from '../utils/warehouseRouting';
 import ModalCloseButton from './ModalCloseButton';
+import EmployeeEmailDisplay from './EmployeeEmailDisplay';
+import {
+  displayEmailAddress,
+  normalizeEmailForStorage,
+  validateEmployeeEmailField,
+} from '../utils/emailIdn';
 import ImageLightbox from './ImageLightbox';
 import EquipmentPhotoFrame from './EquipmentPhotoFrame';
 import { prepareEquipmentPhoto } from '../utils/imageUtils';
@@ -234,12 +240,22 @@ export default function DetailModal({
       ? itemType
       : null;
 
-  const handleUpdate = (type: string, id: string, updatedFields: any) => {
+  const handleUpdate = (type: string, id: string, updatedFields: Record<string, unknown>) => {
     if (isViewer) {
       alert('Ошибка: Редактирование заблокировано в режиме просмотра.');
       return;
     }
-    onUpdateItem(type, id, updatedFields);
+    const fields = { ...updatedFields };
+    if (type === 'employee' && typeof fields.email === 'string') {
+      const raw = fields.email.trim();
+      if (!raw) {
+        fields.email = undefined;
+      } else {
+        const emailErr = validateEmployeeEmailField(raw);
+        fields.email = emailErr ? raw : normalizeEmailForStorage(raw);
+      }
+    }
+    onUpdateItem(type, id, fields);
   };
   
   const photoInputRef = useRef<HTMLInputElement>(null);
@@ -1081,9 +1097,12 @@ export default function DetailModal({
                     <div>
                       <span className="text-[10px] text-slate-400 font-bold uppercase block">{t("Эл. почта")}</span>
                       <input
-                        type="email"
+                        type="text"
+                        inputMode="email"
+                        autoComplete="email"
+                        spellCheck={false}
                         placeholder="mail@corp.ru"
-                        value={item.email || ''}
+                        value={item.email ? displayEmailAddress(String(item.email)) : ''}
                         onChange={(e) => handleUpdate('employee', item.id, { email: e.target.value })}
                         className="text-xs font-bold text-slate-705 bg-transparent border-b border-transparent hover:border-slate-350 focus:outline-none py-0.5 w-full font-mono"
                       />
@@ -2068,7 +2087,11 @@ export default function DetailModal({
                         </div>
                         <div className="flex justify-between border-b border-slate-100 pb-1.5 text-slate-500">
                           <span>{t("Эл. почта:")}</span>
-                          <strong className="text-slate-705 font-semibold font-mono">{item.email || '—'}</strong>
+                          <EmployeeEmailDisplay
+                            email={item.email ? String(item.email) : undefined}
+                            className="text-slate-705 font-semibold font-mono hover:text-blue-600 hover:underline"
+                            emptyLabel="—"
+                          />
                         </div>
                         <div className="flex justify-between border-b border-slate-100 pb-1.5 text-slate-500">
                           <span>{t("Телефон:")}</span>

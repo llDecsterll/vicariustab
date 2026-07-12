@@ -10,6 +10,7 @@ import { formatPersonShortName } from '../utils/personName';
 import { getDocStatusBadgeClass } from '../utils/docStatus';
 import { getDeviceSerialDisplayLines } from '../utils/equipmentFields';
 import DocumentPrintShell from './DocumentPrintShell';
+import DocStampSeal from './DocStampSeal';
 
 function equipmentCategoryLabel(
   c: { category: string; deviceType?: string },
@@ -52,6 +53,7 @@ export default function ActPrintContent({
   employees,
   networkDevices,
   currentUser,
+  workspaceName,
 }: ActPrintContentProps) {
   const { t } = useTranslation();
   const {
@@ -93,6 +95,7 @@ export default function ActPrintContent({
           employees={employees}
           networkDevices={networkDevices}
           signerName={signerName}
+          workspaceName={workspaceName}
           t={t}
         />
       ) : itemType === 'employee' ? (
@@ -103,6 +106,7 @@ export default function ActPrintContent({
           actReceiverSub={actReceiverSub}
           clauses={clauses}
           signerName={signerName}
+          workspaceName={workspaceName}
           t={t}
         />
       ) : itemType === 'warehouse' ? (
@@ -114,6 +118,7 @@ export default function ActPrintContent({
           actReceiverSub={actReceiverSub}
           clauses={clauses}
           signerName={signerName}
+          workspaceName={workspaceName}
           t={t}
         />
       ) : (
@@ -125,6 +130,7 @@ export default function ActPrintContent({
           actReceiverSub={actReceiverSub}
           clauses={clauses}
           signerName={signerName}
+          workspaceName={workspaceName}
           t={t}
         />
       )}
@@ -139,6 +145,79 @@ function ClausesBlock({ clauses, t }: { clauses: string[]; t: (s: string) => str
       {clauses.map((text, idx) => (
         <p key={idx}>{formatClauseNumber(text, idx + 1)}</p>
       ))}
+    </div>
+  );
+}
+
+function DocPrintTable({
+  colWidths,
+  className = '',
+  children,
+}: {
+  colWidths?: string[];
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <table
+      className={`doc-equipment-table${className ? ` ${className}` : ''}`}
+      border={1}
+      cellSpacing={0}
+      cellPadding={0}
+    >
+      {colWidths && colWidths.length > 0 && (
+        <colgroup>
+          {colWidths.map((width, index) => (
+            <col key={index} style={{ width }} />
+          ))}
+        </colgroup>
+      )}
+      {children}
+    </table>
+  );
+}
+
+const DOC_TABLE_COLS = {
+  employeeEquipment: ['6%', '24%', '26%', '22%', '22%'],
+  objectEmployeeEquipment: ['28%', '28%', '22%', '22%'],
+  objectFullInventory: ['16%', '22%', '18%', '22%', '22%'],
+  warehouseDetails: ['34%', '66%'],
+  warehouseSerial: ['10%', '90%'],
+  deviceReplacement: ['14%', '22%', '32%', '32%'],
+} as const;
+
+function DocSection({
+  title,
+  children,
+  pageStart = false,
+}: {
+  title: string;
+  children: React.ReactNode;
+  pageStart?: boolean;
+}) {
+  return (
+    <section className={`doc-section${pageStart ? ' doc-section--page-start' : ''}`}>
+      <div className="doc-section-head">
+        <h2 className="doc-section-title">{title}</h2>
+      </div>
+      <div className="doc-section-body">{children}</div>
+    </section>
+  );
+}
+
+function DocClosingSection({
+  workspaceName,
+  children,
+}: {
+  workspaceName?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="doc-closing-block">
+      <div className="doc-closing-block__inner">
+        {children}
+        <DocStampSeal workspaceName={workspaceName} />
+      </div>
     </div>
   );
 }
@@ -183,6 +262,7 @@ function EmployeeActBody({
   actReceiverSub,
   clauses,
   signerName,
+  workspaceName,
   t,
 }: {
   item: Record<string, unknown>;
@@ -191,6 +271,7 @@ function EmployeeActBody({
   actReceiverSub: string;
   clauses: string[];
   signerName: string;
+  workspaceName?: string;
   t: (s: string) => string;
 }) {
   const itemName = item.name as string;
@@ -217,14 +298,13 @@ function EmployeeActBody({
         </div>
       </div>
 
-      <div className="doc-block">
-        <span className="doc-section-title">{t('1. Спецификация закрепленных технических средств (ТМЦ)')}</span>
+      <DocSection title={t('1. Спецификация закрепленных технических средств (ТМЦ)')}>
         {empComps.length === 0 ? (
           <p className="doc-empty-note">
             {t('За данным сотрудником в системе не зарегистрировано персональное ИТ-оборудование.')}
           </p>
         ) : (
-          <table className="doc-equipment-table">
+          <DocPrintTable colWidths={[...DOC_TABLE_COLS.employeeEquipment]}>
             <thead>
               <tr>
                 <th className="col-num">№</th>
@@ -242,7 +322,7 @@ function EmployeeActBody({
                   <td className="col-desc">
                     {equipmentDescriptionLabel(c)}
                     {c.replacedComponents && c.replacedComponents.length > 0 && (
-                      <div style={{ fontSize: '7pt', fontStyle: 'italic', color: '#94a3b8', marginTop: '1mm' }}>
+                      <div className="doc-table-note">
                         {t('* Модернизировано (память, SSD)')}
                       </div>
                     )}
@@ -254,18 +334,20 @@ function EmployeeActBody({
                 </tr>
               ))}
             </tbody>
-          </table>
+          </DocPrintTable>
         )}
-      </div>
+      </DocSection>
 
       <ClausesBlock clauses={clauses} t={t} />
-      <SignaturesBlock
-        leftLabel={t('Отпустил (Сдал) Администратор:')}
-        rightLabel={t('Принял на баланс Получатель:')}
-        signerName={signerName}
-        actReceiver={actReceiver}
-        t={t}
-      />
+      <DocClosingSection workspaceName={workspaceName}>
+        <SignaturesBlock
+          leftLabel={t('Отпустил (Сдал) Администратор:')}
+          rightLabel={t('Принял на баланс Получатель:')}
+          signerName={signerName}
+          actReceiver={actReceiver}
+          t={t}
+        />
+      </DocClosingSection>
     </div>
   );
 }
@@ -278,6 +360,7 @@ function WarehouseActBody({
   actReceiverSub,
   clauses,
   signerName,
+  workspaceName,
   t,
 }: {
   item: Record<string, unknown>;
@@ -287,6 +370,7 @@ function WarehouseActBody({
   actReceiverSub: string;
   clauses: string[];
   signerName: string;
+  workspaceName?: string;
   t: (s: string) => string;
 }) {
   const qty = Math.max(1, Number(item.quantity) || 1);
@@ -317,15 +401,12 @@ function WarehouseActBody({
         </div>
       </div>
 
-      <div className="doc-block">
-        <span className="doc-section-title">{t('1. Сведения о передаваемой партии')}</span>
-        <table className="doc-equipment-table doc-details-table">
+      <DocSection title={t('1. Сведения о передаваемой партии')}>
+        <DocPrintTable colWidths={[...DOC_TABLE_COLS.warehouseDetails]} className="doc-details-table">
           <tbody>
             <tr>
               <th>{t('Наименование / Модель:')}</th>
-              <td className="doc-info-value" style={{ fontSize: '9pt' }}>
-                {(item.name as string) || (item.model as string) || t('Базовое ИТ-оборудование')}
-              </td>
+              <td className="doc-info-value doc-cell-value">{item.name as string || item.model as string || t('Базовое ИТ-оборудование')}</td>
             </tr>
             <tr>
               <th>{t('Категория:')}</th>
@@ -346,36 +427,38 @@ function WarehouseActBody({
               <td>{t(String(item.warehouseName || 'Основной склад ИТ'))}</td>
             </tr>
           </tbody>
-        </table>
+        </DocPrintTable>
 
         {serialLines.length > 0 && (
-          <table className="doc-equipment-table" style={{ marginTop: '4mm' }}>
+          <DocPrintTable colWidths={[...DOC_TABLE_COLS.warehouseSerial]} className="doc-serial-table">
             <thead>
               <tr>
-                <th>{t('№')}</th>
+                <th className="col-num">{t('№')}</th>
                 <th>{t('Серийный номер')}</th>
               </tr>
             </thead>
             <tbody>
               {serialLines.map((sn, idx) => (
                 <tr key={`${sn}-${idx}`}>
-                  <td className="text-center tabular-nums">{idx + 1}</td>
+                  <td className="col-num">{idx + 1}</td>
                   <td className="mono">{sn || t('SN-НЕУКАЗАН')}</td>
                 </tr>
               ))}
             </tbody>
-          </table>
+          </DocPrintTable>
         )}
-      </div>
+      </DocSection>
 
       <ClausesBlock clauses={clauses} t={t} />
-      <SignaturesBlock
-        leftLabel={t('Отпустил (Сдал) Администратор:')}
-        rightLabel={t('Принял на баланс Получатель:')}
-        signerName={signerName}
-        actReceiver={actReceiver}
-        t={t}
-      />
+      <DocClosingSection workspaceName={workspaceName}>
+        <SignaturesBlock
+          leftLabel={t('Отпустил (Сдал) Администратор:')}
+          rightLabel={t('Принял на баланс Получатель:')}
+          signerName={signerName}
+          actReceiver={actReceiver}
+          t={t}
+        />
+      </DocClosingSection>
     </div>
   );
 }
@@ -388,6 +471,7 @@ function DeviceActBody({
   actReceiverSub,
   clauses,
   signerName,
+  workspaceName,
   t,
 }: {
   item: Record<string, unknown>;
@@ -397,6 +481,7 @@ function DeviceActBody({
   actReceiverSub: string;
   clauses: string[];
   signerName: string;
+  workspaceName?: string;
   t: (s: string) => string;
 }) {
   const replacedComponents = item.replacedComponents as { id: string; date: string; name: string; oldDetails: string; newDetails: string }[] | undefined;
@@ -421,13 +506,12 @@ function DeviceActBody({
         </div>
       </div>
 
-      <div className="doc-block">
-        <span className="doc-section-title">{t('1. Сведения о передаваемом оборудовании')}</span>
-        <table className="doc-equipment-table doc-details-table">
+      <DocSection title={t('1. Сведения о передаваемом оборудовании')}>
+        <DocPrintTable colWidths={[...DOC_TABLE_COLS.warehouseDetails]} className="doc-details-table">
           <tbody>
             <tr>
               <th>{t('Наименование / Модель:')}</th>
-              <td className="doc-info-value" style={{ fontSize: '9pt' }}>
+              <td className="doc-info-value doc-cell-value">
                 {(item.name as string) || (item.model as string) || (item.deviceName as string) || 'Базовое ИТ-оборудование'}
               </td>
             </tr>
@@ -454,16 +538,18 @@ function DeviceActBody({
               </tr>
             )}
           </tbody>
-        </table>
-      </div>
+        </DocPrintTable>
+      </DocSection>
 
       {replacedComponents && replacedComponents.length > 0 && (
-        <div className="doc-block">
-          <span className="doc-section-title">{t('2. История замен комплектующих и модернизаций')}</span>
-          <table className="doc-equipment-table">
+        <DocSection
+          title={t('2. История замен комплектующих и модернизаций')}
+          pageStart={replacedComponents.length > 4}
+        >
+          <DocPrintTable colWidths={[...DOC_TABLE_COLS.deviceReplacement]}>
             <thead>
               <tr>
-                <th>{t('Дата')}</th>
+                <th className="col-date">{t('Дата')}</th>
                 <th>{t('Название замены')}</th>
                 <th>{t('Предыдущая деталь')}</th>
                 <th>{t('Действующая деталь')}</th>
@@ -472,25 +558,27 @@ function DeviceActBody({
             <tbody>
               {replacedComponents.map(comp => (
                 <tr key={comp.id}>
-                  <td className="mono">{comp.date}</td>
-                  <td style={{ fontWeight: 700 }}>{comp.name}</td>
-                  <td style={{ fontStyle: 'italic', color: '#64748b' }}>{comp.oldDetails}</td>
-                  <td style={{ fontWeight: 700 }}>{comp.newDetails}</td>
+                  <td className="mono col-date">{comp.date}</td>
+                  <td className="doc-cell-bold">{comp.name}</td>
+                  <td className="doc-cell-muted">{comp.oldDetails}</td>
+                  <td className="doc-cell-bold">{comp.newDetails}</td>
                 </tr>
               ))}
             </tbody>
-          </table>
-        </div>
+          </DocPrintTable>
+        </DocSection>
       )}
 
       <ClausesBlock clauses={clauses} t={t} />
-      <SignaturesBlock
-        leftLabel={t('Отпустил (Сдал) Администратор:')}
-        rightLabel={t('Принял на баланс Получатель:')}
-        signerName={signerName}
-        actReceiver={actReceiver}
-        t={t}
-      />
+      <DocClosingSection workspaceName={workspaceName}>
+        <SignaturesBlock
+          leftLabel={t('Отпустил (Сдал) Администратор:')}
+          rightLabel={t('Принял на баланс Получатель:')}
+          signerName={signerName}
+          actReceiver={actReceiver}
+          t={t}
+        />
+      </DocClosingSection>
     </div>
   );
 }
@@ -501,6 +589,7 @@ function ObjectActBody({
   employees,
   networkDevices,
   signerName,
+  workspaceName,
   t,
 }: {
   item: Record<string, unknown>;
@@ -508,6 +597,7 @@ function ObjectActBody({
   employees: EmployeeItem[];
   networkDevices: NetworkDevice[];
   signerName: string;
+  workspaceName?: string;
   t: (s: string) => string;
 }) {
   const objectName = item.name as string;
@@ -522,106 +612,107 @@ function ObjectActBody({
   );
 
   return (
-    <div className="doc-block">
-      <div className="doc-act-title-block">
-        <h1>{t('Паспорт ИТ-Инвентаря и Учета Объезда')}</h1>
-        <p>
-          {t('Сводная ведомость по сотрудникам и прикрепленному оборудованию филиала:')}{' '}
-          <strong>{objectName}</strong>
-        </p>
-      </div>
-
-      <div className="doc-info-panel">
-        <div>
-          <span className="doc-info-label">{t('Объект / Филиал')}</span>
-          <strong className="doc-info-value">{objectName}</strong>
-          <span className="doc-info-sub">{item.address as string}</span>
-        </div>
-        <div className="doc-info-panel-col--right doc-object-stats">
-          <div>
-            <span className="doc-info-label">{t('Компьютеров')}</span>
-            <span className="doc-object-stat-value doc-object-stat-value--blue">
-              {computers.filter(c => c.objectName === objectName && c.category !== 'Видеонаблюдение').length} шт.
-            </span>
-          </div>
-          <div>
-            <span className="doc-info-label">{t('Сетевых систем')}</span>
-            <span className="doc-object-stat-value doc-object-stat-value--green">
-              {networkDevices.filter(n => n.objectName === objectName).reduce((sum, d) => sum + d.quantity, 0)} шт.
-            </span>
-          </div>
-          <div>
-            <span className="doc-info-label">{t('Видеонаблюдение')}</span>
-            <span className="doc-object-stat-value doc-object-stat-value--indigo">
-              {computers.filter(c => c.objectName === objectName && c.category === 'Видеонаблюдение').length} шт.
-            </span>
-          </div>
-        </div>
-      </div>
-
+    <>
       <div className="doc-block">
-        <span className="doc-section-title">{t('1. Выписка по сотрудникам и закрепленному оборудованию')}</span>
+        <div className="doc-act-title-block">
+          <h1>{t('Паспорт ИТ-Инвентаря и Учета Объезда')}</h1>
+          <p>
+            {t('Сводная ведомость по сотрудникам и прикрепленному оборудованию филиала:')}{' '}
+            <strong>{objectName}</strong>
+          </p>
+        </div>
+
+        <div className="doc-info-panel">
+          <div>
+            <span className="doc-info-label">{t('Объект / Филиал')}</span>
+            <strong className="doc-info-value">{objectName}</strong>
+            <span className="doc-info-sub">{item.address as string}</span>
+          </div>
+          <div className="doc-info-panel-col--right doc-object-stats">
+            <div>
+              <span className="doc-info-label">{t('Компьютеров')}</span>
+              <span className="doc-object-stat-value doc-object-stat-value--blue">
+                {computers.filter(c => c.objectName === objectName && c.category !== 'Видеонаблюдение').length} шт.
+              </span>
+            </div>
+            <div>
+              <span className="doc-info-label">{t('Сетевых систем')}</span>
+              <span className="doc-object-stat-value doc-object-stat-value--green">
+                {networkDevices.filter(n => n.objectName === objectName).reduce((sum, d) => sum + d.quantity, 0)} шт.
+              </span>
+            </div>
+            <div>
+              <span className="doc-info-label">{t('Видеонаблюдение')}</span>
+              <span className="doc-object-stat-value doc-object-stat-value--indigo">
+                {computers.filter(c => c.objectName === objectName && c.category === 'Видеонаблюдение').length} шт.
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <DocSection title={t('1. Выписка по сотрудникам и закрепленному оборудованию')}>
         {assignedNames.length === 0 ? (
           <p className="doc-empty-note">
             {t('На данном объекте нет сотрудников с персонально закрепленным оборудованием.')}
           </p>
         ) : (
-          <>
-            {assignedNames.map((name, index) => {
-              const emp = employees.find(e => e.name === name);
-              const empComps = objComputers.filter(c => c.employeeName === name);
-              return (
-                <div key={index} className="doc-employee-block">
-                  <div className="doc-employee-block-title">
-                    <span>{name}</span>
-                    <span className="doc-employee-block-meta">
-                      {emp?.position || 'Штатный сотрудник'} • {emp?.department || 'Не указан'}
-                    </span>
-                  </div>
-                  <table className="doc-equipment-table">
-                    <thead>
-                      <tr>
-                        <th className="col-model">{t('Модель')}</th>
-                        <th className="col-desc">{t('Описание')}</th>
-                        <th className="col-inv">{t('Инвентарный №')}</th>
-                        <th className="doc-status-cell">{t('Статус')}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {empComps.map(ec => (
-                        <tr key={ec.id}>
-                          <td className="col-model">{ec.model || '—'}</td>
-                          <td className="col-desc">{equipmentDescriptionLabel(ec)}</td>
-                          <td className="col-inv">{ec.inventoryNumber}</td>
-                          <td className="doc-status-cell">
-                            <span className={getDocStatusBadgeClass(ec.status)}>{ec.status}</span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+          assignedNames.map((name, index) => {
+            const emp = employees.find(e => e.name === name);
+            const empComps = objComputers.filter(c => c.employeeName === name);
+            return (
+              <div key={index} className="doc-employee-block">
+                <div className="doc-employee-block-title">
+                  <span>{name}</span>
+                  <span className="doc-employee-block-meta">
+                    {emp?.position || 'Штатный сотрудник'} • {emp?.department || 'Не указан'}
+                  </span>
                 </div>
-              );
-            })}
-          </>
+                <DocPrintTable colWidths={[...DOC_TABLE_COLS.objectEmployeeEquipment]}>
+                  <thead>
+                    <tr>
+                      <th className="col-model">{t('Модель')}</th>
+                      <th className="col-desc">{t('Описание')}</th>
+                      <th className="col-inv">{t('Инвентарный №')}</th>
+                      <th className="doc-status-cell">{t('Статус')}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {empComps.map(ec => (
+                      <tr key={ec.id}>
+                        <td className="col-model">{ec.model || '—'}</td>
+                        <td className="col-desc">{equipmentDescriptionLabel(ec)}</td>
+                        <td className="col-inv">{ec.inventoryNumber}</td>
+                        <td className="doc-status-cell">
+                          <span className={getDocStatusBadgeClass(ec.status)}>{ec.status}</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </DocPrintTable>
+              </div>
+            );
+          })
         )}
-      </div>
+      </DocSection>
 
-      <div className="doc-block">
-        <span className="doc-section-title">{t('2. Полный перечень ИТ-оборудования и инфраструктуры объекта')}</span>
+      <DocSection
+        title={t('2. Полный перечень ИТ-оборудования и инфраструктуры объекта')}
+        pageStart
+      >
         {objComputers.length === 0 && objNetwork.length === 0 ? (
           <p className="doc-empty-note">
             {t('Зарегистрированное оборудование отсутствует на данном объекте.')}
           </p>
         ) : (
-          <table className="doc-equipment-table">
+          <DocPrintTable colWidths={[...DOC_TABLE_COLS.objectFullInventory]}>
             <thead>
               <tr>
                 <th className="col-cat">{t('Категория / Тип')}</th>
                 <th className="col-model">{t('Модель / Описание')}</th>
                 <th className="col-inv">{t('Инв. № / IP адрес')}</th>
-                <th>{t('Спецификация')}</th>
-                <th>{t('Сотрудник / Статус')}</th>
+                <th className="col-spec">{t('Спецификация')}</th>
+                <th className="col-emp-status">{t('Сотрудник / Статус')}</th>
               </tr>
             </thead>
             <tbody>
@@ -630,9 +721,9 @@ function ObjectActBody({
                   <td className="col-cat">{equipmentCategoryLabel(c, t)}</td>
                   <td className="col-model">{c.model}</td>
                   <td className="col-inv">{c.inventoryNumber}</td>
-                  <td>{c.deviceType || 'Базовая техника'}</td>
-                  <td>
-                    <div style={{ fontWeight: 700 }}>
+                  <td className="col-spec">{c.deviceType || 'Базовая техника'}</td>
+                  <td className="col-emp-status">
+                    <div className="doc-cell-bold">
                       {c.employeeName && c.employeeName !== 'Свободен' && c.employeeName !== 'Склад' ? c.employeeName : 'Общее / Резерв'}
                     </div>
                     <span className={getDocStatusBadgeClass(c.status)}>{c.status}</span>
@@ -642,30 +733,32 @@ function ObjectActBody({
               {objNetwork.map(n => (
                 <tr key={n.id}>
                   <td className="col-cat">{t('Сеть')} ({n.type})</td>
-                  <td className="col-model" style={{ fontWeight: 700 }}>{n.deviceName}</td>
-                  <td className="col-inv" style={{ color: '#059669', fontWeight: 700 }}>{n.ipAddress || 'DHCP/Авто'}</td>
-                  <td>
+                  <td className="col-model doc-cell-bold">{n.deviceName}</td>
+                  <td className="col-inv doc-col-inv-ip">{n.ipAddress || 'DHCP/Авто'}</td>
+                  <td className="col-spec">
                     Количество: {n.quantity} шт. {n.portsCount ? `(${n.portsCount} портов)` : ''}
                   </td>
-                  <td style={{ fontWeight: 600 }}>{t('Инфраструктура объекта')}</td>
+                  <td className="col-emp-status doc-cell-semibold">{t('Инфраструктура объекта')}</td>
                 </tr>
               ))}
             </tbody>
-          </table>
+          </DocPrintTable>
         )}
-      </div>
+      </DocSection>
 
       <p className="doc-footnote">
         {t('* Данная ведомость является официальным внутренним документом ИТ-инвентаризации. Все прикрепленные устройства находятся в зоне ответственности закрепленных за ними сотрудников, либо под общим контролем материально-ответственного лица данного подразделения. Любые перемещения техники должны быть согласованы с администрацией.')}
       </p>
 
-      <SignaturesBlock
-        leftLabel={t('Выгрузку произвел Администратор:')}
-        rightLabel={t('Согласовано Руководитель объекта:')}
-        signerName={signerName}
-        actReceiver="_________________"
-        t={t}
-      />
-    </div>
+      <DocClosingSection workspaceName={workspaceName}>
+        <SignaturesBlock
+          leftLabel={t('Выгрузку произвел Администратор:')}
+          rightLabel={t('Согласовано Руководитель объекта:')}
+          signerName={signerName}
+          actReceiver="_________________"
+          t={t}
+        />
+      </DocClosingSection>
+    </>
   );
 }

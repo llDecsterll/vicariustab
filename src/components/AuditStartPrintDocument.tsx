@@ -24,7 +24,7 @@ function AuditEquipmentTable({
   t: (key: string) => string;
 }) {
   return (
-    <table className="audit-equipment-table">
+    <table className="audit-equipment-table" border={1} cellSpacing={0} cellPadding={0}>
       <colgroup>
         <col style={{ width: '4%' }} />
         <col style={{ width: '12%' }} />
@@ -48,15 +48,15 @@ function AuditEquipmentTable({
       <tbody>
         {rows.map((row) => (
           <tr key={row.index}>
-            <td className="text-center tabular-nums">{row.index}</td>
+            <td className="audit-col-num">{row.index}</td>
             <td>{t(row.category)}</td>
             <td>{row.model}</td>
-            <td className="font-mono text-[9pt]">{row.inventory}</td>
+            <td className="audit-col-mono">{row.inventory}</td>
             <td>{row.responsible}</td>
-            <td className="text-center">
+            <td className="audit-col-center">
               <span className="audit-check-box" aria-hidden />
             </td>
-            <td className="text-center">
+            <td className="audit-col-center">
               <span className="audit-check-box" aria-hidden />
             </td>
           </tr>
@@ -145,7 +145,7 @@ export default function AuditStartPrintDocument({
     return (
       <div className="audit-preview-pages">
         {rowPages.map((pageRows, pageIndex) => (
-          <div key={`audit-page-${pageIndex}`} className="audit-a4-sheet audit-preview-page text-slate-900">
+          <div key={`audit-page-${pageIndex}`} className="audit-a4-sheet audit-preview-page">
             {pageIndex === 0 ? renderHeader() : (
               <h2 className="audit-doc-title audit-doc-title--continued">{title}</h2>
             )}
@@ -168,7 +168,7 @@ export default function AuditStartPrintDocument({
   }
 
   return (
-    <div className="audit-a4-sheet text-slate-900">
+    <div className="audit-a4-sheet">
       {renderHeader()}
 
       <p className="audit-table-caption">{t('Перечень оборудования к проверке (отметить «Есть» или «Нет» напротив каждой позиции):')}</p>

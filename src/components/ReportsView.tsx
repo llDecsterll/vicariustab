@@ -605,172 +605,171 @@ export default function ReportsView({
 
       {/* Printable Report Preview structure rendered using React Portal */}
       {createPortal(
-        <div id="printable-report-area" ref={printAreaRef} className="doc-official-page hidden print:block bg-white p-8 space-y-6 text-slate-800">
+        <div id="printable-report-area" ref={printAreaRef} className="doc-official-page hidden print:block">
           <DocumentPrintShell>
-          <div className="border-b-2 border-slate-800 pb-4 flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold">{t("ОТЧЕТ ПО УЧЕТУ ИТ-ИНВЕНТАРЯ")}</h1>
-              <p className="text-xs text-slate-500 mt-1">{t("Область аналитики:")}<strong className="text-slate-850">{reportScope === 'company' ? t('Вся компания') : `${t('Объект')}: ${selectedObjectName}`}</strong>
-              </p>
-              <p className="text-xs text-slate-500">{t('Сформирован автоматически системой учета')} • {new Date().toLocaleDateString(language === 'zh' ? 'zh-CN' : language === 'en' ? 'en-US' : 'ru-RU')}</p>
+          <div className="report-print-header">
+            <div className="report-print-header-main">
+              <h1>{t("ОТЧЕТ ПО УЧЕТУ ИТ-ИНВЕНТАРЯ")}</h1>
+              <p>{t("Область аналитики:")} <strong>{reportScope === 'company' ? t('Вся компания') : `${t('Объект')}: ${selectedObjectName}`}</strong></p>
+              <p>{t('Сформирован автоматически системой учета')} • {new Date().toLocaleDateString(language === 'zh' ? 'zh-CN' : language === 'en' ? 'en-US' : 'ru-RU')}</p>
             </div>
-            <span className="font-bold text-xs uppercase text-slate-500">{t("Экземпляр №1")}</span>
+            <span className="report-print-header-badge">{t("Экземпляр №1")}</span>
           </div>
 
-          <div className="space-y-4">
-            <h2 className="text-lg font-bold border-b border-slate-300 pb-1 font-sans">{t("1. Сводные показатели")}</h2>
-            <table className="report-print-table w-full text-sm border-collapse border border-slate-300 text-left">
+          <section className="report-print-section">
+            <h2 className="report-section-title">{t("1. Сводные показатели")}</h2>
+            <table className="report-print-table" border={1} cellSpacing={0} cellPadding={0}>
               <thead>
-                <tr className="bg-slate-100">
-                  <th className="border border-slate-300 p-2">{t("Показатель")}</th>
-                  <th className="border border-slate-300 p-2 text-right">{t("Текущий параметр")}</th>
+                <tr>
+                  <th>{t("Показатель")}</th>
+                  <th className="col-right">{t("Текущий параметр")}</th>
                 </tr>
               </thead>
               <tbody>
                 <tr>
-                  <td className="border border-slate-300 p-2">{t("Общее число рабочих станций / ПК")}</td>
-                  <td className="border border-slate-300 p-2 text-right">{filteredComputers.length} {t('шт.')}</td>
+                  <td>{t("Общее число рабочих станций / ПК")}</td>
+                  <td className="col-right">{filteredComputers.length} {t('шт.')}</td>
                 </tr>
                 <tr>
-                  <td className="border border-slate-300 p-2">{t("Активно у сотрудников в работе")}</td>
-                  <td className="border border-slate-300 p-2 text-right">{filteredComputers.filter(c => c.status === 'В работе').length} {t('шт.')}</td>
+                  <td>{t("Активно у сотрудников в работе")}</td>
+                  <td className="col-right">{filteredComputers.filter(c => c.status === 'В работе').length} {t('шт.')}</td>
                 </tr>
                 <tr>
-                  <td className="border border-slate-300 p-2">{t("Роутеры и коммутаторы на сетях")}</td>
-                  <td className="border border-slate-300 p-2 text-right">{filteredNetworkDevices.length} {t('шт.')}</td>
+                  <td>{t("Роутеры и коммутаторы на сетях")}</td>
+                  <td className="col-right">{filteredNetworkDevices.length} {t('шт.')}</td>
                 </tr>
                 <tr>
-                  <td className="border border-slate-300 p-2">{t("Действующий баланс оцениваемого склада")}</td>
-                  <td className="border border-slate-300 p-2 text-right">{formatMoney(totalInvSum)}</td>
+                  <td>{t("Действующий баланс оцениваемого склада")}</td>
+                  <td className="col-right">{formatMoney(totalInvSum)}</td>
                 </tr>
                 <tr>
-                  <td className="border border-slate-300 p-2">{t("Средний возраст оборудования")}</td>
-                  <td className="border border-slate-300 p-2 text-right">
+                  <td>{t("Средний возраст оборудования")}</td>
+                  <td className="col-right">
                     {averageAgeYears !== null ? `${formatAgeYears(averageAgeYears)} ${t('лет')}` : '—'}
                   </td>
                 </tr>
                 <tr>
-                  <td className="border border-slate-300 p-2">{t("Старше 3 лет")}</td>
-                  <td className="border border-slate-300 p-2 text-right">{olderThan3} {t('шт.')}</td>
+                  <td>{t("Старше 3 лет")}</td>
+                  <td className="col-right">{olderThan3} {t('шт.')}</td>
                 </tr>
                 <tr>
-                  <td className="border border-slate-300 p-2">{t("Старше 5 лет")}</td>
-                  <td className="border border-slate-300 p-2 text-right">{olderThan5} {t('шт.')}</td>
+                  <td>{t("Старше 5 лет")}</td>
+                  <td className="col-right">{olderThan5} {t('шт.')}</td>
                 </tr>
                 <tr>
-                  <td className="border border-slate-300 p-2">{t("Старше 7 лет")}</td>
-                  <td className="border border-slate-300 p-2 text-right">{olderThan7} {t('шт.')}</td>
+                  <td>{t("Старше 7 лет")}</td>
+                  <td className="col-right">{olderThan7} {t('шт.')}</td>
                 </tr>
               </tbody>
             </table>
-          </div>
+          </section>
 
-          <div className="space-y-4 pt-6">
-            <h2 className="text-lg font-bold border-b border-slate-300 pb-1 font-sans">{t("2. Состояние оборудования")}</h2>
-            <table className="report-print-table w-full text-sm border-collapse border border-slate-300 text-left">
+          <section className="report-print-section">
+            <h2 className="report-section-title">{t("2. Состояние оборудования")}</h2>
+            <table className="report-print-table" border={1} cellSpacing={0} cellPadding={0}>
               <thead>
-                <tr className="bg-slate-100">
-                  <th className="border border-slate-300 p-2">{t("Статус")}</th>
-                  <th className="border border-slate-300 p-2 text-right">{t("Количество")}</th>
+                <tr>
+                  <th>{t("Статус")}</th>
+                  <th className="col-right">{t("Количество")}</th>
                 </tr>
               </thead>
               <tbody>
                 {REPORT_LIFECYCLE_ORDER.map((status) => (
                   <tr key={status}>
-                    <td className="border border-slate-300 p-2">{t(status)}</td>
-                    <td className="border border-slate-300 p-2 text-right">{lifecycleCounts[status]} {t('шт.')}</td>
+                    <td>{t(status)}</td>
+                    <td className="col-right">{lifecycleCounts[status]} {t('шт.')}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </div>
+          </section>
 
-          <div className="space-y-4 pt-6">
-            <h2 className="text-lg font-bold border-b border-slate-300 pb-1 font-sans">{t("3. Возраст техники")}</h2>
-            <table className="report-print-table w-full text-sm border-collapse border border-slate-300 text-left">
+          <section className="report-print-section">
+            <h2 className="report-section-title">{t("3. Возраст техники")}</h2>
+            <table className="report-print-table" border={1} cellSpacing={0} cellPadding={0}>
               <thead>
-                <tr className="bg-slate-100">
-                  <th className="border border-slate-300 p-2">{t("Возрастная группа")}</th>
-                  <th className="border border-slate-300 p-2 text-right">{t("Количество")}</th>
+                <tr>
+                  <th>{t("Возрастная группа")}</th>
+                  <th className="col-right">{t("Количество")}</th>
                 </tr>
               </thead>
               <tbody>
                 {AGE_BUCKET_ORDER.map((bucket) => (
                   <tr key={bucket}>
-                    <td className="border border-slate-300 p-2">{t(bucket)}</td>
-                    <td className="border border-slate-300 p-2 text-right">{ageBucketCounts[bucket]} {t('шт.')}</td>
+                    <td>{t(bucket)}</td>
+                    <td className="col-right">{ageBucketCounts[bucket]} {t('шт.')}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </div>
+          </section>
 
-          <div className="space-y-4 pt-6">
-            <h2 className="text-lg font-bold border-b border-slate-300 pb-1 font-sans">{t("4. История ремонтов и замен")}</h2>
+          <section className="report-print-section">
+            <h2 className="report-section-title">{t("4. История ремонтов и замен")}</h2>
             {repairHistory.length === 0 ? (
-              <p className="text-sm text-slate-500 italic">{t("Записей о ремонтах и заменах пока нет")}</p>
+              <p className="report-print-empty">{t("Записей о ремонтах и заменах пока нет")}</p>
             ) : (
-              <table className="report-print-table w-full text-[10px] border-collapse border border-slate-300 text-left">
+              <table className="report-print-table report-print-table--compact" border={1} cellSpacing={0} cellPadding={0}>
                 <thead>
-                  <tr className="bg-slate-100">
-                    <th className="border border-slate-300 p-1.5">{t("Дата")}</th>
-                    <th className="border border-slate-300 p-1.5">{t("Инв. №")}</th>
-                    <th className="border border-slate-300 p-1.5">{t("Оборудование")}</th>
-                    <th className="border border-slate-300 p-1.5">{t("Подразделение")}</th>
-                    <th className="border border-slate-300 p-1.5">{t("Комплектующая")}</th>
-                    <th className="border border-slate-300 p-1.5">{t("Было")}</th>
-                    <th className="border border-slate-300 p-1.5">{t("Стало")}</th>
-                    <th className="border border-slate-300 p-1.5">{t("Причина")}</th>
+                  <tr>
+                    <th>{t("Дата")}</th>
+                    <th>{t("Инв. №")}</th>
+                    <th>{t("Оборудование")}</th>
+                    <th>{t("Подразделение")}</th>
+                    <th>{t("Комплектующая")}</th>
+                    <th>{t("Было")}</th>
+                    <th>{t("Стало")}</th>
+                    <th>{t("Причина")}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {repairHistory.map((row) => (
                     <tr key={row.id}>
-                      <td className="border border-slate-300 p-1.5 font-mono">{row.date}</td>
-                      <td className="border border-slate-300 p-1.5 font-mono">{row.inventoryNumber}</td>
-                      <td className="border border-slate-300 p-1.5">{row.equipmentLabel}</td>
-                      <td className="border border-slate-300 p-1.5">{row.department}</td>
-                      <td className="border border-slate-300 p-1.5">{row.component}</td>
-                      <td className="border border-slate-300 p-1.5">{row.oldDetails}</td>
-                      <td className="border border-slate-300 p-1.5">{row.newDetails}</td>
-                      <td className="border border-slate-300 p-1.5">{row.reason}</td>
+                      <td className="col-mono">{row.date}</td>
+                      <td className="col-mono">{row.inventoryNumber}</td>
+                      <td>{row.equipmentLabel}</td>
+                      <td>{row.department}</td>
+                      <td>{row.component}</td>
+                      <td>{row.oldDetails}</td>
+                      <td>{row.newDetails}</td>
+                      <td>{row.reason}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             )}
-          </div>
+          </section>
 
-          <div className="space-y-4 pt-10">
-            <h2 className="text-lg font-bold border-b border-slate-300 pb-1 font-sans">{t("5. Список локаций и филиалов")}</h2>
-            <table className="report-print-table w-full text-sm border-collapse border border-slate-300 text-left">
+          <section className="report-print-section">
+            <h2 className="report-section-title">{t("5. Список локаций и филиалов")}</h2>
+            <table className="report-print-table" border={1} cellSpacing={0} cellPadding={0}>
               <thead>
-                <tr className="bg-slate-100">
-                  <th className="border border-slate-300 p-2">{t("Название объекта")}</th>
-                  <th className="border border-slate-300 p-2">{t("Физический адрес")}</th>
+                <tr>
+                  <th>{t("Название объекта")}</th>
+                  <th>{t("Физический адрес")}</th>
                 </tr>
               </thead>
               <tbody>
                 {reportScope === 'company' ? (
                   objects.map(obj => (
                     <tr key={obj.id}>
-                      <td className="border border-slate-300 p-2 font-bold">{obj.name}</td>
-                      <td className="border border-slate-300 p-2">{obj.address}</td>
+                      <td className="doc-cell-bold">{obj.name}</td>
+                      <td>{obj.address}</td>
                     </tr>
                   ))
                 ) : (
                   objects.filter(obj => obj.name === selectedObjectName).map(obj => (
                     <tr key={obj.id}>
-                      <td className="border border-slate-300 p-2 font-bold">{obj.name}</td>
-                      <td className="border border-slate-300 p-2">{obj.address}</td>
+                      <td className="doc-cell-bold">{obj.name}</td>
+                      <td>{obj.address}</td>
                     </tr>
                   ))
                 )}
               </tbody>
             </table>
-          </div>
+          </section>
 
-          <div className="pt-24 flex items-center justify-between text-xs border-t border-slate-300 text-slate-500">
+          <div className="report-print-footer">
             <span>{t("Подпись администратора аналитики: _______________________")}</span>
             <span>{t("Дата и время сверки: _______________________")}</span>
           </div>

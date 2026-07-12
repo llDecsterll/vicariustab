@@ -8,6 +8,7 @@ import {
   validateAdminUsersRemain,
   validateWorkspacePayload,
   validateEmployeePhones,
+  validateEmployeeEmails,
 } from '../../server/workspaceValidation.ts';
 import { getSoftwareWarehouseInv } from '../../src/utils/equipmentFields.ts';
 
@@ -89,5 +90,19 @@ describe('workspaceValidation', () => {
       employees: [{ id: 'e1', name: 'No Phone', phone: '' }],
     });
     assert.equal(err, null);
+  });
+
+  it('validateEmployeeEmails accepts Unicode domain', () => {
+    const err = validateEmployeeEmails({
+      employees: [{ id: 'e1', name: 'IDN', email: 'adg@пчя.рф' }],
+    });
+    assert.equal(err, null);
+  });
+
+  it('validateEmployeeEmails rejects malformed address', () => {
+    const err = validateEmployeeEmails({
+      employees: [{ id: 'e1', name: 'Bad', email: 'not-email' }],
+    });
+    assert.ok(err?.includes('email'));
   });
 });
