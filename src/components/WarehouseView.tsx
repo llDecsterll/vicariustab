@@ -260,6 +260,65 @@ function collectActiveStandardSpecs(item: {
   }).map(({ key }) => key);
 }
 
+const WH_ACTION_ICON_TONES = {
+  neutral: 'wh-action-icon--neutral',
+  blue: 'wh-action-icon--blue',
+  violet: 'wh-action-icon--violet',
+  teal: 'wh-action-icon--teal',
+  indigo: 'wh-action-icon--indigo',
+  amber: 'wh-action-icon--amber',
+  rose: 'wh-action-icon--rose',
+  emerald: 'wh-action-icon--emerald',
+} as const;
+
+function WhTableIconButton({
+  title,
+  onClick,
+  children,
+  tone = 'neutral',
+}: {
+  title: string;
+  onClick: () => void;
+  children: React.ReactNode;
+  tone?: keyof typeof WH_ACTION_ICON_TONES;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={title}
+      aria-label={title}
+      className={`wh-action-icon ${WH_ACTION_ICON_TONES[tone]}`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function WhTableActionSlot({
+  title,
+  onClick,
+  children,
+  tone = 'neutral',
+  visible,
+}: {
+  title: string;
+  onClick: () => void;
+  children: React.ReactNode;
+  tone?: keyof typeof WH_ACTION_ICON_TONES;
+  visible: boolean;
+}) {
+  if (!visible) {
+    return <span className="wh-action-icon wh-action-icon--slot" aria-hidden="true" />;
+  }
+
+  return (
+    <WhTableIconButton title={title} onClick={onClick} tone={tone}>
+      {children}
+    </WhTableIconButton>
+  );
+}
+
 export default function WarehouseView({
   warehouseItems,
   onReceipt,
@@ -1722,7 +1781,7 @@ export default function WarehouseView({
       </div>
 
       {/* Dynamic Summary Panel */}
-      <div className="bg-gradient-to-r from-slate-800 to-indigo-900 text-white p-6 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-6 shadow-md border border-slate-700/50">
+      <div className="bg-gradient-to-r from-slate-800 to-indigo-900 text-white p-5 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-md border border-slate-700/50">
         <div className="space-y-1">
           <span className="text-indigo-200 text-xs font-semibold tracking-wider uppercase">
             {currentWhTab === 'history' 
@@ -1754,7 +1813,7 @@ export default function WarehouseView({
           )}
         </div>
         
-        <div className="flex items-center gap-2.5">
+        <div className="flex flex-wrap items-center justify-start md:justify-end gap-2 shrink-0">
           <select 
             value={currency} 
             onChange={(e) => setCurrency(e.target.value as 'RUB' | 'USD' | 'CNY')}
@@ -1847,8 +1906,8 @@ export default function WarehouseView({
             </div>
           )}
           {/* Control Filters and Tabs */}
-          <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-4">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-100 shadow-sm space-y-3">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
               <div className="relative w-full max-w-md">
                 <input
                   type="text"
@@ -1877,7 +1936,7 @@ export default function WarehouseView({
             </div>
 
             {/* Placement Segment Control (All / Stock / Issued) */}
-            <div className="flex border-b border-slate-100 pb-2 mb-2 gap-1 overflow-x-auto scrollbar-none">
+            <div className="flex border-b border-slate-100 pb-1.5 gap-1 overflow-x-auto scrollbar-none">
               <button
                 type="button"
                 onClick={() => setPlacementFilter('all')}
@@ -1935,39 +1994,86 @@ export default function WarehouseView({
           <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
               <table className="warehouse-stock-table w-full text-left text-sm border-collapse">
+                <colgroup>
+                  <col className="wh-col-name" />
+                  <col className="wh-col-category" />
+                  <col className="wh-col-model" />
+                  <col className="wh-col-inv" />
+                  <col className="wh-col-date" />
+                  <col className="wh-col-qty" />
+                  <col className="wh-col-unit" />
+                  <col className="wh-col-price" />
+                  <col className="wh-col-total" />
+                  <col className="wh-col-status" />
+                  <col className="wh-col-actions" />
+                </colgroup>
                 <thead>
                   <tr className="border-b border-slate-100 bg-slate-50/50 text-slate-400">
-                    <th className="wh-col-name py-3 px-5 font-semibold text-slate-500 text-xs uppercase tracking-wider">{t("Товар / Склад хранения")}</th>
-                    <th className="wh-col-category py-3 px-5 font-semibold text-slate-500 text-xs uppercase tracking-wider">{t("Категория")}</th>
-                    <th className="wh-col-model py-3 px-5 font-semibold text-slate-500 text-xs uppercase tracking-wider">{t("Модель")}</th>
-                    <th className="wh-col-inv py-3 px-5 font-semibold text-slate-500 text-xs uppercase tracking-wider">{t("Инвентарный номер")}</th>
-                    <th className="py-3 px-5 font-semibold text-slate-500 text-xs uppercase tracking-wider">{t("Дата поступления")}</th>
-                    <th className="py-3 px-5 text-center font-semibold text-slate-500 text-xs uppercase tracking-wider">{t("Остаток")}</th>
-                    <th className="py-3 px-5 font-semibold text-slate-500 text-xs uppercase tracking-wider">{t("Ед.")}</th>
-                    <th className="py-3 px-5 text-right font-semibold text-slate-500 text-xs uppercase tracking-wider">{t("Цена за ед.")}</th>
-                    <th className="py-3 px-5 text-right font-semibold text-slate-500 text-xs uppercase tracking-wider">{t("Общая сумма")}</th>
-                    <th className="py-3 px-5 text-center font-semibold text-slate-500 text-xs uppercase tracking-wider">{t("Статус")}</th>
-                    <th className="wh-col-actions py-3 px-5 text-center font-semibold text-slate-500 text-xs uppercase tracking-wider">{t("Действия")}</th>
+                    <th className="font-semibold text-slate-500 uppercase">{t("Товар / Склад хранения")}</th>
+                    <th className="font-semibold text-slate-500 uppercase">{t("Категория")}</th>
+                    <th className="font-semibold text-slate-500 uppercase">{t("Модель")}</th>
+                    <th className="font-semibold text-slate-500 uppercase">{t("Инвентарный номер")}</th>
+                    <th className="font-semibold text-slate-500 uppercase">{t("Дата поступления")}</th>
+                    <th className="text-center font-semibold text-slate-500 uppercase">{t("Остаток")}</th>
+                    <th className="text-center font-semibold text-slate-500 uppercase">{t("Ед.")}</th>
+                    <th className="text-right font-semibold text-slate-500 uppercase">{t("Цена за ед.")}</th>
+                    <th className="text-right font-semibold text-slate-500 uppercase">{t("Общая сумма")}</th>
+                    <th className="text-center font-semibold text-slate-500 uppercase">{t("Статус")}</th>
+                    <th className="wh-actions-head text-center font-semibold text-slate-500 uppercase">{t("Действия")}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-700">
-                  {filtered.map((item) => (
+                  {filtered.map((item) => {
+                    const whItem =
+                      item.itemSource === 'warehouse'
+                        ? warehouseItems.find((w) => w.id === item.id)
+                        : undefined;
+                    const isWarehouseRow = item.itemSource === 'warehouse';
+                    const isComputerOnStock =
+                      item.itemSource === 'computer' && item.status === 'На складе';
+                    const showEdit = !isViewer && !!onEdit && isWarehouseRow;
+                    const showSplit =
+                      !isViewer && !!onSplitWarehouseStock && item.quantity > 1 && isWarehouseRow;
+                    const showMerge =
+                      !isViewer &&
+                      !!onMergeWarehouseSplit &&
+                      isWarehouseRow &&
+                      !!whItem &&
+                      canMergeSplitItem(whItem);
+                    const showDeploy = !isViewer && !!onDeployAsset && isWarehouseRow;
+                    const showTransfer =
+                      !isViewer && warehouses.length > 1 && isWarehouseRow;
+                    const showWriteOff = !isViewer && isWarehouseRow;
+                    const showMarkPending =
+                      !isViewer &&
+                      !!onMarkForWriteOff &&
+                      (isWarehouseRow ||
+                        isComputerOnStock ||
+                        item.itemSource === 'network' ||
+                        item.itemSource === 'computer');
+                    const showReturn =
+                      !isViewer &&
+                      !isWarehouseRow &&
+                      !isComputerOnStock &&
+                      (item.itemSource === 'network' || item.itemSource === 'computer');
+
+                    return (
                     <tr key={item.id} className="hover:bg-slate-50/60 transition-colors">
-                      <td className="py-3.5 px-5 font-medium text-slate-850">
-                        <div className="flex items-center gap-2.5">
-                          <span className="p-2 bg-blue-50 text-blue-601 rounded-xl shrink-0">
-                            <Warehouse size={15} />
+                      <td className="wh-name-cell font-medium text-slate-850">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="p-1.5 bg-blue-50 text-blue-601 rounded-lg shrink-0">
+                            <Warehouse size={14} />
                           </span>
-                          <div className="flex flex-col">
+                          <div className="flex flex-col min-w-0 flex-1">
                             <span 
                               onClick={() => onViewDetails?.(item.itemSource === 'warehouse' ? 'warehouse' : item.itemSource === 'computer' ? 'computer' : 'network', item.id)}
-                              className="hover:text-blue-650 hover:underline cursor-pointer font-bold text-slate-900 wh-cell-truncate"
+                              className="hover:text-blue-650 hover:underline cursor-pointer font-bold text-slate-900 wh-cell-clamp-2"
                               title={item.name}
                             >
                               {item.name}
                             </span>
-                            <span className="text-[10px] text-slate-400 font-semibold flex items-center flex-wrap gap-1 mt-0.5">
-                              <span>{t(item.warehouseName || 'Основной склад ИТ')}</span>
+                            <span className="text-[10px] text-slate-400 font-semibold flex items-center flex-wrap gap-1 mt-0.5 min-w-0">
+                              <span className="wh-cell-truncate" title={t(item.warehouseName || 'Основной склад ИТ')}>{t(item.warehouseName || 'Основной склад ИТ')}</span>
                               {item.employeeName && item.employeeName !== '—' ? (
                                 <span className="text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded text-[9px] font-bold border border-amber-200">
                                   {t("В работе:")} {item.employeeName} ({item.location})
@@ -1981,13 +2087,13 @@ export default function WarehouseView({
                           </div>
                         </div>
                       </td>
-                      <td className="py-3.5 px-5 text-slate-500 text-xs font-semibold">
-                        <span className="wh-cell-truncate" title={t(item.type)}>{t(item.type)}</span>
+                      <td className="text-slate-500 text-xs font-semibold">
+                        <span className="wh-cell-wrap" title={t(item.type)}>{t(item.type)}</span>
                       </td>
-                      <td className="py-3.5 px-5 text-slate-600 font-bold">
-                        <span className="wh-cell-truncate" title={item.model}>{item.model}</span>
+                      <td className="text-slate-600 font-bold text-xs">
+                        <span className="wh-cell-clamp-2" title={item.model}>{item.model}</span>
                       </td>
-                      <td className="py-3.5 px-5 font-mono text-slate-500 text-xs font-bold">
+                      <td className="font-mono text-slate-500 text-xs font-bold">
                         <div className="flex flex-col gap-0.5 min-w-0">
                           <span className="wh-cell-truncate" title={item.inventoryNumber}>{item.inventoryNumber}</span>
                           {item.itemSource === 'warehouse' && item.splitFromInventoryNumber && (
@@ -1997,187 +2103,151 @@ export default function WarehouseView({
                           )}
                         </div>
                       </td>
-                      <td className="py-3.5 px-5 text-slate-500 text-xs whitespace-nowrap">
+                      <td className="text-slate-500 text-xs whitespace-nowrap">
                         {formatReceiptDate(item.receiptDate) ? (
                           <span className="font-semibold">{formatReceiptDate(item.receiptDate)}</span>
                         ) : (
                           <span className="text-slate-300 italic">{t('—')}</span>
                         )}
                       </td>
-                      <td className="py-3.5 px-5 text-center">
-                        <span className={`px-2.5 py-1 rounded-lg font-mono text-xs font-bold ${item.quantity <= 2 ? 'bg-amber-50 text-amber-800 border border-amber-200' : 'text-slate-800 bg-slate-100'}`}>
+                      <td className="text-center">
+                        <span className={`wh-qty-badge px-2 py-0.5 rounded-lg font-mono text-xs font-bold ${item.quantity <= 2 ? 'bg-amber-50 text-amber-800 border border-amber-200' : 'text-slate-800 bg-slate-100'}`}>
                           {item.quantity}
                         </span>
                       </td>
-                      <td className="py-3.5 px-5 text-slate-450 text-xs">{t(item.unit || 'шт.')}</td>
-                      <td className="py-3.5 px-5 text-right font-mono text-slate-650 font-medium">{formatCurrency(item.costPerUnit)}</td>
-                      <td className="py-3.5 px-5 text-right font-mono font-extrabold text-slate-900">{formatCurrency(item.costPerUnit * item.quantity)}</td>
-                      <td className="py-3.5 px-5 text-center">
+                      <td className="text-center text-slate-450 text-xs">{t(item.unit || 'шт.')}</td>
+                      <td className="text-right font-mono text-slate-650 font-medium text-xs wh-num-cell">{formatCurrency(item.costPerUnit)}</td>
+                      <td className="text-right font-mono font-extrabold text-slate-900 text-xs wh-num-cell">{formatCurrency(item.costPerUnit * item.quantity)}</td>
+                      <td className="text-center">
                         {item.itemSource === 'warehouse' ||
                         (item.itemSource === 'computer' && item.status === 'На складе') ? (
                           item.status === 'Заказано' ? (
-                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
-                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                            <span className="wh-status-badge inline-flex items-center gap-1 px-1.5 py-0.5 rounded-lg text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse shrink-0"></span>
                               {t("Заказано")}
                             </span>
                           ) : item.status === 'Списано' ? (
-                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
-                              <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                            <span className="wh-status-badge inline-flex items-center gap-1 px-1.5 py-0.5 rounded-lg text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                              <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0"></span>
                               {t("Списано")}
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                            <span className="wh-status-badge inline-flex items-center gap-1 px-1.5 py-0.5 rounded-lg text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>
                               {t("На складе")}
                             </span>
                           )
                         ) : (
                           item.status === 'На ремонте' ? (
-                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-[10px] font-bold bg-orange-50 text-orange-700 border border-orange-200">
-                              <span className="w-1.5 h-1.5 rounded-full bg-orange-500"></span>
+                            <span className="wh-status-badge inline-flex items-center gap-1 px-1.5 py-0.5 rounded-lg text-[10px] font-bold bg-orange-50 text-orange-700 border border-orange-200">
+                              <span className="w-1.5 h-1.5 rounded-full bg-orange-500 shrink-0"></span>
                               {t("На ремонте")}
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
-                              <span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
+                            <span className="wh-status-badge inline-flex items-center gap-1 px-1.5 py-0.5 rounded-lg text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                              <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0"></span>
                               {t("В работе")}
                             </span>
                           )
                         )}
                       </td>
-                      <td className="py-3.5 px-5 text-center">
-                        <div className="flex items-center justify-center gap-1.5">
-                          {item.itemSource === 'warehouse' ? (
-                            <>
-                              {!isViewer && onEdit && (
-                                <button
-                                  onClick={() => handleOpenEdit(item.id)}
-                                  className="p-1.5 hover:bg-blue-50 rounded-lg text-slate-400 hover:text-blue-600 transition-colors cursor-pointer"
-                                  title={t("Редактировать")}
-                                >
-                                  <Edit2 size={14} />
-                                </button>
-                              )}
-                              {!isViewer && onSplitWarehouseStock && item.quantity > 1 && (
-                                <button
-                                  onClick={() => {
-                                    const wh = warehouseItems.find((w) => w.id === item.id);
-                                    if (wh) handleOpenStockSplit(wh);
-                                  }}
-                                  className="p-1.5 hover:bg-violet-50 rounded-lg text-slate-400 hover:text-violet-600 transition-colors cursor-pointer"
-                                  title={t('Разделить партию')}
-                                >
-                                  <Split size={14} />
-                                </button>
-                              )}
-                              {!isViewer && onMergeWarehouseSplit && item.itemSource === 'warehouse' && (() => {
-                                const wh = warehouseItems.find((w) => w.id === item.id);
-                                return wh && canMergeSplitItem(wh);
-                              })() && (
-                                <button
-                                  onClick={() => {
-                                    const wh = warehouseItems.find((w) => w.id === item.id);
-                                    if (wh) handleMergeSplit(wh);
-                                  }}
-                                  className="p-1.5 hover:bg-teal-50 rounded-lg text-slate-400 hover:text-teal-600 transition-colors cursor-pointer"
-                                  title={t('Собрать с партией')}
-                                >
-                                  <Combine size={14} />
-                                </button>
-                              )}
-                              {!isViewer && onDeployAsset && (
-                                <button
-                                  onClick={() => handleOpenDeploy(item)}
-                                  className="px-2 py-1.5 hover:bg-indigo-50 border border-indigo-100 hover:border-indigo-200 rounded-lg text-indigo-600 hover:text-indigo-700 transition-colors cursor-pointer flex items-center gap-1 text-[11px] font-bold"
-                                  title={t("Прикрепить / Выдать ТМЦ на объект")}
-                                >
-                                  <Plus size={11} className="text-indigo-500 shrink-0" />
-                                  <span>{t("Выдать")}</span>
-                                </button>
-                              )}
-                              {!isViewer && warehouses.length > 1 && (
-                                <button
-                                  onClick={() => handleOpenStockTransfer(item)}
-                                  className="p-1.5 hover:bg-amber-50 rounded-lg text-amber-500 hover:text-amber-700 transition-colors cursor-pointer"
-                                  title={t("Переместить на другой склад")}
-                                >
-                                  <ArrowLeftRight size={14} />
-                                </button>
-                              )}
-                              {!isViewer && (
-                                <button
-                                  onClick={() => {
-                                    const wh = warehouseItems.find((w) => w.id === item.id);
-                                    if (wh) {
-                                      openWriteOffModal({ source: buildWriteOffSourceFromWarehouse(wh) });
-                                    } else {
-                                      handleOpenWriteOff(item.inventoryNumber);
-                                    }
-                                  }}
-                                  className="px-2 py-1.5 hover:bg-rose-50 border border-rose-100 hover:border-rose-200 rounded-lg text-rose-600 hover:text-rose-700 transition-colors cursor-pointer flex items-center gap-1 text-[11px] font-bold"
-                                  title={t("Списать")}
-                                >
-                                  <span>{t("Списать")}</span>
-                                </button>
-                              )}
-                              {!isViewer && onMarkForWriteOff && (
-                                <button
-                                  onClick={() => handleMarkForWriteOffClick('warehouse', item.id)}
-                                  className="px-2 py-1.5 hover:bg-amber-50 border border-amber-100 hover:border-amber-200 rounded-lg text-amber-700 hover:text-amber-800 transition-colors cursor-pointer flex items-center gap-1 text-[11px] font-bold"
-                                  title={t("На списание")}
-                                >
-                                  <span>{t("На списание")}</span>
-                                </button>
-                              )}
-                            </>
-                          ) : item.itemSource === 'computer' && item.status === 'На складе' ? (
-                            !isViewer && onMarkForWriteOff && (
-                              <button
-                                onClick={() => handleMarkForWriteOffClick('computer', item.id)}
-                                className="px-2 py-1.5 hover:bg-rose-50 border border-rose-100 hover:border-rose-200 rounded-lg text-rose-600 hover:text-rose-700 transition-colors cursor-pointer flex items-center gap-1 text-[11px] font-bold"
-                                title={t("На списание")}
-                              >
-                                <span>{t("На списание")}</span>
-                              </button>
-                            )
-                          ) : (
-                            <div className="flex flex-col items-center gap-1.5">
-                              {!isViewer && onMarkForWriteOff && (
-                                <button
-                                  onClick={() =>
-                                    handleMarkForWriteOffClick(
-                                      item.itemSource === 'network' ? 'network' : 'computer',
-                                      item.id
-                                    )
-                                  }
-                                  className="px-2 py-1.5 hover:bg-rose-50 border border-rose-100 hover:border-rose-200 rounded-lg text-rose-600 hover:text-rose-700 transition-colors cursor-pointer flex items-center gap-1 text-[11px] font-bold"
-                                  title={t("На списание")}
-                                >
-                                  <span>{t("На списание")}</span>
-                                </button>
-                              )}
-                              <span className="text-[10px] text-slate-400 italic font-medium">
-                                {item.status === 'На ремонте' ? t("На ремонте") : item.employeeName && item.employeeName !== '—' ? t("Выдан коллеге") : t("В работе")}
-                              </span>
-                              {!isViewer && (
-                                <button
-                                  onClick={() => handleOpenActiveAssetTransition(item)}
-                                  className="px-2 py-1 hover:bg-emerald-50 border border-emerald-100 hover:border-emerald-200 rounded-lg text-emerald-600 hover:text-emerald-700 transition-colors cursor-pointer flex items-center gap-1 text-[11px] font-bold"
-                                  title={t("Вернуть на склад или переместить")}
-                                >
-                                  <RotateCcw size={11} className="text-emerald-500 shrink-0" />
-                                  <span>{t("Действие")}</span>
-                                </button>
-                              )}
-                            </div>
-                          )}
+                      <td className="wh-actions-cell">
+                        <div className="wh-actions-toolbar" role="group" aria-label={t('Действия')}>
+                          <WhTableActionSlot
+                            visible={showEdit}
+                            title={t('Редактировать')}
+                            tone="blue"
+                            onClick={() => handleOpenEdit(item.id)}
+                          >
+                            <Edit2 size={15} strokeWidth={2} />
+                          </WhTableActionSlot>
+                          <WhTableActionSlot
+                            visible={showSplit}
+                            title={t('Разделить партию')}
+                            tone="violet"
+                            onClick={() => {
+                              if (whItem) handleOpenStockSplit(whItem);
+                            }}
+                          >
+                            <Split size={15} strokeWidth={2} />
+                          </WhTableActionSlot>
+                          <WhTableActionSlot
+                            visible={showMerge}
+                            title={t('Собрать с партией')}
+                            tone="teal"
+                            onClick={() => {
+                              if (whItem) handleMergeSplit(whItem);
+                            }}
+                          >
+                            <Combine size={15} strokeWidth={2} />
+                          </WhTableActionSlot>
+                          <WhTableActionSlot
+                            visible={showDeploy}
+                            title={t('Прикрепить / Выдать ТМЦ на объект')}
+                            tone="indigo"
+                            onClick={() => handleOpenDeploy(item)}
+                          >
+                            <Plus size={16} strokeWidth={2.25} />
+                          </WhTableActionSlot>
+                          <WhTableActionSlot
+                            visible={showTransfer || showReturn}
+                            title={
+                              showReturn
+                                ? t('Вернуть на склад или переместить')
+                                : t('Переместить на другой склад')
+                            }
+                            tone={showReturn ? 'emerald' : 'amber'}
+                            onClick={() =>
+                              showReturn
+                                ? handleOpenActiveAssetTransition(item)
+                                : handleOpenStockTransfer(whItem!)
+                            }
+                          >
+                            {showReturn ? (
+                              <RotateCcw size={15} strokeWidth={2} />
+                            ) : (
+                              <ArrowLeftRight size={15} strokeWidth={2} />
+                            )}
+                          </WhTableActionSlot>
+                          <WhTableActionSlot
+                            visible={showWriteOff}
+                            title={t('Списать')}
+                            tone="rose"
+                            onClick={() => {
+                              if (whItem) {
+                                openWriteOffModal({ source: buildWriteOffSourceFromWarehouse(whItem) });
+                              } else {
+                                handleOpenWriteOff(item.inventoryNumber);
+                              }
+                            }}
+                          >
+                            <Trash2 size={15} strokeWidth={2} />
+                          </WhTableActionSlot>
+                          <WhTableActionSlot
+                            visible={showMarkPending}
+                            title={t('На списание')}
+                            tone={isWarehouseRow ? 'amber' : 'rose'}
+                            onClick={() =>
+                              handleMarkForWriteOffClick(
+                                item.itemSource === 'network'
+                                  ? 'network'
+                                  : item.itemSource === 'computer'
+                                    ? 'computer'
+                                    : 'warehouse',
+                                item.id
+                              )
+                            }
+                          >
+                            <ClipboardList size={15} strokeWidth={2} />
+                          </WhTableActionSlot>
                         </div>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                   {filtered.length === 0 && (
                     <tr>
-                      <td colSpan={12} className="text-center py-10 text-slate-400">{t("На балансе склада нет позиций по заданным критериям фильтрации.")}</td>
+                      <td colSpan={11} className="text-center py-10 text-slate-400">{t("На балансе склада нет позиций по заданным критериям фильтрации.")}</td>
                     </tr>
                   )}
                 </tbody>
